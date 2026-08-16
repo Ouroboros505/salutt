@@ -64,8 +64,18 @@ print(r[0]["id"])
 ')}"
 echo "    account $ACCOUNT_ID"
 
+export CLOUDFLARE_ACCOUNT_ID="$ACCOUNT_ID"
+
+# wrangler no longer creates a Pages project implicitly on first deploy.
+echo "==> ensuring project $PROJECT exists"
+if cf "$API/accounts/$ACCOUNT_ID/pages/projects/$PROJECT" | ok; then
+  echo "    exists"
+else
+  npx wrangler pages project create "$PROJECT" --production-branch=main
+fi
+
 echo "==> building and deploying"
-CLOUDFLARE_ACCOUNT_ID="$ACCOUNT_ID" npm run deploy
+npm run deploy
 
 echo "==> attaching $DOMAIN"
 EXISTING=$(cf "$API/accounts/$ACCOUNT_ID/pages/projects/$PROJECT/domains" \
@@ -77,7 +87,26 @@ else
   RESP=$(cf -X POST "$API/accounts/$ACCOUNT_ID/pages/projects/$PROJECT/domains" \
     --data "{\"name\":\"$DOMAIN\"}")
   if ok <<<"$RESP"; then
-    echo "    attached — certificate provisioning takes a minute or two"
+    echo "    registered with Pages"
+    # Registering the domain does NOT create the DNS record; without this the
+    # domain sits at status=pending forever and the hostname never resolves.
+    ZONE_NAME="${DOMAIN#*.}"
+    HOST="${DOMAIN%%.*}"
+    ZONE_ID=$(cf "$API/zones?name=$ZONE_NAME" \
+      | python3 -c 'import json,sys; r=json.load(sys.stdin).get("result") or []; print(r[0]["id"] if r else "")')
+    if [[ -n "$ZONE_ID" ]]; then
+      if cf "$API/zones/$ZONE_ID/dns_records?name=$DOMAIN" \
+         | python3 -c 'import json,sys; sys.exit(0 if (json.load(sys.stdin).get("result") or []) else 1)'; then
+        echo "    dns record already present"
+      else
+        cf -X POST "$API/zones/$ZONE_ID/dns_records" \
+          --data "{\"type\":\"CNAME\",\"name\":\"$HOST\",\"content\":\"$PROJECT.pages.dev\",\"proxied\":true}" >/dev/null
+        echo "    dns record created — certificate takes a minute or two"
+      fi
+    else
+      echo "    could not find zone $ZONE_NAME; add the CNAME by hand:" >&2
+      echo "      $HOST CNAME $PROJECT.pages.dev (proxied)" >&2
+    fi
   else
     echo "    could not attach automatically:" >&2
     python3 -c 'import json,sys; print("   ", json.load(sys.stdin).get("errors"))' <<<"$RESP" >&2
