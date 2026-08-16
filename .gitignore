@@ -13,3 +13,4 @@ android/
 *.keystore
 *.jks
 twa-manifest.json
+SECRETS.local.md

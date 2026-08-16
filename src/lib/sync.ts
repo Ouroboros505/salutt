@@ -48,61 +48,68 @@ const COMMON = new Set([
   'master', 'shadow', 'michael', 'jennifer', 'hunter', 'ranger', 'secret', 'salutt',
 ])
 
+/** Entropy contributed by one run of letters/digits, judged by what it is. */
+function tokenBits(token: string): number {
+  const lower = token.toLowerCase()
+
+  if (/^[a-zA-Z]+$/.test(token)) {
+    if (token.length < 3) return token.length * 2
+    if (COMMON.has(lower)) return 4
+    // A word is one pick from a vocabulary, not a string of random letters.
+    if (WORDS.includes(lower)) return Math.log2(WORDS.length)
+    return 11
+  }
+
+  if (/^\d+$/.test(token)) {
+    // Long digit runs are dates, years and phone numbers far more often than
+    // they are random, so they buy much less than log2(10) per digit.
+    return token.length >= 4 ? token.length * 1.4 : token.length * 3.32
+  }
+
+  // Letters and digits mixed in one run: score each run for what it is rather
+  // than counting the whole thing as random characters. Otherwise `password1`
+  // reads as nine random symbols, and a surname with a year attached scores
+  // higher than a five-word phrase.
+  const runs = token.match(/[a-zA-Z]+|\d+/g) ?? []
+  if (runs.length > 1) {
+    return runs.reduce((n, r) => n + tokenBits(r), 0)
+  }
+  return token.length * 2
+}
+
 /**
  * Rough entropy of a secret the user typed themselves, in bits.
  *
  * The job is not precision, it is refusing to call something strong when it is
- * not. Naive per-character counting scores `password1` at 47 bits and a
- * surname plus a year at 83, which is exactly backwards — both are among the
- * first things anyone would try. So words are counted as words, and the shapes
- * people actually pick are penalised specifically.
+ * not. Every run of characters is scored for what it actually is — a word, a
+ * date, a random-looking blob — and the parts are added up. Scoring the whole
+ * string by length and character classes gets this badly wrong in both
+ * directions: it rates `password1` at 47 bits, and it rated a mixed phrase
+ * *lower* than a shorter one because a different branch happened to fire.
  */
 export function estimateBits(secret: string): number {
   const s = secret.trim()
   if (!s) return 0
 
-  const lower = s.toLowerCase()
-  const tokens = lower.split(/[^a-z0-9]+/).filter(Boolean)
-  const wordTokens = tokens.filter((t) => /^[a-z]+$/.test(t) && t.length >= 3)
+  const tokens = s.split(/[^A-Za-z0-9]+/).filter(Boolean)
+  if (tokens.length === 0) return 0
 
   // A phrase generated from the EFF list: entropy is exactly the dice roll.
-  if (wordTokens.length >= 4 && wordTokens.every((w) => WORDS.includes(w))) {
-    return Math.round(wordTokens.length * Math.log2(WORDS.length))
+  const lowered = tokens.map((t) => t.toLowerCase())
+  if (tokens.length >= 4 && lowered.every((t) => WORDS.includes(t))) {
+    return Math.round(tokens.length * Math.log2(WORDS.length))
   }
 
-  // Several words the user chose. Words are not random characters — counting
-  // them per character wildly overstates a phrase like "correct horse battery
-  // staple". Roughly 11 bits per word is the usual conservative figure.
-  if (wordTokens.length >= 3) {
-    const digitTokens = tokens.filter((t) => /^\d+$/.test(t))
-    const digitBits = digitTokens.reduce((n, t) => n + t.length * 3.32, 0)
-    const penalty = wordTokens.some((w) => COMMON.has(w)) ? 11 : 0
-    return Math.max(0, Math.round(wordTokens.length * 11 + digitBits - penalty))
-  }
+  let bits = tokens.reduce((n, t) => n + tokenBits(t), 0)
 
-  // One word with digits stuck on the end is the single most common password
-  // shape there is, and its strength is the word plus the digits, nothing more.
-  const wordDigits = /^([a-z]+)(\d{1,6})$/.exec(lower.replace(/[^a-z0-9]/g, ''))
-  if (wordDigits) {
-    const [, word, digits] = wordDigits
-    const wordBits = COMMON.has(word) ? 5 : 11
-    return Math.round(wordBits + digits.length * 3.32)
-  }
+  // Punctuation between the parts is structure, not really choice.
+  const separators = new Set(s.match(/[^A-Za-z0-9]/g) ?? [])
+  bits += Math.min(4, separators.size * 2)
 
-  let pool = 0
-  if (/[a-z]/.test(s)) pool += 26
-  if (/[A-Z]/.test(s)) pool += 26
-  if (/[0-9]/.test(s)) pool += 10
-  if (/[^a-zA-Z0-9]/.test(s)) pool += 20
-  let bits = s.length * Math.log2(pool || 1)
-
-  // A year, a date, or a long digit run is almost never a random choice.
-  if (/\b(19|20)\d{2}\b/.test(s)) bits -= 14
-  const digits = s.replace(/\D/g, '')
-  if (digits.length >= 6) bits -= digits.length * 1.5
+  // Shapes that are guessed early regardless of how long they are.
+  if (/\b(19|20)\d{2}\b/.test(s)) bits -= 10
   if (/(.)\1{2,}/.test(s)) bits -= 8
   if (/(abc|bcd|cde|123|234|345|456|567|678|789|qwe|asd|zxc)/i.test(s)) bits -= 10
-  if (COMMON.has(lower.replace(/[^a-z]/g, ''))) bits -= 25
 
   return Math.max(0, Math.round(bits))
 }
