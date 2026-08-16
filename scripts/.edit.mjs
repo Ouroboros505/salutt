@@ -148,6 +148,14 @@ function touch(row) {
 var summarise = (data) => Object.entries(data).filter(([, rows]) => Array.isArray(rows) && rows.length).map(([t, rows]) => `${t}=${rows.length}`).join(" ");
 function change(data) {
   const notes = [];
+  const before = data.entries?.length ?? 0;
+  const junk = (data.entries ?? []).filter((e) => e.name === "offline entry");
+  data.entries = (data.entries ?? []).filter((e) => e.name !== "offline entry");
+  for (const e of junk) {
+    ;
+    (data.tombstones ??= []).push({ table: "entries", key: e.id, at: Date.now() });
+  }
+  if (before !== data.entries.length) notes.push(`removed ${before - data.entries.length} test entry`);
   return notes;
 }
 async function main() {

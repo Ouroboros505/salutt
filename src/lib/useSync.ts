@@ -31,6 +31,7 @@ export function useSync(settings: Settings) {
   const lastSync = useRef(settings.lastSync)
   lastSync.current = settings.lastSync
   const lastMerge = useRef(0)
+  const retries = useRef(0)
 
   const signature = useCallback(async () => {
     const [entries, weighIns, workouts, measurements, foods, templates, recipes] = await Promise.all([
@@ -75,6 +76,7 @@ export function useSync(settings: Settings) {
         setRemoteAt(report.updatedAt)
         setError(null)
         setState('idle')
+        retries.current = 0
         return report
       } catch (e) {
         setError(e instanceof WrongSecretError ? e.message : (e as Error).message)
@@ -95,19 +97,48 @@ export function useSync(settings: Settings) {
     void syncNow(true)
   }, [secret, syncNow])
 
-  // While the app is in front, and once more on the way out.
+  /**
+   * Every moment worth syncing at, so it never needs asking for.
+   *
+   * On a timer while the app is in front; on the way out, which is the last
+   * chance before the page may be discarded; and on the way back in, since
+   * anything written elsewhere while it was away is only visible now.
+   *
+   * A failed sync is the case that used to strand data: log something with no
+   * signal and nothing tried again until the app was next opened. So a failure
+   * schedules a retry, and reconnecting triggers one immediately.
+   */
   useEffect(() => {
     if (!secret) return
     const timer = window.setInterval(() => void syncNow(), 5 * 60 * 1000)
-    const onHide = () => {
-      if (document.visibilityState === 'hidden') void syncNow()
+
+    const onVisibility = () => {
+      // Leaving: push what just happened. Returning: collect what did not
+      // happen here.
+      void syncNow(document.visibilityState === 'visible')
     }
-    document.addEventListener('visibilitychange', onHide)
+    const onOnline = () => void syncNow(true)
+
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('online', onOnline)
     return () => {
       window.clearInterval(timer)
-      document.removeEventListener('visibilitychange', onHide)
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('online', onOnline)
     }
   }, [secret, syncNow])
+
+  // Back off and try again after a failure, rather than waiting for the next
+  // time the app happens to be opened.
+  useEffect(() => {
+    if (state !== 'error' || !secret) return
+    const wait = Math.min(5 * 60 * 1000, 20 * 1000 * 2 ** Math.min(retries.current, 4))
+    const timer = window.setTimeout(() => {
+      retries.current++
+      void syncNow(true)
+    }, wait)
+    return () => window.clearTimeout(timer)
+  }, [state, secret, syncNow])
 
   return { state, error, remoteAt, syncNow }
 }

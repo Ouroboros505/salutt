@@ -50,6 +50,16 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
+  // Remove the entry left behind by the offline-sync test.
+  const before = data.entries?.length ?? 0
+  const junk = (data.entries ?? []).filter((e) => e.name === 'offline entry')
+  data.entries = (data.entries ?? []).filter((e) => e.name !== 'offline entry')
+  for (const e of junk) {
+    // A deletion has to travel as a tombstone, or the phone merges it back.
+    ;(data.tombstones ??= []).push({ table: 'entries', key: e.id, at: Date.now() })
+  }
+  if (before !== data.entries.length) notes.push(`removed ${before - data.entries.length} test entry`)
+
   // --- example, currently a no-op -------------------------------------------
   // const recipe = data.recipes?.find((r) => r.name.includes('Braised'))
   // if (recipe) {
