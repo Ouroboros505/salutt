@@ -172,6 +172,25 @@ def off_fetch(query, page, page_size=100):
         return json.load(resp)
 
 
+def tidy_serving_label(label):
+    """
+    Open Food Facts carries whatever the contributor typed, so ounces arrive
+    as ONZ, OZA or a bare "z". The label is what you pick from a list, so it
+    is worth reading like a measure rather than a transcription error.
+    """
+    out = re.sub(r"\s+", " ", label).strip()
+    out = re.sub(r"(?i)\b(onza|onz|oza|oz)\b", "oz", out)
+    # A stray "1.0 z (28 g)" is the same mangling with the o already eaten.
+    out = re.sub(r"(?i)(?<=\d)\s*z\b", " oz", out)
+    # "1.0 cup" reads as a transcription; "1 cup" reads as a measure.
+    out = re.sub(r"(\d+)\.0(?!\d)", r"\1", out)
+    # "28 g (1 oz)" states the weight twice over; lead with the measure.
+    swapped = re.fullmatch(r"[\d.]+ ?(?:g|ml) \((.+)\)", out)
+    if swapped:
+        out = swapped.group(1).strip()
+    return out
+
+
 def serving_portion(serving_size, serving_quantity):
     """
     A packet states its nutrition per serving and tells you what that serving
@@ -185,10 +204,13 @@ def serving_portion(serving_size, serving_quantity):
     # Outside this range it is a unit mix-up or a failed parse upstream.
     if not 1 <= grams <= 1000:
         return []
-    label = clean(serving_size or "")
+    label = tidy_serving_label(clean(serving_size or ""))
     # "30 g" says nothing the grams beside it do not; a household measure does.
-    if not label or re.fullmatch(r"[\d.,]+\s*(g|gr|gram|grams|ml|mL|l)\.?", label):
+    if not label or re.fullmatch(r"(?i)[\d.,]+ ?(g|gr|gram|grams|ml|l|litre|liter)\.?", label):
         label = f"1 serving ({grams:g} g)"
+    elif not re.search(r"\(", label):
+        # Say what it weighs, since that is what the arithmetic uses.
+        label = f"{label} ({grams:g} g)"
     return [[label[:40], round(grams, 1)]]
 
 
