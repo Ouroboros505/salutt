@@ -5,6 +5,13 @@ import { ageFrom, bmrMifflin, computeTargets } from '../lib/metrics'
 import { Field, Icon, Sheet } from '../components/ui'
 import { bluetoothBlockedReason, canRememberDevices } from '../lib/scale'
 import { foodDbSize } from '../lib/foodDb'
+import {
+  backupOverdue,
+  formatBytes,
+  requestPersistentStorage,
+  storageStatus,
+  type StorageStatus,
+} from '../lib/storage'
 
 const ACTIVITY = [
   { v: 1.2, label: 'Sedentary — desk work, little movement' },
@@ -41,6 +48,10 @@ export default function Settings({
   useEffect(() => {
     foodDbSize().then(setDbCount).catch(() => setDbCount(0))
   }, [])
+
+  const [store, setStore] = useState<StorageStatus | null>(null)
+  const refreshStore = () => void storageStatus().then(setStore)
+  useEffect(refreshStore, [])
   const preview = computeTargets(s, s.startWeightKg ?? 75, null)
 
   return (
@@ -205,12 +216,68 @@ export default function Settings({
       {/* ------------------------------------------------ data */}
       <div className="card tight">
         <h3>Your data</h3>
+
         <div className="tiny muted">
-          Everything lives on this device. Back up regularly — clearing browser storage would take the
-          log with it.
+          Everything is stored on this device only, in this browser's database for{' '}
+          <strong>{location.host}</strong>. Nothing is sent to a server — there is no server copy to
+          fall back on, which is what makes the backup file matter.
         </div>
+
+        {store && (
+          <>
+            <div className="grid-2">
+              <div className="stack tight">
+                <div className="stat-label">Logged</div>
+                <div className="stat-value num">{store.daysLogged}</div>
+                <div className="tiny muted">days of food</div>
+              </div>
+              <div className="stack tight">
+                <div className="stat-label">Weigh-ins</div>
+                <div className="stat-value num">{store.rows.weighIns}</div>
+                <div className="tiny muted">
+                  {store.rows.workouts} sessions · {formatBytes(store.usageBytes)}
+                </div>
+              </div>
+            </div>
+
+            {store.persistent ? (
+              <div className="tiny" style={{ color: 'var(--success-text)' }}>
+                Storage is marked persistent — Android will not evict it to reclaim space.
+              </div>
+            ) : (
+              <div className="stack tight">
+                <div className="tiny" style={{ color: 'var(--serious)' }}>
+                  Storage is <strong>not</strong> persistent. Android may clear it if the phone runs
+                  low on space. Installing Salutt to the home screen usually earns this
+                  automatically.
+                </div>
+                <button
+                  className="btn sm"
+                  onClick={async () => {
+                    const ok = await requestPersistentStorage()
+                    toast(ok ? 'Storage is now persistent' : 'The browser declined')
+                    refreshStore()
+                  }}
+                >
+                  Request persistent storage
+                </button>
+              </div>
+            )}
+
+            {backupOverdue(s.lastBackup, store.daysLogged) && (
+              <div className="tiny" style={{ color: 'var(--serious)' }}>
+                {s.lastBackup
+                  ? `Last backup was ${Math.floor((Date.now() - s.lastBackup) / 86400000)} days ago.`
+                  : 'You have never exported a backup.'}
+              </div>
+            )}
+          </>
+        )}
+
         {s.lastBackup && (
-          <div className="tiny muted">Last backup {new Date(s.lastBackup).toLocaleDateString()}</div>
+          <div className="tiny muted">
+            Last backup {new Date(s.lastBackup).toLocaleDateString()}
+          </div>
         )}
 
         <button
@@ -221,6 +288,7 @@ export default function Settings({
             try {
               const name = await exportBackup()
               toast(`Saved ${name}`)
+              refreshStore()
             } catch (e) {
               if ((e as DOMException)?.name !== 'AbortError') toast('Export failed')
             } finally {

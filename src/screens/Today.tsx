@@ -6,6 +6,8 @@ import { addDays, formatDay, todayISO } from '../lib/date'
 import { adaptiveTDEE, computeTargets, weightTrend } from '../lib/metrics'
 import { Icon, Meter, Sheet } from '../components/ui'
 import AddFood from '../components/AddFood'
+import { exportBackup } from '../lib/backup'
+import { backupOverdue, storageStatus } from '../lib/storage'
 
 const MEAL_LABEL: Record<Meal, string> = {
   breakfast: 'Breakfast',
@@ -33,6 +35,7 @@ export default function Today({
   const [editing, setEditing] = useState<Entry | null>(null)
   const [saving, setSaving] = useState<{ meal: Meal; items: Entry[] } | null>(null)
 
+
   // Launched from the "Log food" icon shortcut: go straight to adding.
   useEffect(() => {
     if (launch !== 'food') return
@@ -47,6 +50,17 @@ export default function Today({
   const templates =
     useLiveQuery(() => db.mealTemplates.orderBy('lastUsed').reverse().limit(6).toArray(), []) ?? []
   const workouts = useLiveQuery(() => db.workouts.where('date').equals(date).toArray(), [date]) ?? []
+
+  // There is no server copy, so an old backup is the one silent way to lose
+  // months of logging. Surfaced here rather than buried in Settings, and only
+  // once there is enough logged to be worth protecting.
+  const [needsBackup, setNeedsBackup] = useState(false)
+  const [dismissed, setDismissed] = useState(false)
+  useEffect(() => {
+    void storageStatus().then((st) =>
+      setNeedsBackup(backupOverdue(settings.lastBackup, st.daysLogged)),
+    )
+  }, [settings.lastBackup, entries.length])
 
   const trend = weightTrend(weighIns, settings.trendHalfLifeDays)
   const currentKg = trend.length ? trend[trend.length - 1].trend : null
@@ -85,6 +99,34 @@ export default function Today({
           <Icon.chevron />
         </button>
       </div>
+
+      {needsBackup && !dismissed && (
+        <div className="card tight" style={{ borderColor: 'var(--serious)' }}>
+          <div className="small">
+            <strong>Back up your log.</strong> It exists only on this phone — clearing browser data
+            or losing the device would take it with it.
+          </div>
+          <div className="row" style={{ gap: 8 }}>
+            <button
+              className="btn sm primary grow"
+              onClick={async () => {
+                try {
+                  const name = await exportBackup()
+                  toast(`Saved ${name}`)
+                  setNeedsBackup(false)
+                } catch (e) {
+                  if ((e as DOMException)?.name !== 'AbortError') toast('Export failed')
+                }
+              }}
+            >
+              Export now
+            </button>
+            <button className="btn sm ghost muted" onClick={() => setDismissed(true)}>
+              Later
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ------------------------------------------------------ calories */}
       <div className="card">
