@@ -10,7 +10,8 @@
     "preview": "vite preview --host",
     "test:scale": "esbuild test/scale.test.ts --bundle --platform=node --format=esm --outfile=test/.build.mjs --log-level=error && node test/.build.mjs",
     "deploy": "npm run build && npx wrangler pages deploy dist --project-name=salutt",
-    "setup:domain": "bash scripts/setup-domain.sh"
+    "setup:domain": "bash scripts/setup-domain.sh",
+    "setup:sync": "bash scripts/setup-sync.sh"
   },
   "dependencies": {
     "dexie": "^4.0.11",
@@ -19,6 +20,7 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260816.1",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
     "@types/web-bluetooth": "^0.0.21",

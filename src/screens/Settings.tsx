@@ -5,8 +5,9 @@ import { ageFrom, bmrMifflin, computeTargets } from '../lib/metrics'
 import { Field, Icon, Sheet } from '../components/ui'
 import { bluetoothBlockedReason, canRememberDevices } from '../lib/scale'
 import { foodDbSize } from '../lib/foodDb'
+import SyncSetup from '../components/SyncSetup'
+import { push } from '../lib/sync'
 import {
-  backupOverdue,
   formatBytes,
   requestPersistentStorage,
   storageStatus,
@@ -49,6 +50,9 @@ export default function Settings({
     foodDbSize().then(setDbCount).catch(() => setDbCount(0))
   }, [])
 
+  const [syncOpen, setSyncOpen] = useState(false)
+  const [syncBusy, setSyncBusy] = useState(false)
+  const [showCode, setShowCode] = useState(false)
   const [store, setStore] = useState<StorageStatus | null>(null)
   const refreshStore = () => void storageStatus().then(setStore)
   useEffect(refreshStore, [])
@@ -217,11 +221,72 @@ export default function Settings({
       <div className="card tight">
         <h3>Your data</h3>
 
-        <div className="tiny muted">
-          Everything is stored on this device only, in this browser's database for{' '}
-          <strong>{location.host}</strong>. Nothing is sent to a server — there is no server copy to
-          fall back on, which is what makes the backup file matter.
-        </div>
+        {s.syncSecret ? (
+          <>
+            <div className="tiny" style={{ color: 'var(--success-text)' }}>
+              Backed up to the server, encrypted on this device. A new phone needs only your
+              recovery code.
+            </div>
+            {s.lastSync && (
+              <div className="tiny muted">
+                Last synced {new Date(s.lastSync).toLocaleString()}
+              </div>
+            )}
+            <div className="row" style={{ gap: 8 }}>
+              <button
+                className="btn sm grow"
+                disabled={syncBusy}
+                onClick={async () => {
+                  setSyncBusy(true)
+                  try {
+                    await push(s.syncSecret!)
+                    toast('Synced')
+                    refreshStore()
+                  } catch (e) {
+                    toast((e as Error).message)
+                  } finally {
+                    setSyncBusy(false)
+                  }
+                }}
+              >
+                {syncBusy ? 'Syncing…' : 'Sync now'}
+              </button>
+              <button className="btn sm grow" onClick={() => setShowCode((v) => !v)}>
+                {showCode ? 'Hide code' : 'Show code'}
+              </button>
+            </div>
+            {showCode && (
+              <div className="card tight">
+                <div className="tiny muted">Recovery code — this is what restores your data.</div>
+                <div className="num" style={{ fontWeight: 650, wordBreak: 'break-all' }}>
+                  {s.syncSecret}
+                </div>
+                <button
+                  className="btn sm"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(s.syncSecret!)
+                      toast('Copied')
+                    } catch {
+                      toast('Select and copy it by hand')
+                    }
+                  }}
+                >
+                  Copy
+                </button>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="tiny" style={{ color: 'var(--serious)' }}>
+              This log exists only on this phone. Losing or wiping the device loses it.
+            </div>
+            <button className="btn primary block" onClick={() => setSyncOpen(true)}>
+              Set up encrypted sync
+            </button>
+          </>
+        )}
 
         {store && (
           <>
@@ -264,13 +329,6 @@ export default function Settings({
               </div>
             )}
 
-            {backupOverdue(s.lastBackup, store.daysLogged) && (
-              <div className="tiny" style={{ color: 'var(--serious)' }}>
-                {s.lastBackup
-                  ? `Last backup was ${Math.floor((Date.now() - s.lastBackup) / 86400000)} days ago.`
-                  : 'You have never exported a backup.'}
-              </div>
-            )}
           </>
         )}
 
@@ -384,6 +442,12 @@ export default function Settings({
           />
         </label>
       </div>
+
+      {syncOpen && (
+        <Sheet title="Encrypted sync" onClose={() => setSyncOpen(false)}>
+          <SyncSetup settings={s} onClose={() => setSyncOpen(false)} toast={toast} />
+        </Sheet>
+      )}
 
       {/* ------------------------------------------------ danger */}
       <DangerZone toast={toast} onDone={onClose} />

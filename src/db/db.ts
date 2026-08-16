@@ -148,6 +148,9 @@ export interface Settings {
   athlete?: boolean
   usdaApiKey?: string
   lastBackup?: number
+  /** Recovery code for encrypted sync. Derives both the id and the key. */
+  syncSecret?: string
+  lastSync?: number
   startWeightKg?: number
   goalWeightKg?: number
 }

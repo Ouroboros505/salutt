@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, DEFAULT_SETTINGS } from './db/db'
+import { db, DEFAULT_SETTINGS, type Settings as SettingsType } from './db/db'
 import { todayISO } from './lib/date'
 import { Icon, Toast } from './components/ui'
 import Today from './screens/Today'
@@ -14,6 +14,8 @@ import ScaleResult from './components/ScaleResult'
 import { Sheet } from './components/ui'
 import { bluetoothBlockedReason, pickScale } from './lib/scale'
 import { useScaleListener } from './lib/useScaleListener'
+import { useSync } from './lib/useSync'
+import { pull } from './lib/sync'
 
 export type Tab = 'today' | 'foods' | 'body' | 'train' | 'insights'
 
@@ -41,6 +43,74 @@ const TITLES: Record<Tab, string> = {
   body: 'Body',
   train: 'Training',
   insights: 'Insights',
+}
+
+/**
+ * Runs background sync and surfaces the one case it refuses to resolve alone:
+ * a server copy newer than anything this device has seen, which means another
+ * device wrote it. Overwriting either side silently is how a day of logging
+ * disappears, so it asks.
+ */
+function SyncGate({ settings, toast }: { settings: SettingsType; toast: (m: string) => void }) {
+  const sync = useSync(settings)
+  const [busy, setBusy] = useState(false)
+
+  if (sync.state !== 'remote-newer') return null
+
+  return (
+    <div className="sheet-backdrop" role="dialog" aria-modal="true">
+      <div className="sheet">
+        <div className="sheet-head">
+          <h2 className="grow">Newer data on the server</h2>
+        </div>
+        <div className="sheet-body">
+          <div className="small secondary">
+            The stored copy was updated {sync.remoteAt ? new Date(sync.remoteAt).toLocaleString() : ''}
+            , after this device last synced. That usually means you logged something on another
+            device.
+          </div>
+          <button
+            className="btn primary block"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true)
+              try {
+                const n = await pull(settings.syncSecret!)
+                toast(`Restored ${n} entries from the server`)
+                sync.dismissRemote()
+              } catch (e) {
+                toast((e as Error).message)
+              } finally {
+                setBusy(false)
+              }
+            }}
+          >
+            Use the server copy
+          </button>
+          <button
+            className="btn block"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true)
+              try {
+                await sync.syncNow(true)
+                toast('This device is now the stored copy')
+                sync.dismissRemote()
+              } finally {
+                setBusy(false)
+              }
+            }}
+          >
+            Keep what is on this phone
+          </button>
+          <div className="tiny muted">
+            Whichever you choose replaces the other. The previous server copy is kept for one
+            generation, so a wrong choice here is recoverable.
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export function useToast() {
@@ -206,6 +276,8 @@ export default function App() {
           />
         </Sheet>
       )}
+
+      <SyncGate settings={settings} toast={show} />
 
       {settingsOpen && <Settings settings={settings} onClose={() => setSettingsOpen(false)} toast={show} />}
       {message && <Toast message={message} />}
