@@ -10,6 +10,16 @@
 # it already exists.
 set -euo pipefail
 
+# Credentials live in a gitignored .env.local next to the project, rather than
+# in a shell rc file: it is explicit, easy to delete, and does not depend on
+# which shell or profile happens to be loaded.
+if [[ -f "$(dirname "$0")/../.env.local" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$(dirname "$0")/../.env.local"
+  set +a
+fi
+
 PROJECT="${PAGES_PROJECT:-salutt}"
 DOMAIN="${PAGES_DOMAIN:-salutt.montejongas.com}"
 API="https://api.cloudflare.com/client/v4"
@@ -22,7 +32,9 @@ CLOUDFLARE_API_TOKEN is not set.
      Permissions: Account | Cloudflare Pages  | Edit
                   Account | Account Settings  | Read
                   Zone    | DNS               | Edit   (zone: montejongas.com)
-  2. echo 'export CLOUDFLARE_API_TOKEN=<token>' >> ~/.bashrc
+  2. write it to .env.local in the project root:
+         CLOUDFLARE_API_TOKEN=<token>
+     (gitignored; this script sources it automatically)
   3. re-run this script
 
 EOF
@@ -34,14 +46,20 @@ ok() { python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get(
 
 echo "==> resolving account"
 ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-$(cf "$API/accounts" | python3 -c '
-import json,sys
+import json, sys
 d = json.load(sys.stdin)
 if not d.get("success"):
-    sys.stderr.write("token rejected: " + json.dumps(d.get("errors")) + "\n"); sys.exit(1)
-r = d["result"]
-if len(r) != 1:
-    sys.stderr.write("multiple accounts; set CLOUDFLARE_ACCOUNT_ID to one of: "
-                     + ", ".join(f"{a[\"name\"]}={a[\"id\"]}" for a in r) + "\n"); sys.exit(1)
+    errs = "; ".join(e.get("message", str(e)) for e in (d.get("errors") or []))
+    sys.stderr.write("    token rejected by Cloudflare: " + (errs or "unknown error") + "\n")
+    sys.stderr.write("    check the token has Account | Account Settings | Read\n")
+    sys.exit(1)
+r = d.get("result") or []
+if len(r) == 0:
+    sys.stderr.write("    token can see no accounts\n"); sys.exit(1)
+if len(r) > 1:
+    names = ", ".join(a["name"] + "=" + a["id"] for a in r)
+    sys.stderr.write("    token sees several accounts; set CLOUDFLARE_ACCOUNT_ID to one of: " + names + "\n")
+    sys.exit(1)
 print(r[0]["id"])
 ')}"
 echo "    account $ACCOUNT_ID"

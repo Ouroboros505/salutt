@@ -105,12 +105,22 @@ This box has no browser, so prefer an API token over the OAuth flow:
    - Zone → **DNS** → Edit, zone `montejongas.com`  (creates the subdomain record)
 3. Then here:
 
+Write it to `.env.local` in the project root — gitignored, and sourced
+automatically by the deploy script:
+
 ```bash
-export CLOUDFLARE_API_TOKEN=<the-token>
-npm run deploy
+CLOUDFLARE_API_TOKEN=<the-token>
 ```
 
-Put the export in `~/.bashrc` (or a gitignored `.env.local`) so it persists.
+Then:
+
+```bash
+npm run setup:domain
+```
+
+A project-local file is preferred over `~/.bashrc`: it is explicit, trivial to
+delete when you are done, and does not depend on which shell profile happens to
+be loaded.
 
 Alternatively `npx wrangler login` works over an SSH tunnel, since the OAuth
 callback lands on port 8976 of *this* box:
