@@ -291,6 +291,7 @@ function PortionStep({
   const [qty, setQty] = useState(portion >= 0 ? '1' : '100')
   const [targetMeal, setTargetMeal] = useState<Meal>(meal)
   const [fav, setFav] = useState(food.favorite)
+  const [remember, setRemember] = useState('')
 
   const grams = useMemo(() => {
     const q = parseFloat(qty) || 0
@@ -327,6 +328,20 @@ function PortionStep({
           onFocus={(e) => e.target.select()}
         />
       </Field>
+
+      {/* Most packaged foods arrive from the database with no household
+          measure, so the same weight gets typed in every single time. Naming it
+          once turns it into a one-tap chip from then on. */}
+      {portion === -1 && grams > 0 && (
+        <Field label={`Remember ${grams} g as…`} hint="Optional — becomes a button next time">
+          <input
+            value={remember}
+            onChange={(e) => setRemember(e.target.value)}
+            placeholder="1 patty, 1 slice, half a tin…"
+            autoCapitalize="none"
+          />
+        </Field>
+      )}
 
       <div className="card tight">
         <div className="row between">
@@ -375,9 +390,18 @@ function PortionStep({
           className="btn primary grow"
           disabled={grams <= 0}
           onClick={async () => {
-            // Remember the portion actually used, so next time it is preselected.
-            if (portion !== food.defaultPortion) await db.foods.update(food.id!, { defaultPortion: portion })
-            await logFood(food.id!, grams, date, targetMeal, label)
+            const named = remember.trim()
+            if (portion === -1 && named && grams > 0) {
+              const portions = [...food.portions, { label: named, grams }]
+              await db.foods.update(food.id!, { portions, defaultPortion: portions.length - 1 })
+              await logFood(food.id!, grams, date, targetMeal, `1 × ${named}`)
+            } else {
+              // Remember the portion actually used, so next time it is preselected.
+              if (portion !== food.defaultPortion) {
+                await db.foods.update(food.id!, { defaultPortion: portion })
+              }
+              await logFood(food.id!, grams, date, targetMeal, label)
+            }
             onDone(`${food.name} logged`)
           }}
         >
