@@ -1,0 +1,13 @@
+# Cloudflare Pages applies these to every response.
+
+/*
+  # Keep the app out of search results. This is the reliable mechanism:
+  # robots.txt only asks crawlers not to FETCH, and a URL blocked that way can
+  # still be listed if something links to it. A noindex header is obeyed
+  # outright — but only if the crawler is allowed to fetch the page and see it,
+  # which is why robots.txt below permits crawling rather than blocking it.
+  X-Robots-Tag: noindex, nofollow, noarchive, nosnippet
+  # Never leak this hostname to sites you navigate out to.
+  Referrer-Policy: no-referrer
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY

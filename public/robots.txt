@@ -1,3 +1,5 @@
-# Personal app. Nothing here is meant to be found in a search engine.
+# Personal app. Crawling is allowed only so that crawlers can read the
+# X-Robots-Tag: noindex header sent with every response (see public/_headers);
+# blocking here would hide that header and could leave the URL listed anyway.
 User-agent: *
-Disallow: /
+Allow: /

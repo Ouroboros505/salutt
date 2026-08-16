@@ -64,11 +64,35 @@ Cloudflare already runs the `montejongas.com` zone, so adding the custom domain
 to the Pages project creates the DNS record and issues the certificate
 automatically — nothing to configure by hand.
 
-One thing to know: subdomains appear in public Certificate Transparency logs, so
-`salutt.montejongas.com` becomes publicly enumerable. Nothing sensitive is
-exposed — the server holds only the app, never your log — but it does publicly
-associate a personal health app with your business domain. Use a different
-domain you own if that bothers you.
+### How private is it, really
+
+Chosen hostname: **`salutt.montejongas.com`**.
+
+**Out of Google: yes, reliably.** Every response carries
+`X-Robots-Tag: noindex, nofollow, noarchive, nosnippet` (see `public/_headers`).
+`robots.txt` deliberately *allows* crawling — that is not a mistake. robots.txt
+only asks crawlers not to fetch, and a URL blocked that way can still be listed
+if anything links to it; blocking would also hide the noindex header from the
+crawler that needs to read it. Allow + noindex is the combination that actually
+keeps it out of the index.
+
+**Unknowable: no, and nothing can achieve that.** Every publicly-trusted
+certificate is published to Certificate Transparency logs, so anyone querying
+crt.sh can enumerate subdomains of `montejongas.com`. Unavoidable for any real
+HTTPS certificate anywhere.
+
+That costs nothing in practice. A stranger who finds the URL gets an **empty
+app** — their own blank instance, in their own browser. There is no account to
+attack and no server-side data to leak, because your log lives only in your
+device's IndexedDB.
+
+If you want it genuinely gated, **Cloudflare Access** (Zero Trust, free tier)
+puts an email-code login in front of the origin. Know the cost first: sessions
+expire, and an expired session inside an installed PWA means a login page in a
+window with no address bar. For an app with nothing to protect server-side that
+is friction bought with little security. Worth it only if the *association*
+between a personal health app and your business domain is the thing that
+bothers you — and a separate domain is the cleaner fix for that.
 
 ### Credentials, headless
 
