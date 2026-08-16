@@ -60,13 +60,23 @@ export default defineConfig({
         // this one includes a 2 MB food database, so a handful of deploys can
         // put a phone under real storage pressure.
         cleanupOutdatedCaches: true,
-        // The bundled food database is a ~2 MB JSON, over Workbox's default
-        // 2 MiB precache ceiling; without raising it the file is silently
-        // skipped and food search stops working offline.
-        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest,json}'],
-        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+        // The food database is ~2 MB. Precaching put it in the worker's
+        // install step, where it is the largest thing that can fail and it
+        // takes the whole app shell down with it if it does. It is fetched on
+        // first search instead and cached from there, so the shell installs in
+        // a few hundred kilobytes and offline search still works after one use.
+        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}'],
         // Food-database lookups are cached so a repeated barcode works offline.
         runtimeCaching: [
+          {
+            // Rarely changes, and a stale copy beats no search at all.
+            urlPattern: ({ url }) => url.pathname === '/food-db.json',
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'food-db',
+              expiration: { maxEntries: 2 },
+            },
+          },
           {
             urlPattern: /^https:\/\/(world|us)\.openfoodfacts\.org\/.*/i,
             handler: 'NetworkFirst',
