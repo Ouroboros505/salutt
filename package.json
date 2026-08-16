@@ -11,7 +11,8 @@
     "test:scale": "esbuild test/scale.test.ts --bundle --platform=node --format=esm --outfile=test/.build.mjs --log-level=error && node test/.build.mjs",
     "deploy": "npm run build && npx wrangler pages deploy dist --project-name=salutt",
     "setup:domain": "bash scripts/setup-domain.sh",
-    "setup:sync": "bash scripts/setup-sync.sh"
+    "setup:sync": "bash scripts/setup-sync.sh",
+    "peek": "esbuild scripts/peek.ts --bundle --platform=node --format=esm --outfile=scripts/.peek.mjs --log-level=error && node scripts/.peek.mjs"
   },
   "dependencies": {
     "dexie": "^4.0.11",

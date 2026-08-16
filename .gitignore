@@ -14,3 +14,4 @@ android/
 *.jks
 twa-manifest.json
 SECRETS.local.md
+scripts/.peek.mjs
