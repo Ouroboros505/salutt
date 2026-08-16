@@ -1,0 +1,447 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { db, MEALS, type Food, type ISODate, type Meal } from '../db/db'
+import { logFood, quickFoods, saveFood, scale, searchLocal } from '../db/ops'
+import { lookupBarcode, searchRemote, type FoodHit } from '../lib/foodApi'
+import { Field, Icon, Sheet } from '../components/ui'
+import BarcodeScanner from './BarcodeScanner'
+
+const MEAL_LABEL: Record<Meal, string> = {
+  breakfast: 'Breakfast',
+  lunch: 'Lunch',
+  dinner: 'Dinner',
+  snack: 'Snacks',
+}
+
+type Stage =
+  | { kind: 'search' }
+  | { kind: 'portion'; food: Food }
+  | { kind: 'create'; name: string }
+
+export default function AddFood({
+  date,
+  meal,
+  onClose,
+  toast,
+}: {
+  date: ISODate
+  meal: Meal
+  onClose: () => void
+  toast: (m: string) => void
+}) {
+  const [stage, setStage] = useState<Stage>({ kind: 'search' })
+  const [query, setQuery] = useState('')
+  const [remote, setRemote] = useState<FoodHit[]>([])
+  const [busy, setBusy] = useState(false)
+  const [scanning, setScanning] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const settings = useLiveQuery(() => db.settings.get('settings'), [])
+  const local = useLiveQuery(() => searchLocal(query), [query]) ?? []
+  const recents = useLiveQuery(() => quickFoods(20), []) ?? []
+
+  // Remote lookup is debounced and abortable so fast typing does not queue up
+  // requests or let a stale response overwrite a newer one.
+  const abort = useRef<AbortController | undefined>(undefined)
+  useEffect(() => {
+    const q = query.trim()
+    if (q.length < 2) {
+      setRemote([])
+      setBusy(false)
+      return
+    }
+    setBusy(true)
+    const t = window.setTimeout(async () => {
+      abort.current?.abort()
+      const ctrl = new AbortController()
+      abort.current = ctrl
+      try {
+        setRemote(await searchRemote(q, settings?.usdaApiKey, ctrl.signal))
+        setError(null)
+      } catch (e) {
+        if ((e as Error).name !== 'AbortError') setError('Search failed — offline?')
+      } finally {
+        if (!ctrl.signal.aborted) setBusy(false)
+      }
+    }, 400)
+    return () => window.clearTimeout(t)
+  }, [query, settings?.usdaApiKey])
+
+  useEffect(() => () => abort.current?.abort(), [])
+
+  const openHit = async (hit: FoodHit) => {
+    const id = await saveFood(hit)
+    const food = await db.foods.get(id)
+    if (food) setStage({ kind: 'portion', food })
+  }
+
+  const onScan = async (code: string) => {
+    setScanning(false)
+    setBusy(true)
+    try {
+      const existing = await db.foods.where('barcode').equals(code).first()
+      if (existing) {
+        setStage({ kind: 'portion', food: existing })
+        return
+      }
+      const hit = await lookupBarcode(code)
+      if (hit) await openHit(hit)
+      else {
+        setQuery('')
+        setError(`Barcode ${code} is not in Open Food Facts — add it as a new food.`)
+        setStage({ kind: 'create', name: '' })
+      }
+    } catch {
+      setError('Lookup failed — offline?')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const title =
+    stage.kind === 'portion' ? stage.food.name : stage.kind === 'create' ? 'New food' : `Add to ${MEAL_LABEL[meal]}`
+
+  if (scanning) return <BarcodeScanner onDetect={onScan} onClose={() => setScanning(false)} />
+
+  return (
+    <Sheet
+      title={title}
+      onClose={stage.kind === 'search' ? onClose : () => setStage({ kind: 'search' })}
+    >
+      {stage.kind === 'search' && (
+        <>
+          <div className="row" style={{ gap: 8 }}>
+            <div className="grow" style={{ position: 'relative' }}>
+              <input
+                autoFocus
+                type="search"
+                placeholder="Search foods…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                style={{ paddingLeft: 36 }}
+              />
+              <span
+                style={{ position: 'absolute', left: 10, top: 11, color: 'var(--text-muted)', pointerEvents: 'none' }}
+              >
+                <Icon.search />
+              </span>
+            </div>
+            <button className="btn" onClick={() => setScanning(true)} aria-label="Scan barcode">
+              <Icon.barcode />
+            </button>
+          </div>
+
+          {error && <div className="tiny" style={{ color: 'var(--critical)' }}>{error}</div>}
+
+          {query.trim() === '' && recents.length > 0 && (
+            <Section title="Your usual">
+              {recents.map((f) => (
+                <FoodRow key={f.id} food={f} onPick={() => setStage({ kind: 'portion', food: f })} />
+              ))}
+            </Section>
+          )}
+
+          {local.length > 0 && (
+            <Section title="Your foods">
+              {local.map((f) => (
+                <FoodRow key={f.id} food={f} onPick={() => setStage({ kind: 'portion', food: f })} />
+              ))}
+            </Section>
+          )}
+
+          {query.trim().length >= 2 && (
+            <Section title={busy ? 'Searching databases…' : 'Food databases'}>
+              {remote.map((h, i) => (
+                <HitRow key={`${h.sourceId}-${i}`} hit={h} onPick={() => openHit(h)} />
+              ))}
+              {!busy && remote.length === 0 && <div className="empty">No matches online</div>}
+            </Section>
+          )}
+
+          {query.trim() !== '' && (
+            <button className="btn block" onClick={() => setStage({ kind: 'create', name: query.trim() })}>
+              <Icon.plus /> Create “{query.trim()}” myself
+            </button>
+          )}
+        </>
+      )}
+
+      {stage.kind === 'portion' && (
+        <PortionStep
+          food={stage.food}
+          date={date}
+          meal={meal}
+          onDone={(msg) => {
+            toast(msg)
+            onClose()
+          }}
+        />
+      )}
+
+      {stage.kind === 'create' && (
+        <CreateFood
+          initialName={stage.name}
+          onCreated={(food) => setStage({ kind: 'portion', food })}
+        />
+      )}
+    </Sheet>
+  )
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="card tight">
+      <h3>{title}</h3>
+      <div>{children}</div>
+    </div>
+  )
+}
+
+function FoodRow({ food, onPick }: { food: Food; onPick: () => void }) {
+  return (
+    <button className="item" onClick={onPick}>
+      <div className="grow">
+        <div className="item-title truncate">{food.name}</div>
+        <div className="tiny muted truncate">
+          {food.brand ? `${food.brand} · ` : ''}
+          {Math.round(food.kcal)} kcal / 100 g
+        </div>
+      </div>
+      {food.favorite && <span style={{ color: 'var(--series-4)' }}>★</span>}
+      <span className="muted">
+        <Icon.chevron />
+      </span>
+    </button>
+  )
+}
+
+function HitRow({ hit, onPick }: { hit: FoodHit; onPick: () => void }) {
+  return (
+    <button className="item" onClick={onPick}>
+      <div className="grow">
+        <div className="item-title truncate">{hit.name}</div>
+        <div className="tiny muted truncate">
+          {hit.brand ? `${hit.brand} · ` : ''}
+          {Math.round(hit.kcal)} kcal / 100 g · {hit.source === 'usda' ? 'USDA' : 'Open Food Facts'}
+        </div>
+      </div>
+      <span className="muted">
+        <Icon.chevron />
+      </span>
+    </button>
+  )
+}
+
+/* ---------------------------------------------------------------- portion */
+
+function PortionStep({
+  food,
+  date,
+  meal,
+  onDone,
+}: {
+  food: Food
+  date: ISODate
+  meal: Meal
+  onDone: (msg: string) => void
+}) {
+  // -1 is the "grams" option; anything else indexes food.portions.
+  const [portion, setPortion] = useState(food.defaultPortion ?? -1)
+  const [qty, setQty] = useState(portion >= 0 ? '1' : '100')
+  const [targetMeal, setTargetMeal] = useState<Meal>(meal)
+  const [fav, setFav] = useState(food.favorite)
+
+  const grams = useMemo(() => {
+    const q = parseFloat(qty) || 0
+    return portion >= 0 ? q * food.portions[portion].grams : q
+  }, [qty, portion, food.portions])
+
+  const macros = scale(food, grams)
+  const label = portion >= 0 ? `${qty} × ${food.portions[portion].label}` : `${grams} g`
+
+  const choose = (i: number) => {
+    setPortion(i)
+    setQty(i >= 0 ? '1' : '100')
+  }
+
+  return (
+    <>
+      <div className="scroll-x">
+        {food.portions.map((p, i) => (
+          <button key={i} className="chip" aria-pressed={portion === i} onClick={() => choose(i)}>
+            {p.label} <span className="muted num">{p.grams} g</span>
+          </button>
+        ))}
+        <button className="chip" aria-pressed={portion === -1} onClick={() => choose(-1)}>
+          Grams
+        </button>
+      </div>
+
+      <Field label={portion >= 0 ? `How many (${food.portions[portion].label})` : 'Grams'}>
+        <input
+          type="number"
+          inputMode="decimal"
+          value={qty}
+          onChange={(e) => setQty(e.target.value)}
+          onFocus={(e) => e.target.select()}
+        />
+      </Field>
+
+      <div className="card tight">
+        <div className="row between">
+          <span className="stat-label">Calories</span>
+          <span className="stat-value num">{macros.kcal}</span>
+        </div>
+        <div className="row between small num">
+          <span>
+            <span className="swatch" style={{ background: 'var(--series-1)', display: 'inline-block', marginRight: 5 }} />
+            Protein {macros.protein} g
+          </span>
+          <span>
+            <span className="swatch" style={{ background: 'var(--series-2)', display: 'inline-block', marginRight: 5 }} />
+            Carbs {macros.carbs} g
+          </span>
+          <span>
+            <span className="swatch" style={{ background: 'var(--series-3)', display: 'inline-block', marginRight: 5 }} />
+            Fat {macros.fat} g
+          </span>
+        </div>
+      </div>
+
+      <Field label="Meal">
+        <div className="scroll-x">
+          {MEALS.map((m) => (
+            <button key={m} className="chip" aria-pressed={targetMeal === m} onClick={() => setTargetMeal(m)}>
+              {MEAL_LABEL[m]}
+            </button>
+          ))}
+        </div>
+      </Field>
+
+      <div className="row" style={{ gap: 8 }}>
+        <button
+          className="btn"
+          aria-pressed={fav}
+          onClick={async () => {
+            setFav(!fav)
+            await db.foods.update(food.id!, { favorite: !fav })
+          }}
+          aria-label="Favourite"
+        >
+          <span style={{ color: fav ? 'var(--series-4)' : 'var(--text-muted)' }}>★</span>
+        </button>
+        <button
+          className="btn primary grow"
+          disabled={grams <= 0}
+          onClick={async () => {
+            // Remember the portion actually used, so next time it is preselected.
+            if (portion !== food.defaultPortion) await db.foods.update(food.id!, { defaultPortion: portion })
+            await logFood(food.id!, grams, date, targetMeal, label)
+            onDone(`${food.name} logged`)
+          }}
+        >
+          Log {macros.kcal} kcal
+        </button>
+      </div>
+    </>
+  )
+}
+
+/* ---------------------------------------------------------------- create */
+
+function CreateFood({
+  initialName,
+  onCreated,
+}: {
+  initialName: string
+  onCreated: (food: Food) => void
+}) {
+  const [f, setF] = useState({
+    name: initialName,
+    brand: '',
+    kcal: '',
+    protein: '',
+    carbs: '',
+    fat: '',
+    fiber: '',
+    servingLabel: '',
+    servingGrams: '',
+  })
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setF({ ...f, [k]: e.target.value })
+  const n = (v: string) => Math.max(0, parseFloat(v) || 0)
+
+  const valid = f.name.trim() !== '' && n(f.kcal) > 0
+
+  return (
+    <>
+      <div className="tiny muted">Enter the values per 100 g (or per 100 ml) from the label.</div>
+
+      <Field label="Name">
+        <input value={f.name} onChange={set('name')} placeholder="e.g. Greek yoghurt 0%" />
+      </Field>
+      <Field label="Brand (optional)">
+        <input value={f.brand} onChange={set('brand')} />
+      </Field>
+
+      <div className="grid-2">
+        <Field label="Calories / 100 g">
+          <input type="number" inputMode="decimal" value={f.kcal} onChange={set('kcal')} />
+        </Field>
+        <Field label="Protein (g)">
+          <input type="number" inputMode="decimal" value={f.protein} onChange={set('protein')} />
+        </Field>
+        <Field label="Carbs (g)">
+          <input type="number" inputMode="decimal" value={f.carbs} onChange={set('carbs')} />
+        </Field>
+        <Field label="Fat (g)">
+          <input type="number" inputMode="decimal" value={f.fat} onChange={set('fat')} />
+        </Field>
+        <Field label="Fibre (g)">
+          <input type="number" inputMode="decimal" value={f.fiber} onChange={set('fiber')} />
+        </Field>
+      </div>
+
+      <div className="grid-2">
+        <Field label="Serving name" hint="optional">
+          <input value={f.servingLabel} onChange={set('servingLabel')} placeholder="1 cup" />
+        </Field>
+        <Field label="Serving grams">
+          <input type="number" inputMode="decimal" value={f.servingGrams} onChange={set('servingGrams')} />
+        </Field>
+      </div>
+
+      <button
+        className="btn primary block"
+        disabled={!valid}
+        onClick={async () => {
+          const portions =
+            n(f.servingGrams) > 0
+              ? [{ label: f.servingLabel.trim() || '1 serving', grams: n(f.servingGrams) }]
+              : []
+          const id = await db.foods.add({
+            name: f.name.trim(),
+            brand: f.brand.trim() || undefined,
+            kcal: n(f.kcal),
+            protein: n(f.protein),
+            carbs: n(f.carbs),
+            fat: n(f.fat),
+            fiber: n(f.fiber),
+            portions,
+            defaultPortion: portions.length ? 0 : -1,
+            liquid: false,
+            source: 'manual',
+            favorite: false,
+            useCount: 0,
+            lastUsed: 0,
+            createdAt: Date.now(),
+          })
+          const food = await db.foods.get(id)
+          if (food) onCreated(food)
+        }}
+      >
+        Save food
+      </button>
+    </>
+  )
+}

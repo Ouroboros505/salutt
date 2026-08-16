@@ -1,0 +1,29 @@
+{
+  "name": "salutt",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "phone": "bash scripts/phone.sh",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host",
+    "test:scale": "esbuild test/scale.test.ts --bundle --platform=node --format=esm --outfile=test/.build.mjs --log-level=error && node test/.build.mjs",
+    "deploy": "npm run build && npx wrangler pages deploy dist --project-name=salutt"
+  },
+  "dependencies": {
+    "dexie": "^4.0.11",
+    "dexie-react-hooks": "^1.1.7",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@types/web-bluetooth": "^0.0.21",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0",
+    "vite-plugin-pwa": "^0.21.1"
+  }
+}

@@ -1,0 +1,15 @@
+node_modules
+dist
+*.tsbuildinfo
+test/.build.mjs
+.DS_Store
+backups/*.json
+NOTES.local.md
+.env.local
+.wrangler
+
+# TWA build output — the keystore is irreplaceable, back it up outside git
+android/
+*.keystore
+*.jks
+twa-manifest.json

@@ -1,0 +1,211 @@
+import Dexie, { type Table } from 'dexie'
+
+/** Calendar day, 'YYYY-MM-DD', always local time. */
+export type ISODate = string
+
+export interface Portion {
+  label: string
+  grams: number
+}
+
+/**
+ * A food definition. All macros are stored per 100 g (or per 100 ml for
+ * liquids) so that any portion can be derived by a single multiplication.
+ */
+export interface Food {
+  id?: number
+  name: string
+  brand?: string
+  barcode?: string
+  kcal: number
+  protein: number
+  carbs: number
+  fat: number
+  fiber: number
+  /** Household portions, e.g. { label: '1 slice', grams: 28 }. */
+  portions: Portion[]
+  /** Default portion index used when logging, or -1 for "grams". */
+  defaultPortion: number
+  liquid: boolean
+  source: 'manual' | 'off' | 'usda'
+  sourceId?: string
+  favorite: boolean
+  useCount: number
+  lastUsed: number
+  createdAt: number
+}
+
+export type Meal = 'breakfast' | 'lunch' | 'dinner' | 'snack'
+export const MEALS: Meal[] = ['breakfast', 'lunch', 'dinner', 'snack']
+
+/**
+ * One logged food. Macros are snapshotted at log time so that correcting a
+ * Food record later never silently rewrites past days.
+ */
+export interface Entry {
+  id?: number
+  date: ISODate
+  meal: Meal
+  foodId?: number
+  name: string
+  brand?: string
+  grams: number
+  /** Human-readable amount as entered, e.g. "1 cup (240 g)". */
+  amountLabel: string
+  kcal: number
+  protein: number
+  carbs: number
+  fat: number
+  fiber: number
+  createdAt: number
+}
+
+export interface WeighIn {
+  id?: number
+  /** Unique — one weigh-in per day, later ones overwrite. */
+  date: ISODate
+  kg: number
+  /**
+   * Raw bioelectrical impedance in ohms, straight from the scale. Stored
+   * because it is the only real measurement behind every derived figure below —
+   * keeping it means the composition can be recomputed if the algorithm or your
+   * height ever changes.
+   */
+  impedance?: number
+  bodyFatPct?: number
+  fatFreeKg?: number
+  muscleKg?: number
+  boneKg?: number
+  waterPct?: number
+  proteinPct?: number
+  visceralFat?: number
+  subcutaneousFatPct?: number
+  skeletalMusclePct?: number
+  bmrKcal?: number
+  source: 'manual' | 'scale'
+  createdAt: number
+}
+
+export interface Measurement {
+  id?: number
+  date: ISODate
+  waist?: number
+  hips?: number
+  chest?: number
+  neck?: number
+  arm?: number
+  thigh?: number
+  notes?: string
+  createdAt: number
+}
+
+export interface SetEntry {
+  exercise: string
+  reps: number
+  weightKg: number
+}
+
+export interface Workout {
+  id?: number
+  date: ISODate
+  kind: 'strength' | 'cardio' | 'other'
+  name: string
+  durationMin?: number
+  kcal?: number
+  distanceKm?: number
+  sets: SetEntry[]
+  notes?: string
+  createdAt: number
+}
+
+/** A named group of foods logged together in one tap, e.g. "usual breakfast". */
+export interface MealTemplate {
+  id?: number
+  name: string
+  meal: Meal
+  items: { foodId: number; grams: number }[]
+  useCount: number
+  lastUsed: number
+  createdAt: number
+}
+
+export interface Settings {
+  id: string
+  sex: 'male' | 'female'
+  birthDate?: ISODate
+  heightCm: number
+  /** Activity multiplier applied to BMR for the initial TDEE estimate. */
+  activity: number
+  /** Target rate of change, kg per week. Negative for a deficit. */
+  goalKgPerWeek: number
+  /** Manual calorie target; when unset, the adaptive target is used. */
+  kcalTargetOverride?: number
+  proteinGPerKg: number
+  fatPctKcal: number
+  /** Half-life in days for the smoothed weight trend. */
+  trendHalfLifeDays: number
+  /** Athletic body type — shifts the scale's body-fat derivation. */
+  athlete?: boolean
+  usdaApiKey?: string
+  lastBackup?: number
+  startWeightKg?: number
+  goalWeightKg?: number
+}
+
+export const DEFAULT_SETTINGS: Settings = {
+  id: 'settings',
+  sex: 'male',
+  heightCm: 175,
+  activity: 1.375,
+  goalKgPerWeek: -0.5,
+  proteinGPerKg: 1.8,
+  fatPctKcal: 0.28,
+  trendHalfLifeDays: 10,
+}
+
+class SaluttDB extends Dexie {
+  foods!: Table<Food, number>
+  entries!: Table<Entry, number>
+  weighIns!: Table<WeighIn, number>
+  measurements!: Table<Measurement, number>
+  workouts!: Table<Workout, number>
+  mealTemplates!: Table<MealTemplate, number>
+  settings!: Table<Settings, string>
+
+  constructor() {
+    super('salutt')
+    this.version(1).stores({
+      foods: '++id, name, barcode, favorite, useCount, lastUsed',
+      entries: '++id, date, [date+meal], foodId, createdAt',
+      weighIns: '++id, &date',
+      measurements: '++id, &date',
+      workouts: '++id, date, kind',
+      mealTemplates: '++id, name, meal, lastUsed',
+      settings: 'id',
+    })
+  }
+}
+
+export const db = new SaluttDB()
+
+export async function getSettings(): Promise<Settings> {
+  const s = await db.settings.get('settings')
+  return s ?? DEFAULT_SETTINGS
+}
+
+export async function saveSettings(patch: Partial<Settings>): Promise<void> {
+  const current = await getSettings()
+  await db.settings.put({ ...current, ...patch, id: 'settings' })
+}
+
+/**
+ * Ask the browser to make storage persistent. Without this, IndexedDB is
+ * "best effort" and can be evicted under storage pressure — unacceptable for
+ * a log you are meant to keep for years. Installed PWAs are usually granted
+ * this automatically.
+ */
+export async function requestPersistence(): Promise<boolean> {
+  if (!navigator.storage?.persist) return false
+  if (await navigator.storage.persisted()) return true
+  return navigator.storage.persist()
+}

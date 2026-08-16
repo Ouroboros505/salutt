@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="112" fill="#1a1a19"/>
+  <!-- a rising trend line: the thing the app is actually about -->
+  <path d="M104 336 L200 240 L272 296 L408 160"
+        fill="none" stroke="#3987e5" stroke-width="34"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="408" cy="160" r="30" fill="#3987e5" stroke="#1a1a19" stroke-width="14"/>
+  <circle cx="256" cy="404" r="19" fill="#199e70"/>
+</svg>
