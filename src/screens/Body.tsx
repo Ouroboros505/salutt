@@ -5,10 +5,8 @@ import { addDays, formatShort, todayISO } from '../lib/date'
 import { bmi, navyBodyFat, projectGoal, trendSlopeKgPerWeek, weightTrend } from '../lib/metrics'
 import { TrendChart } from '../components/charts'
 import { Field, Icon, Segmented, Sheet } from '../components/ui'
-import ScaleSync from '../components/ScaleSync'
-import { bluetoothBlockedReason, pickScale } from '../lib/scale'
-import { useScaleListener } from '../lib/useScaleListener'
-import ScaleResult from '../components/ScaleResult'
+import type { ListenerState } from '../lib/useScaleListener'
+import type { ScaleReading } from '../lib/scale'
 import { bodyFatBand } from '../lib/bodyComp'
 
 const RANGES = [
@@ -32,52 +30,28 @@ export default function Body({
   toast,
   launch,
   onLaunchHandled,
+  onSyncScale,
+  picking,
+  scaleState,
+  scaleLive,
 }: {
   settings: Settings
   toast: (m: string) => void
-  launch?: 'weigh' | 'scale' | null
+  launch?: 'weigh' | null
   onLaunchHandled?: () => void
+  onSyncScale: () => void
+  picking: boolean
+  scaleState: ListenerState
+  scaleLive: ScaleReading | null
 }) {
   const [range, setRange] = useState('90')
   const [weighing, setWeighing] = useState(false)
   const [measuring, setMeasuring] = useState(false)
-  const [syncing, setSyncing] = useState<BluetoothDevice | null>(null)
-  const [picking, setPicking] = useState(false)
 
-  // Connects on its own to a scale Chrome already remembers, so stepping on it
-  // surfaces a reading with no tap. Paused while the manual sheet is open, so
-  // the two never fight over the one connection the scale allows.
-  const listener = useScaleListener(!syncing)
-
-  // requestDevice() only works inside a user gesture, so the chooser is opened
-  // straight from this handler rather than from a step inside the sheet. Once
-  // the scale has been paired, getDevices() returns it and no chooser appears
-  // at all — the tap goes directly to a live reading.
-  const sync = async () => {
-    setPicking(true)
-    try {
-      const { device } = await pickScale()
-      setSyncing(device)
-    } catch (e) {
-      const err = e as Error
-      if (err.name === 'NotFoundError' && /cancel/i.test(err.message)) return
-      toast(
-        bluetoothBlockedReason() ??
-          (err.name === 'NotFoundError'
-            ? 'No scale found — step on it to wake it, then try again'
-            : err.message || 'Could not reach the scale'),
-      )
-    } finally {
-      setPicking(false)
-    }
-  }
-
-  // Launched from the "Weigh in" / "Sync scale" icon shortcuts.
+  // Opened from the "Weigh in" icon shortcut.
   useEffect(() => {
-    if (!launch) return
-    if (launch === 'weigh') setWeighing(true)
-    // The scale shortcut cannot auto-open the chooser (no user gesture on a
-    // cold launch), so it lands on Body with the button ready.
+    if (launch !== 'weigh') return
+    setWeighing(true)
     onLaunchHandled?.()
   }, [launch, onLaunchHandled])
 
@@ -126,19 +100,13 @@ export default function Body({
           {/* Always offered, even where Bluetooth is unavailable — the sheet
               explains why rather than the button silently vanishing. */}
           <div className="stack tight" style={{ alignItems: 'flex-end' }}>
-            <button className="btn primary" onClick={sync} disabled={picking}>
+            <button className="btn primary" onClick={onSyncScale} disabled={picking}>
               <Icon.bluetooth /> {picking ? 'Looking…' : 'Sync scale'}
             </button>
             <button className="btn sm" onClick={() => setWeighing(true)}>
               <Icon.plus /> Enter manually
             </button>
-            {listener.state === 'listening' && (
-              <div className="tiny" style={{ color: 'var(--success-text)' }}>
-                {listener.live
-                  ? `scale ${listener.live.kg.toFixed(1)} kg…`
-                  : 'scale connected — step on'}
-              </div>
-            )}
+            <ScaleStatus state={scaleState} live={scaleLive} />
           </div>
         </div>
 
@@ -267,27 +235,29 @@ export default function Body({
         </div>
       </div>
 
-      {syncing && (
-        <ScaleSync
-          device={syncing}
-          settings={settings}
-          onClose={() => setSyncing(null)}
-          toast={toast}
-        />
-      )}
-      {listener.settled && !syncing && (
-        <Sheet title="Weigh-in detected" onClose={listener.clear}>
-          <ScaleResult
-            reading={listener.settled}
-            settings={settings}
-            onDone={listener.clear}
-            toast={toast}
-          />
-        </Sheet>
-      )}
-
       {weighing && <WeighInSheet onClose={() => setWeighing(false)} toast={toast} />}
       {measuring && <MeasureSheet last={last} onClose={() => setMeasuring(false)} toast={toast} />}
+    </div>
+  )
+}
+
+/** Ambient state of the background scale connection, shown under the buttons. */
+function ScaleStatus({ state, live }: { state: ListenerState; live: ScaleReading | null }) {
+  if (state === 'off' || state === 'ready') return null
+  const text =
+    state === 'connected'
+      ? live
+        ? `scale ${live.kg.toFixed(1)} kg…`
+        : 'scale connected — step on'
+      : state === 'connecting'
+        ? 'scale waking…'
+        : 'watching for the scale'
+  return (
+    <div
+      className="tiny"
+      style={{ color: state === 'connected' ? 'var(--success-text)' : 'var(--text-muted)' }}
+    >
+      {text}
     </div>
   )
 }

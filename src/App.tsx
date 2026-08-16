@@ -9,6 +9,11 @@ import Train from './screens/Train'
 import Insights from './screens/Insights'
 import Foods from './screens/Foods'
 import Settings from './screens/Settings'
+import ScaleSync from './components/ScaleSync'
+import ScaleResult from './components/ScaleResult'
+import { Sheet } from './components/ui'
+import { bluetoothBlockedReason, pickScale } from './lib/scale'
+import { useScaleListener } from './lib/useScaleListener'
 
 export type Tab = 'today' | 'foods' | 'body' | 'train' | 'insights'
 
@@ -62,6 +67,29 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { message, show } = useToast()
 
+  // The scale lives at app level so it is picked up on any tab, not just Body.
+  // Paused while the manual sheet is open: the scale accepts one connection at
+  // a time, and the two halves would otherwise compete for it.
+  const [manualDevice, setManualDevice] = useState<BluetoothDevice | null>(null)
+  const [picking, setPicking] = useState(false)
+  const scale = useScaleListener(!manualDevice)
+
+  // requestDevice() is only permitted inside a user gesture, which is why the
+  // chooser is opened straight from the button rather than from a later step.
+  const syncScale = async () => {
+    setPicking(true)
+    try {
+      const { device } = await pickScale()
+      setManualDevice(device)
+    } catch (e) {
+      const err = e as Error
+      if (err.name === 'NotFoundError' && /cancel/i.test(err.message)) return
+      show(bluetoothBlockedReason() ?? err.message ?? 'Could not reach the scale')
+    } finally {
+      setPicking(false)
+    }
+  }
+
   const settings = useLiveQuery(async () => (await db.settings.get('settings')) ?? DEFAULT_SETTINGS, [])
 
   // If IndexedDB is blocked or slow to open, say so instead of showing a blank
@@ -77,6 +105,10 @@ export default function App() {
   // from the icon itself does not reopen the same sheet.
   useEffect(() => {
     if (launch) history.replaceState(null, '', location.pathname)
+    // The scale shortcut only needs to land on Body — the background listener
+    // connects on its own, and requestDevice() could not be called here anyway
+    // without a user gesture.
+    if (launch === 'scale') setLaunch(null)
   }, [launch])
 
   // Returning to the app after midnight should not leave you on yesterday.
@@ -130,8 +162,12 @@ export default function App() {
         <Body
           settings={settings}
           toast={show}
-          launch={launch === 'weigh' || launch === 'scale' ? launch : null}
+          launch={launch === 'weigh' ? 'weigh' : null}
           onLaunchHandled={() => setLaunch(null)}
+          onSyncScale={syncScale}
+          picking={picking}
+          scaleState={scale.state}
+          scaleLive={scale.live}
         />
       )}
       {tab === 'train' && <Train date={date} toast={show} />}
@@ -150,6 +186,26 @@ export default function App() {
           </button>
         ))}
       </nav>
+
+      {manualDevice && (
+        <ScaleSync
+          device={manualDevice}
+          settings={settings}
+          onClose={() => setManualDevice(null)}
+          toast={show}
+        />
+      )}
+
+      {scale.settled && !manualDevice && (
+        <Sheet title="Weigh-in detected" onClose={scale.clear}>
+          <ScaleResult
+            reading={scale.settled}
+            settings={settings}
+            onDone={scale.clear}
+            toast={show}
+          />
+        </Sheet>
+      )}
 
       {settingsOpen && <Settings settings={settings} onClose={() => setSettingsOpen(false)} toast={show} />}
       {message && <Toast message={message} />}

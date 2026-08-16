@@ -268,3 +268,98 @@ export function buildUnitCommand(unit: DisplayUnit): Uint8Array<ArrayBuffer> {
   cmd[10] = index
   return cmd
 }
+
+export type ArmedStatus = 'waiting' | 'connecting' | 'connected'
+
+export interface ArmedScale {
+  cancel: () => void
+}
+
+/**
+ * Waits for the scale to wake up, then connects — and reconnects every time it
+ * wakes again.
+ *
+ * Connecting to a device from getDevices() straight away fails with "device is
+ * no longer in range": permission is remembered, but the last advertisement
+ * packet is stale, so the radio has no idea where the scale is. The documented
+ * fix is watchAdvertisements(), which scans for that one device and fires
+ * `advertisementreceived` the moment it starts broadcasting.
+ *
+ * A BLE scale broadcasts exactly when it wakes, which is when you step on it.
+ * So this turns "step on the scale" into the trigger, with no tap anywhere.
+ *
+ * Requires chrome://flags/#enable-experimental-web-platform-features. Without
+ * it there is a single direct connection attempt instead, which only succeeds
+ * if the scale happens to be awake already.
+ */
+export function armScale(
+  device: BluetoothDevice,
+  {
+    onReading,
+    onStatus,
+  }: {
+    onReading: (r: ScaleReading) => void
+    onStatus?: (s: ArmedStatus) => void
+  },
+): ArmedScale {
+  const abort = new AbortController()
+  let session: ScaleSession | null = null
+  let connecting = false
+
+  const status = (s: ArmedStatus) => {
+    if (!abort.signal.aborted) onStatus?.(s)
+  }
+
+  const tryConnect = async () => {
+    if (connecting || session || abort.signal.aborted) return
+    connecting = true
+    status('connecting')
+    try {
+      const s = await openScale(device, {
+        onReading,
+        onDisconnect: () => {
+          session = null
+          // Back to waiting: the advertisement watcher is still armed, so
+          // the next time it wakes this reconnects by itself.
+          status('waiting')
+        },
+      })
+      if (abort.signal.aborted) {
+        s.disconnect()
+        return
+      }
+      session = s
+      status('connected')
+    } catch {
+      // Asleep, out of range, or held by another app. Keep waiting.
+      status('waiting')
+    } finally {
+      connecting = false
+    }
+  }
+
+  const watchable = device as unknown as {
+    watchAdvertisements?: (o?: { signal?: AbortSignal }) => Promise<void>
+  }
+
+  if (typeof watchable.watchAdvertisements === 'function') {
+    device.addEventListener('advertisementreceived', () => void tryConnect(), {
+      signal: abort.signal,
+    })
+    status('waiting')
+    watchable.watchAdvertisements({ signal: abort.signal }).catch(() => {
+      // Scanning unavailable; fall back to a one-off attempt.
+      void tryConnect()
+    })
+  } else {
+    void tryConnect()
+  }
+
+  return {
+    cancel: () => {
+      abort.abort()
+      session?.disconnect()
+      session = null
+    },
+  }
+}
