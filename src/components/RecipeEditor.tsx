@@ -713,11 +713,36 @@ function IngredientPicker({
   const [grams, setGrams] = useState('100')
   const { hits } = useCandidates(query)
 
+  /** Start from the food's own measure, not a round number that suits nothing. */
+  const choose = (c: Candidate) => {
+    setChosen(c)
+    setGrams(String(c.portions?.[0]?.grams ?? 100))
+  }
+
   if (chosen) {
     const g = parseFloat(grams) || 0
     const macros = scale(chosen, g)
+    // A spice's own measures are in the database — cumin is 2.1 g a teaspoon,
+    // thyme 1 g. Defaulting to 100 g instead put 20 tablespoons of each in a
+    // recipe, so the food's own portions lead and the default is the first of
+    // them rather than a round number that suits nothing.
+    const portions = chosen.portions ?? []
     return (
       <Sheet title={chosen.name} onClose={() => setChosen(null)}>
+        {portions.length > 0 && (
+          <div className="scroll-x">
+            {portions.slice(0, 6).map((p, i) => (
+              <button
+                key={i}
+                className="chip"
+                aria-pressed={Math.abs(g - p.grams) < 0.01}
+                onClick={() => setGrams(String(p.grams))}
+              >
+                {p.label} <span className="muted num">{p.grams} g</span>
+              </button>
+            ))}
+          </div>
+        )}
         <Field label="Raw weight (g)" hint="What goes into the pot, before cooking">
           <NumberInput
             autoFocus
@@ -726,6 +751,11 @@ function IngredientPicker({
             onChange={(v) => setGrams(v === undefined ? '' : String(v))}
           />
         </Field>
+        {g > 0 && portions[0] && g / portions[0].grams > 12 && (
+          <div className="tiny" style={{ color: 'var(--critical)' }}>
+            That is {Math.round(g / portions[0].grams)} × {portions[0].label} — worth a second look.
+          </div>
+        )}
         <div className="row between small num">
           <span className="muted">{macros.kcal} kcal</span>
           <span>
@@ -775,7 +805,7 @@ function IngredientPicker({
         ) : (
           <div>
             {hits.slice(0, 25).map((h, i) => (
-              <button key={i} className="item" onClick={() => setChosen(h)}>
+              <button key={i} className="item" onClick={() => choose(h)}>
                 <div className="grow">
                   <div className="item-title truncate">
                     {h.name}

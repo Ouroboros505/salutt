@@ -202,6 +202,27 @@ function matchesLoosely(term: string, forms: string[], e: Indexed): boolean {
  * only as a fallback because it is far more expensive — and because an exact
  * match should never be outranked by a guess.
  */
+/**
+ * Words that mark a manufactured product rather than the ingredient it is
+ * flavoured after. "Krinkle Cut Grilled Ribeye Steak Flavored Kettle Chips"
+ * contains every word of "ribeye steak" and outranked the actual beef,
+ * putting a bag of crisps in a braise. Wanting the snack is still possible —
+ * the penalty only applies to a marker the query did not itself ask for.
+ */
+const PRODUCT_MARKERS = [
+  'flavored', 'flavoured', 'flavor', 'flavour', 'chips', 'crisps', 'snack',
+  'cracker', 'jerky', 'candy', 'cereal', 'seasoning', 'sauce mix', 'soda',
+  'drink mix', 'bar', 'puffs', 'popcorn', 'pretzel', 'dip', 'gummi', 'gummy',
+]
+
+/**
+ * A cut named without qualification is the whole cut. "Pork butt" ranked
+ * "separable lean only" first, which is the trimmed muscle alone — roughly
+ * half the calories of the joint that actually went in the pot.
+ */
+const LEAN_ONLY = /separable lean only|lean only eaten|trimmed to 0" fat/i
+const ASKED_LEAN = /\blean\b|\btrimmed\b|\bskinless\b|\bdiet\b/i
+
 export function searchFoodDb(query: string, entries: Indexed[], limit = 30): FoodHit[] {
   const q = query.trim().toLowerCase()
   if (q.length < 2) return []
@@ -237,6 +258,19 @@ export function searchFoodDb(query: string, entries: Indexed[], limit = 30): Foo
     // Prefer the plainest entry that matches: "Bananas, raw" over a 90-character
     // survey description of the same thing.
     score -= Math.min(40, e.row[0].length / 3)
+
+    // A manufactured product that merely borrows the ingredient's name is not
+    // the ingredient, unless that is what was actually asked for.
+    for (const marker of PRODUCT_MARKERS) {
+      if (e.head.includes(marker) && !q.includes(marker)) {
+        score -= 150
+        break
+      }
+    }
+
+    // Unqualified cuts mean the whole cut, fat included.
+    if (LEAN_ONLY.test(e.row[0]) && !ASKED_LEAN.test(q)) score -= 25
+
     scored.push({ e, s: score })
   }
 

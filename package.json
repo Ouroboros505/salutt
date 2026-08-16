@@ -12,7 +12,8 @@
     "deploy": "npm run build && npx wrangler pages deploy dist --project-name=salutt",
     "setup:domain": "bash scripts/setup-domain.sh",
     "setup:sync": "bash scripts/setup-sync.sh",
-    "peek": "esbuild scripts/peek.ts --bundle --platform=node --format=esm --outfile=scripts/.peek.mjs --log-level=error && node scripts/.peek.mjs"
+    "peek": "esbuild scripts/peek.ts --bundle --platform=node --format=esm --outfile=scripts/.peek.mjs --log-level=error && node scripts/.peek.mjs",
+    "fix-recipe": "esbuild scripts/fix-recipe.ts --bundle --platform=node --format=esm --outfile=scripts/.fix.mjs --log-level=error && node scripts/.fix.mjs"
   },
   "dependencies": {
     "dexie": "^4.0.11",

@@ -166,9 +166,9 @@ export default function BoxBuilder({
                 <div className="grow" style={{ minWidth: 0 }}>
                   <div className="item-title truncate">{p.name}</div>
                   <div className="tiny muted num">
-                    {grams} g
-                    {exact ? '' : ` ±${partError(p, boxMl)}`} · {Math.round((p.per100.kcal * grams) / 100)} kcal
-                    {exact ? ' · exact' : ''}
+                    {exact
+                      ? `1 of ${p.lunches} of the batch · ${Math.round((p.per100.kcal * grams) / 100)} kcal · exact`
+                      : `${grams} g ±${partError(p, boxMl)} · ${Math.round((p.per100.kcal * grams) / 100)} kcal`}
                   </div>
                 </div>
                 {!exact && (
@@ -210,14 +210,12 @@ export default function BoxBuilder({
 
               {p.batchGrams ? (
                 <div className="row" style={{ gap: 8, alignItems: 'center' }}>
-                  <span className="tiny muted grow">
-                    {p.batchGrams} g cooked, split into
-                  </span>
-                  <div style={{ width: 92, flex: 'none' }}>
+                  <span className="tiny muted grow">the batch filled</span>
+                  <div style={{ width: 96, flex: 'none' }}>
                     <NumberInput
                       value={p.lunches}
-                      unit="lunches"
-                      placeholder="5"
+                      unit="boxes"
+                      placeholder="7"
                       onChange={(v) => update(p.key, { lunches: v })}
                     />
                   </div>
@@ -225,7 +223,11 @@ export default function BoxBuilder({
               ) : null}
               {p.batchGrams && !exact && (
                 <div className="tiny muted">
-                  Say how many lunches the batch made and this stops being an estimate.
+                  {/* The density cancels out of kcal/lunch once the batch is
+                      divided by the number of boxes, so this needs no scale
+                      and no weighing — only a count you can see. */}
+                  Counting the boxes it filled makes this exact — no weighing, and the density
+                  stops mattering.
                 </div>
               )}
 
