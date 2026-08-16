@@ -56,6 +56,10 @@ export default defineConfig({
         // update needs one reload rather than closing every tab.
         skipWaiting: true,
         clientsClaim: true,
+        // Without this every deploy leaves its whole precache behind — and
+        // this one includes a 2 MB food database, so a handful of deploys can
+        // put a phone under real storage pressure.
+        cleanupOutdatedCaches: true,
         // The bundled food database is a ~2 MB JSON, over Workbox's default
         // 2 MiB precache ceiling; without raising it the file is silently
         // skipped and food search stops working offline.
