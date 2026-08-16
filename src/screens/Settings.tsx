@@ -169,26 +169,36 @@ export default function Settings({
           Works offline and answers instantly.
         </div>
         <div className="tiny muted">
-          Barcode scanning also queries Open Food Facts live. Their text search is frequently
-          unavailable, which is why the built-in database exists. A free USDA key adds their full
-          online catalogue on top.
+          Barcode scanning also queries Open Food Facts live, and their text search is used when it
+          is up — it is frequently not, which is why the database above ships with the app.
         </div>
-        <Field label="USDA API key">
-          <input
-            value={s.usdaApiKey ?? ''}
-            placeholder="optional"
-            onChange={(e) => patch({ usdaApiKey: e.target.value.trim() || undefined })}
-          />
-        </Field>
-        <a
-          className="tiny"
-          href="https://fdc.nal.usda.gov/api-key-signup.html"
-          target="_blank"
-          rel="noreferrer"
-          style={{ color: 'var(--accent)' }}
-        >
-          Get a free key →
-        </a>
+
+        <details>
+          <summary className="tiny muted" style={{ cursor: 'pointer' }}>
+            USDA API key — not needed
+          </summary>
+          <div className="stack tight" style={{ paddingTop: 8 }}>
+            <div className="tiny muted">
+              The built-in database is a snapshot of USDA's generic, restaurant and Aldi foods. A
+              free key additionally searches USDA's live catalogue of ~1.9 million branded American
+              products. Worth adding only if you keep failing to find a specific packaged item.
+            </div>
+            <input
+              value={s.usdaApiKey ?? ''}
+              placeholder="leave empty"
+              onChange={(e) => patch({ usdaApiKey: e.target.value.trim() || undefined })}
+            />
+            <a
+              className="tiny"
+              href="https://fdc.nal.usda.gov/api-key-signup.html"
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: 'var(--accent)' }}
+            >
+              Get a free key →
+            </a>
+          </div>
+        </details>
       </div>
 
       {/* ------------------------------------------------ data */}

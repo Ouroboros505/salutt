@@ -110,44 +110,55 @@ export interface ScaleSession {
 interface ConnectOptions {
   onReading: (r: ScaleReading) => void
   onDisconnect?: () => void
-  /** Reuse a device already granted permission, skipping the chooser. */
-  preferKnownDevice?: boolean
 }
 
 /**
- * Opens the browser's device chooser, connects, and streams readings until
- * `disconnect()` is called. Must be invoked directly from a user gesture.
+ * Obtains the scale, showing the browser's chooser only when it has to.
+ *
+ * MUST be called synchronously from a user gesture — Chrome rejects
+ * requestDevice() otherwise. That is why this is separate from openScale():
+ * the picking happens in the click handler, the connecting can happen later.
+ *
+ * getDevices() returns devices already granted permission, so after the first
+ * successful pairing this returns instantly with no chooser at all. It is not
+ * available in every Chrome build, hence the guarded call.
  */
-export async function connectScale({
-  onReading,
-  onDisconnect,
-  preferKnownDevice = true,
-}: ConnectOptions): Promise<ScaleSession> {
+export async function pickScale(): Promise<{ device: BluetoothDevice; remembered: boolean }> {
   const blocked = bluetoothBlockedReason()
   if (blocked) throw new ScaleUnsupportedError(blocked)
 
   const bt = navigator.bluetooth
-  let device: BluetoothDevice | undefined
 
-  // getDevices() returns devices already granted permission, so repeat syncs
-  // can skip the chooser entirely. It is not available everywhere, hence the
-  // guarded call and the fall-through to requestDevice().
-  if (preferKnownDevice && 'getDevices' in bt) {
+  if ('getDevices' in bt) {
     try {
       const known = await (bt as { getDevices(): Promise<BluetoothDevice[]> }).getDevices()
-      device = known.find((d) => /etekcity|scale/i.test(d.name ?? ''))
+      const match = known.find((d) => /etekcity|scale/i.test(d.name ?? ''))
+      if (match) return { device: match, remembered: true }
     } catch {
-      // Permission-backed device list unavailable; fall back to the chooser.
+      // Persistent permissions unavailable; fall through to the chooser.
     }
   }
 
-  if (!device) {
-    device = await bt.requestDevice({
-      filters: [{ namePrefix: 'Etekcity' }, { services: [CANDIDATE_SERVICES[0]] }],
-      optionalServices: [...CANDIDATE_SERVICES, DEVICE_INFO_SERVICE],
-    })
-  }
+  const device = await bt.requestDevice({
+    filters: [{ namePrefix: 'Etekcity' }, { services: [CANDIDATE_SERVICES[0]] }],
+    optionalServices: [...CANDIDATE_SERVICES, DEVICE_INFO_SERVICE],
+  })
+  return { device, remembered: false }
+}
 
+/** True when the browser can skip the chooser for an already-paired scale. */
+export function canRememberDevices(): boolean {
+  return 'bluetooth' in navigator && 'getDevices' in navigator.bluetooth
+}
+
+/**
+ * Connects to a device from pickScale() and streams readings until
+ * `disconnect()` is called. No user gesture required at this point.
+ */
+export async function openScale(
+  device: BluetoothDevice,
+  { onReading, onDisconnect }: ConnectOptions,
+): Promise<ScaleSession> {
   if (!device.gatt) throw new Error('That device does not expose GATT.')
 
   const server = await device.gatt.connect()

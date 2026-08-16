@@ -6,6 +6,7 @@ import { bmi, navyBodyFat, projectGoal, trendSlopeKgPerWeek, weightTrend } from 
 import { TrendChart } from '../components/charts'
 import { Field, Icon, Segmented, Sheet } from '../components/ui'
 import ScaleSync from '../components/ScaleSync'
+import { bluetoothBlockedReason, pickScale } from '../lib/scale'
 import { bodyFatBand } from '../lib/bodyComp'
 
 const RANGES = [
@@ -38,13 +39,38 @@ export default function Body({
   const [range, setRange] = useState('90')
   const [weighing, setWeighing] = useState(false)
   const [measuring, setMeasuring] = useState(false)
-  const [syncing, setSyncing] = useState(false)
+  const [syncing, setSyncing] = useState<BluetoothDevice | null>(null)
+  const [picking, setPicking] = useState(false)
+
+  // requestDevice() only works inside a user gesture, so the chooser is opened
+  // straight from this handler rather than from a step inside the sheet. Once
+  // the scale has been paired, getDevices() returns it and no chooser appears
+  // at all — the tap goes directly to a live reading.
+  const sync = async () => {
+    setPicking(true)
+    try {
+      const { device } = await pickScale()
+      setSyncing(device)
+    } catch (e) {
+      const err = e as Error
+      if (err.name === 'NotFoundError' && /cancel/i.test(err.message)) return
+      toast(
+        bluetoothBlockedReason() ??
+          (err.name === 'NotFoundError'
+            ? 'No scale found — step on it to wake it, then try again'
+            : err.message || 'Could not reach the scale'),
+      )
+    } finally {
+      setPicking(false)
+    }
+  }
 
   // Launched from the "Weigh in" / "Sync scale" icon shortcuts.
   useEffect(() => {
     if (!launch) return
     if (launch === 'weigh') setWeighing(true)
-    if (launch === 'scale') setSyncing(true)
+    // The scale shortcut cannot auto-open the chooser (no user gesture on a
+    // cold launch), so it lands on Body with the button ready.
     onLaunchHandled?.()
   }, [launch, onLaunchHandled])
 
@@ -93,8 +119,8 @@ export default function Body({
           {/* Always offered, even where Bluetooth is unavailable — the sheet
               explains why rather than the button silently vanishing. */}
           <div className="stack tight" style={{ alignItems: 'flex-end' }}>
-            <button className="btn primary" onClick={() => setSyncing(true)}>
-              <Icon.bluetooth /> Sync scale
+            <button className="btn primary" onClick={sync} disabled={picking}>
+              <Icon.bluetooth /> {picking ? 'Looking…' : 'Sync scale'}
             </button>
             <button className="btn sm" onClick={() => setWeighing(true)}>
               <Icon.plus /> Enter manually
@@ -228,7 +254,12 @@ export default function Body({
       </div>
 
       {syncing && (
-        <ScaleSync settings={settings} onClose={() => setSyncing(false)} toast={toast} />
+        <ScaleSync
+          device={syncing}
+          settings={settings}
+          onClose={() => setSyncing(null)}
+          toast={toast}
+        />
       )}
       {weighing && <WeighInSheet onClose={() => setWeighing(false)} toast={toast} />}
       {measuring && <MeasureSheet last={last} onClose={() => setMeasuring(false)} toast={toast} />}
