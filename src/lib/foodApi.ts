@@ -64,6 +64,20 @@ export async function lookupBarcode(barcode: string): Promise<FoodHit | null> {
   return offToFood(json.product)
 }
 
+/**
+ * Open Food Facts text search.
+ *
+ * Only `cgi/search.pl` is usable from a browser. The newer
+ * search.openfoodfacts.org service returns better results but sends no
+ * `Access-Control-Allow-Origin` header, so every request from a page is
+ * blocked by CORS — it looks fine from curl and fails in the app. (The build
+ * script for the bundled database does use it, from Python, where CORS does
+ * not apply.)
+ *
+ * This endpoint is also intermittently 503 under load, which is exactly why
+ * Salutt ships its own database: online search is a bonus here, not the
+ * foundation.
+ */
 export async function searchOFF(query: string, signal?: AbortSignal): Promise<FoodHit[]> {
   const url =
     `${OFF}/cgi/search.pl?search_terms=${encodeURIComponent(query)}` +

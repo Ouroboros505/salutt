@@ -49,6 +49,11 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // The bundled food database is a ~2 MB JSON, over Workbox's default
+        // 2 MiB precache ceiling; without raising it the file is silently
+        // skipped and food search stops working offline.
+        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest,json}'],
+        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         // Food-database lookups are cached so a repeated barcode works offline.
         runtimeCaching: [
           {

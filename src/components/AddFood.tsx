@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, MEALS, type Food, type ISODate, type Meal } from '../db/db'
 import { logFood, quickFoods, saveFood, scale, searchLocal } from '../db/ops'
 import { lookupBarcode, searchRemote, type FoodHit } from '../lib/foodApi'
+import { loadFoodDb, searchFoodDb } from '../lib/foodDb'
 import { Field, Icon, Sheet } from '../components/ui'
 import BarcodeScanner from './BarcodeScanner'
 
@@ -32,13 +33,38 @@ export default function AddFood({
   const [stage, setStage] = useState<Stage>({ kind: 'search' })
   const [query, setQuery] = useState('')
   const [remote, setRemote] = useState<FoodHit[]>([])
+  const [bundled, setBundled] = useState<FoodHit[]>([])
+  const [dbReady, setDbReady] = useState(false)
   const [busy, setBusy] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const settings = useLiveQuery(() => db.settings.get('settings'), [])
+
+  // The bundled database is a static file; pull it in once when the sheet opens
+  // so the first search is already instant.
+  const entries = useRef<Awaited<ReturnType<typeof loadFoodDb>> | null>(null)
+  useEffect(() => {
+    let alive = true
+    loadFoodDb()
+      .then((e) => {
+        if (!alive) return
+        entries.current = e
+        setDbReady(true)
+      })
+      .catch(() => setDbReady(false))
+    return () => {
+      alive = false
+    }
+  }, [])
   const local = useLiveQuery(() => searchLocal(query), [query]) ?? []
   const recents = useLiveQuery(() => quickFoods(20), []) ?? []
+
+  // The bundled database is in memory, so it can answer on every keystroke.
+  useEffect(() => {
+    if (!entries.current) return
+    setBundled(searchFoodDb(query, entries.current, 30))
+  }, [query, dbReady])
 
   // Remote lookup is debounced and abortable so fast typing does not queue up
   // requests or let a stale response overwrite a newer one.
@@ -149,12 +175,26 @@ export default function AddFood({
             </Section>
           )}
 
+          {query.trim().length >= 2 && bundled.length > 0 && (
+            <Section title="Food database">
+              {bundled.map((h, i) => (
+                <HitRow key={`b${i}`} hit={h} onPick={() => openHit(h)} />
+              ))}
+            </Section>
+          )}
+
           {query.trim().length >= 2 && (
-            <Section title={busy ? 'Searching databases…' : 'Food databases'}>
+            <Section title={busy ? 'Searching online…' : 'Online'}>
               {remote.map((h, i) => (
                 <HitRow key={`${h.sourceId}-${i}`} hit={h} onPick={() => openHit(h)} />
               ))}
-              {!busy && remote.length === 0 && <div className="empty">No matches online</div>}
+              {!busy && remote.length === 0 && (
+                <div className="empty">
+                  {bundled.length
+                    ? 'Nothing extra online'
+                    : 'No matches online — Open Food Facts search is often unavailable'}
+                </div>
+              )}
             </Section>
           )}
 
@@ -223,6 +263,7 @@ function HitRow({ hit, onPick }: { hit: FoodHit; onPick: () => void }) {
         <div className="tiny muted truncate">
           {hit.brand ? `${hit.brand} · ` : ''}
           {Math.round(hit.kcal)} kcal / 100 g · {hit.source === 'usda' ? 'USDA' : 'Open Food Facts'}
+          {hit.portions.length ? ` · ${hit.portions[0].label}` : ''}
         </div>
       </div>
       <span className="muted">

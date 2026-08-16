@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { db, saveSettings, type Settings as S } from '../db/db'
 import { exportBackup, importBackup } from '../lib/backup'
 import { ageFrom, bmrMifflin, computeTargets } from '../lib/metrics'
 import { Field, Icon, Sheet } from '../components/ui'
 import { bluetoothBlockedReason } from '../lib/scale'
+import { foodDbSize } from '../lib/foodDb'
 
 const ACTIVITY = [
   { v: 1.2, label: 'Sedentary — desk work, little movement' },
@@ -34,6 +35,11 @@ export default function Settings({
 
   const num = (v: string) => (v === '' ? undefined : parseFloat(v))
   const scaleBlocked = bluetoothBlockedReason()
+
+  const [dbCount, setDbCount] = useState<number | null>(null)
+  useEffect(() => {
+    foodDbSize().then(setDbCount).catch(() => setDbCount(0))
+  }, [])
   const preview = computeTargets(s, s.startWeightKg ?? 75, null)
 
   return (
@@ -157,9 +163,15 @@ export default function Settings({
       {/* ------------------------------------------------ food databases */}
       <div className="card tight">
         <h3>Food databases</h3>
+        <div className="small secondary">
+          <strong>{dbCount === null ? '…' : dbCount.toLocaleString()} foods built in</strong> — USDA
+          generic and whole foods, restaurant and takeaway dishes, and Aldi own-brand groceries.
+          Works offline and answers instantly.
+        </div>
         <div className="tiny muted">
-          Open Food Facts is always on and needs no key — it covers packaged products with barcodes.
-          Add a free USDA FoodData Central key for much better generic and raw ingredients.
+          Barcode scanning also queries Open Food Facts live. Their text search is frequently
+          unavailable, which is why the built-in database exists. A free USDA key adds their full
+          online catalogue on top.
         </div>
         <Field label="USDA API key">
           <input
