@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, MEAL_SUGGESTIONS, type Food, type ISODate, type Meal, type Recipe } from '../db/db'
 import { logFood, logRecipe, quickFoods, saveFood, scale, searchLocal } from '../db/ops'
-import { finishedWeight, per100, servingGrams } from '../lib/recipes'
+import { finishedWeight, gramsPerContainer, per100, servingGrams } from '../lib/recipes'
 import { lookupBarcode, searchRemote, type FoodHit } from '../lib/foodApi'
 import { loadFoodDb, searchFoodDb } from '../lib/foodDb'
 import { Field, Icon, Sheet } from '../components/ui'
@@ -484,37 +484,74 @@ function RecipePortion({
   onDone: (msg: string) => void
 }) {
   const serving = servingGrams(recipe)
-  const [byServing, setByServing] = useState(serving != null)
-  const [qty, setQty] = useState('1')
+  const boxGrams = gramsPerContainer(recipe)
+
+  type Mode = 'container' | 'serving' | 'grams'
+  const [mode, setMode] = useState<Mode>(
+    boxGrams != null ? 'container' : serving != null ? 'serving' : 'grams',
+  )
+  const [qty, setQty] = useState(boxGrams != null ? '100' : '1')
   const [targetMeal, setTargetMeal] = useState<Meal>(meal)
 
   const n = parseFloat(qty) || 0
-  const grams = byServing && serving ? n * serving : n
+  const grams =
+    mode === 'container' && boxGrams != null
+      ? (n / 100) * boxGrams
+      : mode === 'serving' && serving != null
+        ? n * serving
+        : n
   const p = per100(recipe)
   const f = grams / 100
   const kcal = Math.round(p.kcal * f)
 
-  const choose = (asServing: boolean) => {
-    setByServing(asServing)
-    setQty(asServing ? '1' : String(serving ?? 200))
+  const choose = (next: Mode) => {
+    setMode(next)
+    setQty(next === 'container' ? '100' : next === 'serving' ? '1' : String(Math.round(boxGrams ?? serving ?? 200)))
   }
 
   return (
     <>
-      {serving != null && (
+      {(serving != null || boxGrams != null) && (
         <div className="scroll-x">
-          <button className="chip" aria-pressed={byServing} onClick={() => choose(true)}>
-            Portions <span className="muted num">{serving} g</span>
-          </button>
-          <button className="chip" aria-pressed={!byServing} onClick={() => choose(false)}>
+          {boxGrams != null && (
+            <button className="chip" aria-pressed={mode === 'container'} onClick={() => choose('container')}>
+              % of a box <span className="muted num">{Math.round(boxGrams)} g full</span>
+            </button>
+          )}
+          {serving != null && (
+            <button className="chip" aria-pressed={mode === 'serving'} onClick={() => choose('serving')}>
+              Portions <span className="muted num">{serving} g</span>
+            </button>
+          )}
+          <button className="chip" aria-pressed={mode === 'grams'} onClick={() => choose('grams')}>
             Grams
           </button>
         </div>
       )}
 
+      {mode === 'container' && boxGrams != null && (
+        <div className="scroll-x">
+          {[100, 75, 70, 60, 50, 33, 25].map((pct) => (
+            <button key={pct} className="chip" aria-pressed={qty === String(pct)} onClick={() => setQty(String(pct))}>
+              {pct}%
+            </button>
+          ))}
+        </div>
+      )}
+
       <Field
-        label={byServing && serving ? 'How many portions' : 'Grams of the finished dish'}
-        hint={`Made ${Math.round(finishedWeight(recipe))} g in total`}
+        label={
+          mode === 'container'
+            ? 'How full was the box (%)'
+            : mode === 'serving'
+              ? 'How many portions'
+              : 'Grams of the finished dish'
+        }
+        hint={
+          mode === 'container' && boxGrams != null
+            ? `A full box is about ${Math.round(boxGrams)} g`
+            : `Made ${Math.round(finishedWeight(recipe))} g in total`
+        }
       >
         <input
           autoFocus
@@ -558,9 +595,11 @@ function RecipePortion({
         disabled={grams <= 0}
         onClick={async () => {
           const label =
-            byServing && serving
-              ? `${qty} × portion (${Math.round(grams)} g)`
-              : `${Math.round(grams)} g`
+            mode === 'container'
+              ? `${qty}% of a box (${Math.round(grams)} g)`
+              : mode === 'serving' && serving
+                ? `${qty} × portion (${Math.round(grams)} g)`
+                : `${Math.round(grams)} g`
           await logRecipe(recipe, grams, date, targetMeal, label)
           onDone(`${recipe.name} logged`)
         }}

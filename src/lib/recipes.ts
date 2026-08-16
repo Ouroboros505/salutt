@@ -77,3 +77,32 @@ export function waterLossPct(recipe: Pick<Recipe, 'items' | 'cookedG'>): number 
   if (!recipe.cookedG || raw <= 0) return null
   return ((raw - recipe.cookedG) / raw) * 100
 }
+
+/**
+ * Grams in one full container, worked out from the batch rather than measured.
+ *
+ * Nothing needs weighing at lunchtime: the cooked weight was measured once,
+ * and the number of boxes it filled is something you know by counting.
+ */
+export function gramsPerContainer(
+  recipe: Pick<Recipe, 'items' | 'cookedG' | 'containers'>,
+): number | null {
+  if (!recipe.containers || recipe.containers <= 0) return null
+  const weight = finishedWeight(recipe)
+  return weight > 0 ? weight / recipe.containers : null
+}
+
+/**
+ * Apparent density, only for sanity-checking the numbers entered.
+ *
+ * Cooked mixed dishes land near 0.8–1.1 g/ml. Well outside that usually means
+ * the cooked weight or the container size is wrong, which is worth saying
+ * before every future lunch is logged off a bad figure.
+ */
+export function containerDensity(
+  recipe: Pick<Recipe, 'items' | 'cookedG' | 'containers' | 'containerMl'>,
+): number | null {
+  const grams = gramsPerContainer(recipe)
+  if (grams === null || !recipe.containerMl || recipe.containerMl <= 0) return null
+  return grams / recipe.containerMl
+}

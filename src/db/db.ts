@@ -165,6 +165,16 @@ export interface Recipe {
   cookedG: number
   /** Optional: how many portions it was divided into. */
   servings?: number
+  /**
+   * How many containers the batch filled, and how big they are.
+   *
+   * Weighing a serving at the moment of eating is the awkward part — but you
+   * already know how many boxes the batch filled, so grams per container falls
+   * out of the cooked weight for free. After that a lunch can be logged as
+   * "70% of a container" without a scale being involved at all.
+   */
+  containers?: number
+  containerMl?: number
   notes?: string
   useCount: number
   lastUsed: number

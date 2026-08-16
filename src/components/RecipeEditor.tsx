@@ -3,7 +3,15 @@ import { db, type Recipe, type RecipeItem } from '../db/db'
 import { scale, searchLocal } from '../db/ops'
 import { loadFoodDb, searchFoodDb } from '../lib/foodDb'
 import type { FoodHit } from '../lib/foodApi'
-import { finishedWeight, per100, recipeTotals, servingGrams, waterLossPct } from '../lib/recipes'
+import {
+  containerDensity,
+  finishedWeight,
+  gramsPerContainer,
+  per100,
+  recipeTotals,
+  servingGrams,
+  waterLossPct,
+} from '../lib/recipes'
 import { parseRecipeText, type ParsedLine } from '../lib/parseRecipe'
 import { Field, Icon, Sheet } from './ui'
 
@@ -37,6 +45,8 @@ export default function RecipeEditor({
   const p100 = per100(draft)
   const loss = waterLossPct(draft)
   const perServing = servingGrams(draft)
+  const perContainer = gramsPerContainer(draft)
+  const density = containerDensity(draft)
 
   const save = async () => {
     const row = {
@@ -167,6 +177,45 @@ export default function RecipeEditor({
           than what went in and denser per gram — scaling off the raw total would overstate every
           portion. Leave it blank to use the raw total anyway.
         </div>
+
+        <div className="grid-2">
+          <Field label="Filled how many boxes" hint="optional">
+            <input
+              type="number"
+              inputMode="numeric"
+              value={draft.containers ?? ''}
+              placeholder="5"
+              onChange={(e) =>
+                setDraft({ ...draft, containers: parseFloat(e.target.value) || undefined })
+              }
+            />
+          </Field>
+          <Field label="Box size (ml)" hint="optional">
+            <input
+              type="number"
+              inputMode="numeric"
+              value={draft.containerMl ?? ''}
+              placeholder="750"
+              onChange={(e) =>
+                setDraft({ ...draft, containerMl: parseFloat(e.target.value) || undefined })
+              }
+            />
+          </Field>
+        </div>
+
+        {perContainer !== null && (
+          <div className="small secondary num">
+            One full box ≈ <strong>{Math.round(perContainer)} g</strong> — so a lunch can be logged
+            as a percentage of a box, with nothing to weigh.
+          </div>
+        )}
+
+        {density !== null && (density < 0.55 || density > 1.35) && (
+          <div className="tiny" style={{ color: 'var(--serious)' }}>
+            That works out at {density.toFixed(2)} g/ml. Cooked food is usually 0.8–1.1, so either
+            the cooked weight or the box size is probably off.
+          </div>
+        )}
 
         {loss !== null && (
           <div
