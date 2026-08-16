@@ -168,6 +168,75 @@ export async function recentMealNames(limit = 8): Promise<Meal[]> {
     .map((x) => x.name)
 }
 
+export interface PastMeal {
+  meal: Meal
+  date: ISODate
+  items: number
+  kcal: number
+}
+
+/**
+ * Meals you have eaten before, one entry per name, most recent first.
+ *
+ * Repeating a meal is the common case — the same prepped lunch, the same
+ * breakfast — so it should be reachable without rebuilding it item by item.
+ */
+export async function pastMeals(before: ISODate, limit = 10): Promise<PastMeal[]> {
+  const rows = await db.entries.where('date').below(before).toArray()
+  const latest = new Map<string, PastMeal>()
+
+  for (const e of rows) {
+    const key = e.meal.trim().toLowerCase()
+    if (!key) continue
+    const seen = latest.get(key)
+    // Keep only the most recent day each name was used, and total that day.
+    if (!seen || e.date > seen.date) {
+      latest.set(key, { meal: e.meal, date: e.date, items: 0, kcal: 0 })
+    }
+  }
+  for (const e of rows) {
+    const entry = latest.get(e.meal.trim().toLowerCase())
+    if (entry && entry.date === e.date) {
+      entry.items += 1
+      entry.kcal += e.kcal
+    }
+  }
+
+  return [...latest.values()].sort((a, b) => b.date.localeCompare(a.date)).slice(0, limit)
+}
+
+/** Copies one meal from a past day onto another, optionally under a new name. */
+export async function repeatMeal(
+  past: PastMeal,
+  to: ISODate,
+  rename?: Meal,
+): Promise<number> {
+  const src = (await db.entries.where('date').equals(past.date).toArray())
+    .filter((e) => e.meal.trim().toLowerCase() === past.meal.trim().toLowerCase())
+    .sort((a, b) => a.createdAt - b.createdAt)
+  if (!src.length) return 0
+
+  const now = Date.now()
+  await db.entries.bulkAdd(
+    src.map(({ id: _id, ...e }, i) => ({
+      ...e,
+      date: to,
+      meal: rename?.trim() || e.meal,
+      createdAt: now + i,
+    })),
+  )
+  return src.length
+}
+
+/** Removes a whole section of a day. */
+export async function deleteMeal(date: ISODate, meal: Meal): Promise<number> {
+  const rows = (await db.entries.where('date').equals(date).toArray()).filter(
+    (e) => e.meal === meal,
+  )
+  await db.entries.bulkDelete(rows.map((e) => e.id!))
+  return rows.length
+}
+
 /**
  * Foods worth showing as one-tap buttons: recently used first, then the ones
  * used most often. In practice a handful of these cover most days.

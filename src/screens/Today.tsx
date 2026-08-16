@@ -3,13 +3,17 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, MEAL_SUGGESTIONS, type Entry, type ISODate, type Meal, type Settings } from '../db/db'
 import {
   copyDay,
+  deleteMeal,
   lastLoggedDay,
   logFood,
   logTemplate,
+  pastMeals,
   quickFoods,
   recentMealNames,
+  repeatMeal,
   sum,
   ZERO,
+  type PastMeal,
 } from '../db/ops'
 import { addDays, formatDay, todayISO } from '../lib/date'
 import { adaptiveTDEE, computeTargets, weightTrend } from '../lib/metrics'
@@ -53,6 +57,7 @@ export default function Today({
   // Names you have used before, so a personal vocabulary builds up instead of
   // being retyped.
   const knownMeals = useLiveQuery(() => recentMealNames(), []) ?? []
+  const previousMeals = useLiveQuery(() => pastMeals(date), [date]) ?? []
 
 
   const entries = useLiveQuery(() => db.entries.where('date').equals(date).toArray(), [date]) ?? []
@@ -268,7 +273,7 @@ export default function Today({
 
       <div className="row" style={{ gap: 8 }}>
         <button className="btn grow" onClick={() => setNaming(true)}>
-          <Icon.plus /> Add a meal
+          <Icon.plus /> Add meal entry
         </button>
         {entries.length > 0 && previousDay && (
           <button
@@ -309,9 +314,15 @@ export default function Today({
         <NameMeal
           used={meals}
           known={knownMeals}
+          past={previousMeals}
           onPick={(name) => {
             setNaming(false)
             setAdding(name)
+          }}
+          onRepeat={async (meal) => {
+            const n = await repeatMeal(meal, date)
+            setNaming(false)
+            toast(n ? `Added ${meal.meal} — ${n} items` : 'Nothing to copy')
           }}
           onClose={() => setNaming(false)}
         />
@@ -322,13 +333,19 @@ export default function Today({
           initial={label(renaming)}
           used={meals.filter((m) => m !== renaming)}
           known={knownMeals}
-          title="Rename"
+          title={label(renaming)}
           onPick={async (name) => {
             const rows = entries.filter((e) => e.meal === renaming)
             await Promise.all(rows.map((e) => db.entries.update(e.id!, { meal: name })))
             setRenaming(null)
             toast('Renamed')
           }}
+          onDelete={async () => {
+            const n = await deleteMeal(date, renaming)
+            setRenaming(null)
+            toast(`Deleted ${n} item${n === 1 ? '' : 's'}`)
+          }}
+          deleteCount={entries.filter((e) => e.meal === renaming).length}
           onClose={() => setRenaming(null)}
         />
       )}
@@ -428,16 +445,25 @@ function NameMeal({
   initial = '',
   used,
   known,
-  title = 'New meal',
+  past = [],
+  title = 'Add meal entry',
   onPick,
+  onRepeat,
+  onDelete,
+  deleteCount = 0,
   onClose,
 }: {
   initial?: string
   used: Meal[]
   /** Names from your own history, offered before the generic ones. */
   known: Meal[]
+  /** Whole meals eaten before, repeatable in one tap. */
+  past?: PastMeal[]
   title?: string
   onPick: (name: string) => void
+  onRepeat?: (meal: PastMeal) => void
+  onDelete?: () => void
+  deleteCount?: number
   onClose: () => void
 }) {
   const [name, setName] = useState(initial)
@@ -494,9 +520,55 @@ function NameMeal({
         disabled={!name.trim() || taken}
         onClick={() => onPick(name.trim())}
       >
-        Use this name
+        {onDelete ? 'Rename' : 'Name it and add food'}
       </button>
+
+      {onRepeat && past.length > 0 && (
+        <div className="card tight">
+          <h3>Or repeat one you have had</h3>
+          <div>
+            {past.filter((m) => free(m.meal)).map((m) => (
+              <button key={`${m.date}-${m.meal}`} className="item" onClick={() => onRepeat(m)}>
+                <div className="grow">
+                  <div className="item-title truncate">{m.meal}</div>
+                  <div className="tiny muted">
+                    {formatDay(m.date)} · {m.items} item{m.items === 1 ? '' : 's'} ·{' '}
+                    {Math.round(m.kcal)} kcal
+                  </div>
+                </div>
+                <span className="muted">
+                  <Icon.plus />
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {onDelete && <DeleteMeal count={deleteCount} onDelete={onDelete} />}
     </Sheet>
+  )
+}
+
+/** Removing a whole section, behind a confirmation because it takes items with it. */
+function DeleteMeal({ count, onDelete }: { count: number; onDelete: () => void }) {
+  const [armed, setArmed] = useState(false)
+  if (!armed) {
+    return (
+      <button className="btn danger block" onClick={() => setArmed(true)}>
+        <Icon.trash /> Delete this meal
+      </button>
+    )
+  }
+  return (
+    <div className="row" style={{ gap: 8 }}>
+      <button className="btn grow" onClick={() => setArmed(false)}>
+        Cancel
+      </button>
+      <button className="btn danger grow" onClick={onDelete}>
+        Delete {count} item{count === 1 ? '' : 's'}
+      </button>
+    </div>
   )
 }
 
