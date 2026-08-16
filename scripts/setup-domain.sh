@@ -19,8 +19,9 @@ if [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
 CLOUDFLARE_API_TOKEN is not set.
 
   1. https://dash.cloudflare.com/profile/api-tokens -> Create Token -> Custom
-     Permissions: Account | Cloudflare Pages | Edit
-                  Zone    | DNS              | Edit   (zone: montejongas.com)
+     Permissions: Account | Cloudflare Pages  | Edit
+                  Account | Account Settings  | Read
+                  Zone    | DNS               | Edit   (zone: montejongas.com)
   2. echo 'export CLOUDFLARE_API_TOKEN=<token>' >> ~/.bashrc
   3. re-run this script
 

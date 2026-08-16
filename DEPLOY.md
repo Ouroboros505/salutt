@@ -99,7 +99,10 @@ bothers you — and a separate domain is the cleaner fix for that.
 This box has no browser, so prefer an API token over the OAuth flow:
 
 1. On your own machine, open <https://dash.cloudflare.com/profile/api-tokens>
-2. **Create Token → Custom token**, permission: **Account → Cloudflare Pages → Edit**
+2. **Create Token → Custom token**, with three permissions:
+   - Account → **Cloudflare Pages** → Edit  (deploys)
+   - Account → **Account Settings** → Read  (so the script can find your account id)
+   - Zone → **DNS** → Edit, zone `montejongas.com`  (creates the subdomain record)
 3. Then here:
 
 ```bash
