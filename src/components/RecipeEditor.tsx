@@ -4,9 +4,11 @@ import { scale, searchLocal } from '../db/ops'
 import { loadFoodDb, searchFoodDb } from '../lib/foodDb'
 import type { FoodHit } from '../lib/foodApi'
 import {
+  boxWeight,
   containerDensity,
+  DISH_TYPES,
+  estimatedBoxes,
   finishedWeight,
-  gramsPerContainer,
   per100,
   recipeTotals,
   servingGrams,
@@ -45,8 +47,9 @@ export default function RecipeEditor({
   const p100 = per100(draft)
   const loss = waterLossPct(draft)
   const perServing = servingGrams(draft)
-  const perContainer = gramsPerContainer(draft)
+  const box = boxWeight(draft)
   const density = containerDensity(draft)
+  const boxGuess = estimatedBoxes(draft)
 
   const save = async () => {
     const row = {
@@ -203,10 +206,41 @@ export default function RecipeEditor({
           </Field>
         </div>
 
-        {perContainer !== null && (
+        {!draft.containers && draft.containerMl ? (
+          <div className="stack tight">
+            <div className="tiny muted">
+              If you did not count the boxes, pick what the dish is like and the weight gets
+              estimated from the volume instead.
+            </div>
+            <div className="scroll-x">
+              {DISH_TYPES.map((t) => (
+                <button
+                  key={t.label}
+                  className="chip"
+                  aria-pressed={draft.density === t.density}
+                  onClick={() => setDraft({ ...draft, density: t.density })}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {box && (
           <div className="small secondary num">
-            One full box ≈ <strong>{Math.round(perContainer)} g</strong> — so a lunch can be logged
-            as a percentage of a box, with nothing to weigh.
+            One full box ≈ <strong>{Math.round(box.grams)} g</strong>
+            {box.source === 'counted' ? ' — from the batch, so this is exact.' : ' — estimated.'}
+          </div>
+        )}
+
+        {box?.source === 'estimated' && (
+          <div className="tiny" style={{ color: 'var(--serious)' }}>
+            Dishes vary about ±15% within a type, so that is ±{Math.round(box.grams * 0.15)} g a box
+            — worth roughly {Math.round((box.grams * 0.15 * per100(draft).kcal) / 100)} kcal on a
+            single lunch, every day you eat it.
+            {boxGuess ? ` This batch should fill about ${boxGuess.toFixed(1)} boxes — ` : ' '}
+            counting the boxes, or weighing one full one once, makes it exact.
           </div>
         )}
 

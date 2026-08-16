@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, MEAL_SUGGESTIONS, type Food, type ISODate, type Meal, type Recipe } from '../db/db'
 import { logFood, logRecipe, quickFoods, saveFood, scale, searchLocal } from '../db/ops'
-import { finishedWeight, gramsPerContainer, per100, servingGrams } from '../lib/recipes'
+import { boxWeight, finishedWeight, per100, servingGrams } from '../lib/recipes'
 import { lookupBarcode, searchRemote, type FoodHit } from '../lib/foodApi'
 import { loadFoodDb, searchFoodDb } from '../lib/foodDb'
 import { Field, Icon, Sheet } from '../components/ui'
@@ -484,7 +484,8 @@ function RecipePortion({
   onDone: (msg: string) => void
 }) {
   const serving = servingGrams(recipe)
-  const boxGrams = gramsPerContainer(recipe)
+  const box = boxWeight(recipe)
+  const boxGrams = box?.grams ?? null
 
   type Mode = 'container' | 'serving' | 'grams'
   const [mode, setMode] = useState<Mode>(
@@ -549,7 +550,7 @@ function RecipePortion({
         }
         hint={
           mode === 'container' && boxGrams != null
-            ? `A full box is about ${Math.round(boxGrams)} g`
+            ? `A full box is ${box?.source === 'counted' ? '' : 'roughly '}${Math.round(boxGrams)} g${box?.source === 'estimated' ? ' — estimated from volume' : ''}`
             : `Made ${Math.round(finishedWeight(recipe))} g in total`
         }
       >

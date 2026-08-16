@@ -79,17 +79,63 @@ export function waterLossPct(recipe: Pick<Recipe, 'items' | 'cookedG'>): number 
 }
 
 /**
- * Grams in one full container, worked out from the batch rather than measured.
+ * Typical densities, for estimating a box weight when it was never measured.
  *
- * Nothing needs weighing at lunchtime: the cooked weight was measured once,
- * and the number of boxes it filled is something you know by counting.
+ * Real dishes vary by roughly ±15% within any of these categories, which on a
+ * 750 ml box is over 100 g — worth around 150 kcal on a single lunch. Useful
+ * as a starting point, no substitute for weighing one box once.
  */
-export function gramsPerContainer(
-  recipe: Pick<Recipe, 'items' | 'cookedG' | 'containers'>,
+export const DISH_TYPES: { label: string; density: number }[] = [
+  { label: 'Soup or broth', density: 1.0 },
+  { label: 'Stew, chilli, curry', density: 0.95 },
+  { label: 'Dense, mince or casserole', density: 1.05 },
+  { label: 'Meat and veg, little sauce', density: 0.85 },
+  { label: 'Rice or grain based', density: 0.8 },
+  { label: 'Pasta dish', density: 0.75 },
+  { label: 'Leafy salad', density: 0.35 },
+]
+
+export type BoxEstimate = {
+  grams: number
+  /** Counted boxes are exact; a density is a guess with real error attached. */
+  source: 'counted' | 'estimated'
+}
+
+/**
+ * Grams in one full container.
+ *
+ * Preferred route needs no weighing at lunchtime and no density at all: the
+ * batch was weighed once, and how many boxes it filled is something you know
+ * by counting. Falling back to volume × density is offered because the box
+ * count is not always known, but it is markedly less accurate.
+ */
+export function boxWeight(
+  recipe: Pick<Recipe, 'items' | 'cookedG' | 'containers' | 'containerMl' | 'density'>,
+): BoxEstimate | null {
+  if (recipe.containers && recipe.containers > 0) {
+    const weight = finishedWeight(recipe)
+    if (weight > 0) return { grams: weight / recipe.containers, source: 'counted' }
+  }
+  if (recipe.density && recipe.containerMl) {
+    return { grams: recipe.density * recipe.containerMl, source: 'estimated' }
+  }
+  return null
+}
+
+/** How many boxes the batch should fill, given a density. Lets you check. */
+export function estimatedBoxes(
+  recipe: Pick<Recipe, 'items' | 'cookedG' | 'containerMl' | 'density'>,
 ): number | null {
-  if (!recipe.containers || recipe.containers <= 0) return null
+  if (!recipe.density || !recipe.containerMl) return null
   const weight = finishedWeight(recipe)
-  return weight > 0 ? weight / recipe.containers : null
+  if (weight <= 0) return null
+  return weight / (recipe.density * recipe.containerMl)
+}
+
+export function gramsPerContainer(
+  recipe: Pick<Recipe, 'items' | 'cookedG' | 'containers' | 'containerMl' | 'density'>,
+): number | null {
+  return boxWeight(recipe)?.grams ?? null
 }
 
 /**

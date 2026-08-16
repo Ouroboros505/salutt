@@ -175,6 +175,11 @@ export interface Recipe {
    */
   containers?: number
   containerMl?: number
+  /**
+   * Grams per millilitre, when the box count is not known and the weight has
+   * to be estimated from volume instead. Far less accurate — see DISH_TYPES.
+   */
+  density?: number
   notes?: string
   useCount: number
   lastUsed: number
