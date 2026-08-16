@@ -1,14 +1,18 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, type Food, type MealTemplate } from '../db/db'
+import { db, type Food, type MealTemplate, type Recipe } from '../db/db'
 import { Field, Icon, Sheet } from '../components/ui'
+import RecipeEditor from '../components/RecipeEditor'
+import { finishedWeight, per100, servingGrams } from '../lib/recipes'
 
 export default function Foods({ toast }: { toast: (m: string) => void }) {
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState<Food | null>(null)
+  const [recipe, setRecipe] = useState<Recipe | 'new' | null>(null)
 
   const foods = useLiveQuery(() => db.foods.toArray(), []) ?? []
   const templates = useLiveQuery(() => db.mealTemplates.orderBy('lastUsed').reverse().toArray(), []) ?? []
+  const recipes = useLiveQuery(() => db.recipes.orderBy('lastUsed').reverse().toArray(), []) ?? []
 
   const q = query.trim().toLowerCase()
   const shown = foods
@@ -28,6 +32,46 @@ export default function Foods({ toast }: { toast: (m: string) => void }) {
         <span style={{ position: 'absolute', left: 10, top: 11, color: 'var(--text-muted)', pointerEvents: 'none' }}>
           <Icon.search />
         </span>
+      </div>
+
+      <div className="card tight">
+        <div className="card-head">
+          <h3>Meal preps &amp; recipes</h3>
+          <button className="btn sm" onClick={() => setRecipe('new')}>
+            <Icon.plus /> New
+          </button>
+        </div>
+
+        {recipes.length === 0 ? (
+          <div className="empty">
+            Cook once, log a portion. Add the ingredients, weigh the finished tray, and a serving
+            becomes one entry.
+          </div>
+        ) : (
+          <div>
+            {recipes
+              .filter((r) => !q || r.name.toLowerCase().includes(q))
+              .map((r) => {
+                const p = per100(r)
+                const serving = servingGrams(r)
+                return (
+                  <button key={r.id} className="item" onClick={() => setRecipe(r)}>
+                    <div className="grow">
+                      <div className="item-title truncate">{r.name}</div>
+                      <div className="tiny muted truncate num">
+                        {r.items.length} ingredients · {Math.round(finishedWeight(r))} g made ·{' '}
+                        {Math.round(p.kcal)} kcal/100 g
+                        {serving ? ` · portion ${serving} g` : ''}
+                      </div>
+                    </div>
+                    <span className="muted">
+                      <Icon.edit />
+                    </span>
+                  </button>
+                )
+              })}
+          </div>
+        )}
       </div>
 
       {templates.length > 0 && (
@@ -76,6 +120,14 @@ export default function Foods({ toast }: { toast: (m: string) => void }) {
       </div>
 
       {editing && <EditFood food={editing} onClose={() => setEditing(null)} toast={toast} />}
+
+      {recipe && (
+        <RecipeEditor
+          recipe={recipe === 'new' ? undefined : recipe}
+          onClose={() => setRecipe(null)}
+          toast={toast}
+        />
+      )}
     </div>
   )
 }

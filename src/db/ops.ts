@@ -1,5 +1,6 @@
-import { db, type Entry, type Food, type ISODate, type Meal, type MealTemplate } from './db'
+import { db, type Entry, type Food, type ISODate, type Meal, type MealTemplate, type Recipe } from './db'
 import type { FoodHit } from '../lib/foodApi'
+import { per100 } from '../lib/recipes'
 
 export interface Totals {
   kcal: number
@@ -82,6 +83,47 @@ export async function logFood(
     })
     // Usage counters drive the quick-add list, which is what makes logging fast.
     await db.foods.update(foodId, { useCount: (food.useCount ?? 0) + 1, lastUsed: Date.now() })
+  })
+}
+
+/**
+ * Logs a weight of a finished meal prep as a single entry.
+ *
+ * One line, not one per ingredient: you ate a portion of chilli, not 140 g of
+ * onion. Macros are snapshotted here as everywhere else, so editing the recipe
+ * later never rewrites what you already ate.
+ */
+export async function logRecipe(
+  recipe: Recipe,
+  grams: number,
+  date: ISODate,
+  meal: Meal,
+  amountLabel: string,
+): Promise<void> {
+  const p = per100(recipe)
+  const f = grams / 100
+  const r = (v: number) => Math.round(v * f * 10) / 10
+
+  await db.transaction('rw', db.entries, db.recipes, async () => {
+    await db.entries.add({
+      date,
+      meal,
+      name: recipe.name,
+      grams,
+      amountLabel,
+      kcal: Math.round(p.kcal * f),
+      protein: r(p.protein),
+      carbs: r(p.carbs),
+      fat: r(p.fat),
+      fiber: r(p.fiber),
+      createdAt: Date.now(),
+    })
+    if (recipe.id) {
+      await db.recipes.update(recipe.id, {
+        useCount: (recipe.useCount ?? 0) + 1,
+        lastUsed: Date.now(),
+      })
+    }
   })
 }
 

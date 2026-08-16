@@ -136,6 +136,41 @@ export interface Workout {
   createdAt: number
 }
 
+export interface RecipeItem {
+  foodId?: number
+  name: string
+  brand?: string
+  grams: number
+  /** Snapshotted at the time the ingredient was added, like log entries. */
+  kcal: number
+  protein: number
+  carbs: number
+  fat: number
+  fiber: number
+}
+
+/**
+ * Something you cook once and eat over several days.
+ *
+ * The whole point is `cookedG`: a tray of chilli made from 2.4 kg of
+ * ingredients does not weigh 2.4 kg after an hour in the oven, because water
+ * leaves. Scaling a 380 g portion off the raw total would overstate every
+ * macro. So the finished dish gets weighed, and portions scale off that.
+ */
+export interface Recipe {
+  id?: number
+  name: string
+  items: RecipeItem[]
+  /** Weight of the finished dish. Zero means "use the raw total instead". */
+  cookedG: number
+  /** Optional: how many portions it was divided into. */
+  servings?: number
+  notes?: string
+  useCount: number
+  lastUsed: number
+  createdAt: number
+}
+
 /** A named group of foods logged together in one tap, e.g. "usual breakfast". */
 export interface MealTemplate {
   id?: number
@@ -198,6 +233,7 @@ class SaluttDB extends Dexie {
   measurements!: Table<Measurement, number>
   workouts!: Table<Workout, number>
   mealTemplates!: Table<MealTemplate, number>
+  recipes!: Table<Recipe, number>
   settings!: Table<Settings, string>
 
   constructor() {
@@ -210,6 +246,11 @@ class SaluttDB extends Dexie {
       workouts: '++id, date, kind',
       mealTemplates: '++id, name, meal, lastUsed',
       settings: 'id',
+    })
+
+    // Recipes arrived later; Dexie carries existing data across untouched.
+    this.version(2).stores({
+      recipes: '++id, name, lastUsed, useCount',
     })
   }
 }

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, MEAL_SUGGESTIONS, type Food, type ISODate, type Meal } from '../db/db'
-import { logFood, quickFoods, saveFood, scale, searchLocal } from '../db/ops'
+import { db, MEAL_SUGGESTIONS, type Food, type ISODate, type Meal, type Recipe } from '../db/db'
+import { logFood, logRecipe, quickFoods, saveFood, scale, searchLocal } from '../db/ops'
+import { finishedWeight, per100, servingGrams } from '../lib/recipes'
 import { lookupBarcode, searchRemote, type FoodHit } from '../lib/foodApi'
 import { loadFoodDb, searchFoodDb } from '../lib/foodDb'
 import { Field, Icon, Sheet } from '../components/ui'
@@ -11,6 +12,7 @@ import BarcodeScanner from './BarcodeScanner'
 type Stage =
   | { kind: 'search' }
   | { kind: 'portion'; food: Food }
+  | { kind: 'recipe'; recipe: Recipe }
   | { kind: 'create'; name: string }
 
 export default function AddFood({
@@ -55,6 +57,11 @@ export default function AddFood({
     }
   }, [])
   const local = useLiveQuery(() => searchLocal(query), [query]) ?? []
+  // Your own meal preps come before anything else: if you cooked it, it is far
+  // more likely to be what you are logging than a database entry of the same name.
+  const recipes = useLiveQuery(() => db.recipes.orderBy('lastUsed').reverse().toArray(), []) ?? []
+  const q = query.trim().toLowerCase()
+  const matchingRecipes = recipes.filter((r) => !q || r.name.toLowerCase().includes(q))
   const recents = useLiveQuery(() => quickFoods(20), []) ?? []
 
   // The bundled database is in memory, so it can answer on every keystroke.
@@ -122,7 +129,13 @@ export default function AddFood({
   }
 
   const title =
-    stage.kind === 'portion' ? stage.food.name : stage.kind === 'create' ? 'New food' : `Add to ${meal}`
+    stage.kind === 'portion'
+      ? stage.food.name
+      : stage.kind === 'recipe'
+        ? stage.recipe.name
+        : stage.kind === 'create'
+          ? 'New food'
+          : `Add to ${meal}`
 
   if (scanning) return <BarcodeScanner onDetect={onScan} onClose={() => setScanning(false)} />
 
@@ -155,6 +168,32 @@ export default function AddFood({
           </div>
 
           {error && <div className="tiny" style={{ color: 'var(--critical)' }}>{error}</div>}
+
+          {matchingRecipes.length > 0 && (
+            <Section title="Your meal preps">
+              {matchingRecipes.map((r) => {
+                const serving = servingGrams(r)
+                return (
+                  <button
+                    key={r.id}
+                    className="item"
+                    onClick={() => setStage({ kind: 'recipe', recipe: r })}
+                  >
+                    <div className="grow">
+                      <div className="item-title truncate">{r.name}</div>
+                      <div className="tiny muted truncate num">
+                        {Math.round(per100(r).kcal)} kcal / 100 g
+                        {serving ? ` · portion ${serving} g` : ` · ${Math.round(finishedWeight(r))} g made`}
+                      </div>
+                    </div>
+                    <span className="muted">
+                      <Icon.chevron />
+                    </span>
+                  </button>
+                )
+              })}
+            </Section>
+          )}
 
           {query.trim() === '' && recents.length > 0 && (
             <Section title="Your usual">
@@ -206,6 +245,19 @@ export default function AddFood({
       {stage.kind === 'portion' && (
         <PortionStep
           food={stage.food}
+          date={date}
+          meal={meal}
+          mealsToday={mealsToday}
+          onDone={(msg) => {
+            toast(msg)
+            onClose()
+          }}
+        />
+      )}
+
+      {stage.kind === 'recipe' && (
+        <RecipePortion
+          recipe={stage.recipe}
           date={date}
           meal={meal}
           mealsToday={mealsToday}
@@ -413,6 +465,108 @@ function PortionStep({
           Log {macros.kcal} kcal
         </button>
       </div>
+    </>
+  )
+}
+
+/** Logging a serving of something you cooked. */
+function RecipePortion({
+  recipe,
+  date,
+  meal,
+  mealsToday,
+  onDone,
+}: {
+  recipe: Recipe
+  date: ISODate
+  meal: Meal
+  mealsToday: Meal[]
+  onDone: (msg: string) => void
+}) {
+  const serving = servingGrams(recipe)
+  const [byServing, setByServing] = useState(serving != null)
+  const [qty, setQty] = useState('1')
+  const [targetMeal, setTargetMeal] = useState<Meal>(meal)
+
+  const n = parseFloat(qty) || 0
+  const grams = byServing && serving ? n * serving : n
+  const p = per100(recipe)
+  const f = grams / 100
+  const kcal = Math.round(p.kcal * f)
+
+  const choose = (asServing: boolean) => {
+    setByServing(asServing)
+    setQty(asServing ? '1' : String(serving ?? 200))
+  }
+
+  return (
+    <>
+      {serving != null && (
+        <div className="scroll-x">
+          <button className="chip" aria-pressed={byServing} onClick={() => choose(true)}>
+            Portions <span className="muted num">{serving} g</span>
+          </button>
+          <button className="chip" aria-pressed={!byServing} onClick={() => choose(false)}>
+            Grams
+          </button>
+        </div>
+      )}
+
+      <Field
+        label={byServing && serving ? 'How many portions' : 'Grams of the finished dish'}
+        hint={`Made ${Math.round(finishedWeight(recipe))} g in total`}
+      >
+        <input
+          autoFocus
+          type="number"
+          inputMode="decimal"
+          value={qty}
+          onChange={(e) => setQty(e.target.value)}
+          onFocus={(e) => e.target.select()}
+        />
+      </Field>
+
+      <div className="card tight">
+        <div className="row between">
+          <span className="stat-label">Calories</span>
+          <span className="stat-value num">{kcal}</span>
+        </div>
+        <div className="row between small num">
+          <span>Protein {(p.protein * f).toFixed(0)} g</span>
+          <span>Carbs {(p.carbs * f).toFixed(0)} g</span>
+          <span>Fat {(p.fat * f).toFixed(0)} g</span>
+        </div>
+      </div>
+
+      <Field label="Meal">
+        <div className="scroll-x">
+          {[
+            ...mealsToday,
+            ...MEAL_SUGGESTIONS.filter(
+              (sug) => !mealsToday.some((m) => m.toLowerCase() === sug.toLowerCase()),
+            ),
+          ].map((m) => (
+            <button key={m} className="chip" aria-pressed={targetMeal === m} onClick={() => setTargetMeal(m)}>
+              {m}
+            </button>
+          ))}
+        </div>
+      </Field>
+
+      <button
+        className="btn primary block"
+        disabled={grams <= 0}
+        onClick={async () => {
+          const label =
+            byServing && serving
+              ? `${qty} × portion (${Math.round(grams)} g)`
+              : `${Math.round(grams)} g`
+          await logRecipe(recipe, grams, date, targetMeal, label)
+          onDone(`${recipe.name} logged`)
+        }}
+      >
+        Log {kcal} kcal
+      </button>
     </>
   )
 }
