@@ -22,6 +22,31 @@ export default defineConfig({
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
+        categories: ['health', 'fitness', 'lifestyle'],
+        // Long-pressing the app icon offers these, the way a native app does.
+        shortcuts: [
+          {
+            name: 'Log food',
+            short_name: 'Food',
+            description: 'Add something to today',
+            url: '/?a=food',
+            icons: [{ src: 'icon-192.png', sizes: '192x192' }],
+          },
+          {
+            name: 'Weigh in',
+            short_name: 'Weight',
+            description: 'Record today\'s weight',
+            url: '/?a=weigh',
+            icons: [{ src: 'icon-192.png', sizes: '192x192' }],
+          },
+          {
+            name: 'Sync scale',
+            short_name: 'Scale',
+            description: 'Read the Etekcity scale over Bluetooth',
+            url: '/?a=scale',
+            icons: [{ src: 'icon-192.png', sizes: '192x192' }],
+          },
+        ],
       },
       workbox: {
         // Food-database lookups are cached so a repeated barcode works offline.

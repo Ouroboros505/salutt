@@ -12,6 +12,16 @@ import Settings from './screens/Settings'
 
 export type Tab = 'today' | 'foods' | 'body' | 'train' | 'insights'
 
+/** A manifest shortcut the app was launched from (long-press on the icon). */
+export type LaunchAction = 'food' | 'weigh' | 'scale'
+
+const LAUNCH_TAB: Record<LaunchAction, Tab> = { food: 'today', weigh: 'body', scale: 'body' }
+
+function readLaunchAction(): LaunchAction | null {
+  const a = new URLSearchParams(location.search).get('a')
+  return a === 'food' || a === 'weigh' || a === 'scale' ? a : null
+}
+
 const TABS: { id: Tab; label: string; icon: () => ReactElement }[] = [
   { id: 'today', label: 'Today', icon: Icon.today },
   { id: 'foods', label: 'Foods', icon: Icon.food },
@@ -41,7 +51,13 @@ export function useToast() {
 }
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>('today')
+  // Read once, before first paint, so the app opens straight onto the right
+  // screen rather than visibly jumping there.
+  const [launch, setLaunch] = useState<LaunchAction | null>(readLaunchAction)
+  const [tab, setTab] = useState<Tab>(() => {
+    const a = readLaunchAction()
+    return a ? LAUNCH_TAB[a] : 'today'
+  })
   const [date, setDate] = useState(todayISO())
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { message, show } = useToast()
@@ -56,6 +72,12 @@ export default function App() {
     const t = window.setTimeout(() => setStalled(true), 4000)
     return () => window.clearTimeout(t)
   }, [settings])
+
+  // Drop the shortcut parameter once consumed, so a reload or a later launch
+  // from the icon itself does not reopen the same sheet.
+  useEffect(() => {
+    if (launch) history.replaceState(null, '', location.pathname)
+  }, [launch])
 
   // Returning to the app after midnight should not leave you on yesterday.
   useEffect(() => {
@@ -93,9 +115,25 @@ export default function App() {
         </button>
       </div>
 
-      {tab === 'today' && <Today settings={settings} date={date} setDate={setDate} toast={show} />}
+      {tab === 'today' && (
+        <Today
+          settings={settings}
+          date={date}
+          setDate={setDate}
+          toast={show}
+          launch={launch === 'food' ? 'food' : null}
+          onLaunchHandled={() => setLaunch(null)}
+        />
+      )}
       {tab === 'foods' && <Foods toast={show} />}
-      {tab === 'body' && <Body settings={settings} toast={show} />}
+      {tab === 'body' && (
+        <Body
+          settings={settings}
+          toast={show}
+          launch={launch === 'weigh' || launch === 'scale' ? launch : null}
+          onLaunchHandled={() => setLaunch(null)}
+        />
+      )}
       {tab === 'train' && <Train date={date} toast={show} />}
       {tab === 'insights' && <Insights settings={settings} />}
 

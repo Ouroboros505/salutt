@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Measurement, type Settings } from '../db/db'
 import { addDays, formatShort, todayISO } from '../lib/date'
@@ -24,11 +24,29 @@ const TAPE: { key: keyof Measurement; label: string }[] = [
   { key: 'thigh', label: 'Thigh' },
 ]
 
-export default function Body({ settings, toast }: { settings: Settings; toast: (m: string) => void }) {
+export default function Body({
+  settings,
+  toast,
+  launch,
+  onLaunchHandled,
+}: {
+  settings: Settings
+  toast: (m: string) => void
+  launch?: 'weigh' | 'scale' | null
+  onLaunchHandled?: () => void
+}) {
   const [range, setRange] = useState('90')
   const [weighing, setWeighing] = useState(false)
   const [measuring, setMeasuring] = useState(false)
   const [syncing, setSyncing] = useState(false)
+
+  // Launched from the "Weigh in" / "Sync scale" icon shortcuts.
+  useEffect(() => {
+    if (!launch) return
+    if (launch === 'weigh') setWeighing(true)
+    if (launch === 'scale') setSyncing(true)
+    onLaunchHandled?.()
+  }, [launch, onLaunchHandled])
 
   const weighIns = useLiveQuery(() => db.weighIns.orderBy('date').toArray(), []) ?? []
   const measurements = useLiveQuery(() => db.measurements.orderBy('date').reverse().toArray(), []) ?? []

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, MEALS, type Entry, type ISODate, type Meal, type Settings } from '../db/db'
 import { copyMeal, logFood, logTemplate, quickFoods, sum, ZERO } from '../db/ops'
@@ -19,15 +19,26 @@ export default function Today({
   date,
   setDate,
   toast,
+  launch,
+  onLaunchHandled,
 }: {
   settings: Settings
   date: ISODate
   setDate: (d: ISODate) => void
   toast: (m: string) => void
+  launch?: 'food' | null
+  onLaunchHandled?: () => void
 }) {
   const [adding, setAdding] = useState<Meal | null>(null)
   const [editing, setEditing] = useState<Entry | null>(null)
   const [saving, setSaving] = useState<{ meal: Meal; items: Entry[] } | null>(null)
+
+  // Launched from the "Log food" icon shortcut: go straight to adding.
+  useEffect(() => {
+    if (launch !== 'food') return
+    setAdding(guessMeal())
+    onLaunchHandled?.()
+  }, [launch, onLaunchHandled])
 
   const entries = useLiveQuery(() => db.entries.where('date').equals(date).toArray(), [date]) ?? []
   const weighIns = useLiveQuery(() => db.weighIns.toArray(), []) ?? []
