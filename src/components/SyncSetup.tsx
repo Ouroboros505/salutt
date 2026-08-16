@@ -78,10 +78,14 @@ export default function SyncSetup({
       toast(`Restored ${n} log entries`)
       onClose()
     } catch (e) {
+      // A wrong phrase derives a different id, which simply does not exist —
+      // the server answers 404 rather than "wrong password", and deliberately
+      // so. For someone who has mistyped, that needs translating.
+      const msg = (e as Error).message
       setError(
-        e instanceof WrongSecretError
-          ? 'That code does not match any backup.'
-          : (e as Error).message,
+        e instanceof WrongSecretError || /Nothing stored/i.test(msg)
+          ? 'No backup found for that phrase. Check for typos — it must match exactly, though dashes and capitals do not matter.'
+          : msg,
       )
     } finally {
       setBusy(false)

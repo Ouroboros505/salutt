@@ -22,6 +22,10 @@ export function useSync(settings: Settings) {
   const [error, setError] = useState<string | null>(null)
   const [remoteAt, setRemoteAt] = useState<number | null>(null)
   const lastPushed = useRef<string | null>(null)
+  // Read rather than depended on: as a dependency, every successful push would
+  // rewrite lastSync, re-run the effect and start another round trip.
+  const lastSync = useRef(settings.lastSync)
+  lastSync.current = settings.lastSync
 
   const signature = useCallback(async () => {
     const [entries, weighIns, workouts, measurements, foods, templates] = await Promise.all([
@@ -68,7 +72,7 @@ export function useSync(settings: Settings) {
         const remote = await fetchRemote(secret)
         if (!alive) return
         setRemoteAt(remote?.updatedAt ?? null)
-        if (remote && remote.updatedAt > (settings.lastSync ?? 0) + 1000) {
+        if (remote && remote.updatedAt > (lastSync.current ?? 0) + 1000) {
           setState('remote-newer')
           return
         }
@@ -82,7 +86,7 @@ export function useSync(settings: Settings) {
     return () => {
       alive = false
     }
-  }, [secret, settings.lastSync, syncNow])
+  }, [secret, syncNow])
 
   // While the app is in front, and once more on the way out.
   useEffect(() => {

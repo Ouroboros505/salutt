@@ -1,0 +1,11 @@
+# Cloudflare Pages configuration. Kept in the repo so the KV binding the sync
+# endpoint depends on is not invisible dashboard state.
+name = "salutt"
+compatibility_date = "2025-04-01"
+pages_build_output_dir = "dist"
+
+# One encrypted blob per user, addressed by an id derived from their recovery
+# code. The server holds no key; see functions/api/sync.ts.
+[[kv_namespaces]]
+binding = "SALUTT_KV"
+id = "5d31d8a237ad4b2799fe0aee97c1353d"
