@@ -414,6 +414,10 @@ input[type='number'] {
 .scroll-x {
   display: flex;
   gap: 8px;
+  /* A sheet body is a flex column, so a long sheet squashes its children to
+     make room. A row of chips has no slack to give: it collapses to a sliver
+     and the options in it silently stop being tappable. */
+  flex: none;
   overflow-x: auto;
   padding-bottom: 2px;
   scrollbar-width: none;

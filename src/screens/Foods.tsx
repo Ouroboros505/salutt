@@ -271,7 +271,12 @@ function EditFood({ food, onClose, toast }: { food: Food; onClose: () => void; t
    * than in your head.
    */
   const [basis, setBasis] = useState(100)
-  const bases = [{ label: '100 g', grams: 100 }, ...food.portions.filter((p) => p.grams > 0)]
+  // A database serving is often not the one on your packet — "1 cup" of chia
+  // helps nobody. So a serving can be typed in here and is kept with the food.
+  const [customOpen, setCustomOpen] = useState(false)
+  const [customG, setCustomG] = useState<number | undefined>(undefined)
+  const [customLabel, setCustomLabel] = useState('')
+  const bases = [{ label: '100 g', grams: 100 }, ...portions.filter((p) => p.grams > 0)]
 
   const show = (per100: number, g: number) => {
     const v = Math.round((per100 * g) / 100 * 100) / 100
@@ -329,18 +334,62 @@ function EditFood({ food, onClose, toast }: { food: Food; onClose: () => void; t
         <input value={f.brand} onChange={set('brand')} />
       </Field>
 
-      {bases.length > 1 && (
-        <div className="scroll-x">
-          {bases.map((b) => (
-            <button
-              key={b.label}
-              className="chip"
-              aria-pressed={basis === b.grams}
-              onClick={() => rebase(b.grams)}
-            >
-              per {b.label}
-            </button>
-          ))}
+      <div className="scroll-x">
+        {bases.map((b) => (
+          <button
+            key={b.label}
+            className="chip"
+            aria-pressed={basis === b.grams && !customOpen}
+            onClick={() => {
+              setCustomOpen(false)
+              rebase(b.grams)
+            }}
+          >
+            per {b.label}
+          </button>
+        ))}
+        <button
+          className="chip"
+          aria-pressed={customOpen}
+          onClick={() => setCustomOpen(!customOpen)}
+        >
+          + Your serving
+        </button>
+      </div>
+
+      {customOpen && (
+        <div className="card tight">
+          <div className="tiny muted">
+            The weight of one serving as your packet states it. It is saved as a portion, so it
+            becomes a button here and when logging.
+          </div>
+          <div className="row" style={{ gap: 6, paddingBlock: 6 }}>
+            <input
+              className="grow"
+              value={customLabel}
+              placeholder="1 serving, 1 patty…"
+              onChange={(e) => setCustomLabel(e.target.value)}
+              autoCapitalize="none"
+            />
+            <div style={{ width: 96, flex: 'none' }}>
+              <NumberInput value={customG} unit="g" autoFocus placeholder="24" onChange={setCustomG} />
+            </div>
+          </div>
+          <button
+            className="btn block"
+            disabled={!customG || customG <= 0}
+            onClick={() => {
+              if (!customG) return
+              const label = customLabel.trim() || `1 serving (${customG} g)`
+              const at = portions.findIndex((p) => p.grams === customG)
+              if (at < 0) setPortions([...portions, { label, grams: customG }])
+              rebase(customG)
+              setCustomOpen(false)
+              setCustomLabel('')
+            }}
+          >
+            Show the numbers for {customG ?? '…'} g
+          </button>
         </div>
       )}
 
@@ -363,9 +412,7 @@ function EditFood({ food, onClose, toast }: { food: Food; onClose: () => void; t
       </div>
       <div className="tiny muted">
         {basis === 100
-          ? bases.length > 1
-            ? 'Showing the numbers for 100 g. Switch above to read or type them per serving instead.'
-            : 'Showing the numbers for 100 g. Add a portion below to be able to use the serving on the packet.'
+          ? 'Showing the numbers for 100 g. Switch above to read or type them per serving instead.'
           : `Showing the numbers for ${basis} g — type them straight off the label.`}
       </div>
 
