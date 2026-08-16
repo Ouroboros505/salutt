@@ -114,6 +114,61 @@ export async function copyMeal(from: ISODate, to: ISODate, meal: Meal): Promise<
 }
 
 /**
+ * Copies a whole day, meal names and all.
+ *
+ * Repeating yesterday wholesale is the single fastest way to log a day that
+ * looks like the last one, which for anyone meal-prepping is most days.
+ * Ordering is preserved so the sections come back in the same sequence.
+ */
+export async function copyDay(from: ISODate, to: ISODate): Promise<number> {
+  const src = (await db.entries.where('date').equals(from).toArray()).sort(
+    (a, b) => a.createdAt - b.createdAt,
+  )
+  if (!src.length) return 0
+  const now = Date.now()
+  await db.entries.bulkAdd(
+    src.map(({ id: _id, ...e }, i) => ({ ...e, date: to, createdAt: now + i })),
+  )
+  return src.length
+}
+
+/** The most recent day before `before` that has anything logged. */
+export async function lastLoggedDay(before: ISODate): Promise<ISODate | null> {
+  const rows = await db.entries.where('date').below(before).toArray()
+  if (!rows.length) return null
+  return rows.reduce((best, e) => (e.date > best ? e.date : best), rows[0].date)
+}
+
+/**
+ * The names you actually use for sections of the day, best first.
+ *
+ * Naming a meal freely is only pleasant if you are not retyping "Meal prep
+ * lunch" every day — so the suggestions come from your own history, ranked the
+ * same way the quick-add foods are: how often, and how recently.
+ */
+export async function recentMealNames(limit = 8): Promise<Meal[]> {
+  const rows = await db.entries.orderBy('createdAt').reverse().limit(600).toArray()
+  const now = Date.now()
+  const stats = new Map<string, { count: number; last: number }>()
+
+  for (const e of rows) {
+    const key = e.meal.trim()
+    if (!key) continue
+    const prev = stats.get(key) ?? { count: 0, last: 0 }
+    stats.set(key, { count: prev.count + 1, last: Math.max(prev.last, e.createdAt) })
+  }
+
+  return [...stats.entries()]
+    .map(([name, { count, last }]) => {
+      const days = (now - last) / 86400000
+      return { name, score: Math.log1p(count) * 1.5 + Math.exp(-days / 14) * 3 }
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((x) => x.name)
+}
+
+/**
  * Foods worth showing as one-tap buttons: recently used first, then the ones
  * used most often. In practice a handful of these cover most days.
  */

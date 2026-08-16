@@ -1,18 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, MEALS, type Food, type ISODate, type Meal } from '../db/db'
+import { db, MEAL_SUGGESTIONS, type Food, type ISODate, type Meal } from '../db/db'
 import { logFood, quickFoods, saveFood, scale, searchLocal } from '../db/ops'
 import { lookupBarcode, searchRemote, type FoodHit } from '../lib/foodApi'
 import { loadFoodDb, searchFoodDb } from '../lib/foodDb'
 import { Field, Icon, Sheet } from '../components/ui'
 import BarcodeScanner from './BarcodeScanner'
 
-const MEAL_LABEL: Record<Meal, string> = {
-  breakfast: 'Breakfast',
-  lunch: 'Lunch',
-  dinner: 'Dinner',
-  snack: 'Snacks',
-}
 
 type Stage =
   | { kind: 'search' }
@@ -22,11 +16,14 @@ type Stage =
 export default function AddFood({
   date,
   meal,
+  mealsToday = [],
   onClose,
   toast,
 }: {
   date: ISODate
   meal: Meal
+  /** Sections already open today, offered before the generic suggestions. */
+  mealsToday?: Meal[]
   onClose: () => void
   toast: (m: string) => void
 }) {
@@ -125,7 +122,7 @@ export default function AddFood({
   }
 
   const title =
-    stage.kind === 'portion' ? stage.food.name : stage.kind === 'create' ? 'New food' : `Add to ${MEAL_LABEL[meal]}`
+    stage.kind === 'portion' ? stage.food.name : stage.kind === 'create' ? 'New food' : `Add to ${meal}`
 
   if (scanning) return <BarcodeScanner onDetect={onScan} onClose={() => setScanning(false)} />
 
@@ -211,6 +208,7 @@ export default function AddFood({
           food={stage.food}
           date={date}
           meal={meal}
+          mealsToday={mealsToday}
           onDone={(msg) => {
             toast(msg)
             onClose()
@@ -279,11 +277,13 @@ function PortionStep({
   food,
   date,
   meal,
+  mealsToday,
   onDone,
 }: {
   food: Food
   date: ISODate
   meal: Meal
+  mealsToday: Meal[]
   onDone: (msg: string) => void
 }) {
   // -1 is the "grams" option; anything else indexes food.portions.
@@ -366,9 +366,14 @@ function PortionStep({
 
       <Field label="Meal">
         <div className="scroll-x">
-          {MEALS.map((m) => (
+          {[
+            ...mealsToday,
+            ...MEAL_SUGGESTIONS.filter(
+              (sug) => !mealsToday.some((m) => m.toLowerCase() === sug.toLowerCase()),
+            ),
+          ].map((m) => (
             <button key={m} className="chip" aria-pressed={targetMeal === m} onClick={() => setTargetMeal(m)}>
-              {MEAL_LABEL[m]}
+              {m}
             </button>
           ))}
         </div>

@@ -1,18 +1,29 @@
 import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, MEALS, type Entry, type ISODate, type Meal, type Settings } from '../db/db'
-import { copyMeal, logFood, logTemplate, quickFoods, sum, ZERO } from '../db/ops'
+import { db, MEAL_SUGGESTIONS, type Entry, type ISODate, type Meal, type Settings } from '../db/db'
+import {
+  copyDay,
+  lastLoggedDay,
+  logFood,
+  logTemplate,
+  quickFoods,
+  recentMealNames,
+  sum,
+  ZERO,
+} from '../db/ops'
 import { addDays, formatDay, todayISO } from '../lib/date'
 import { adaptiveTDEE, computeTargets, weightTrend } from '../lib/metrics'
 import { Icon, Meter, Sheet } from '../components/ui'
 import AddFood from '../components/AddFood'
 
-const MEAL_LABEL: Record<Meal, string> = {
+/** Legacy rows used fixed lowercase keys; show them with proper names. */
+const LEGACY: Record<string, string> = {
   breakfast: 'Breakfast',
   lunch: 'Lunch',
   dinner: 'Dinner',
-  snack: 'Snacks',
+  snack: 'Snack',
 }
+const label = (meal: Meal) => LEGACY[meal] ?? meal
 
 export default function Today({
   settings,
@@ -32,14 +43,17 @@ export default function Today({
   const [adding, setAdding] = useState<Meal | null>(null)
   const [editing, setEditing] = useState<Entry | null>(null)
   const [saving, setSaving] = useState<{ meal: Meal; items: Entry[] } | null>(null)
+  const [naming, setNaming] = useState(false)
+  const [renaming, setRenaming] = useState<Meal | null>(null)
 
+  // Offered whenever the day is empty: repeating a previous day wholesale is
+  // the fastest way to log one that looks the same, which for meal prep is
+  // most of them.
+  const previousDay = useLiveQuery(() => lastLoggedDay(date), [date])
+  // Names you have used before, so a personal vocabulary builds up instead of
+  // being retyped.
+  const knownMeals = useLiveQuery(() => recentMealNames(), []) ?? []
 
-  // Launched from the "Log food" icon shortcut: go straight to adding.
-  useEffect(() => {
-    if (launch !== 'food') return
-    setAdding(guessMeal())
-    onLaunchHandled?.()
-  }, [launch, onLaunchHandled])
 
   const entries = useLiveQuery(() => db.entries.where('date').equals(date).toArray(), [date]) ?? []
   const weighIns = useLiveQuery(() => db.weighIns.toArray(), []) ?? []
@@ -58,6 +72,22 @@ export default function Today({
   const remaining = targets.kcal - totals.kcal
   const isToday = date === todayISO()
   const todayWeight = weighIns.find((w) => w.date === date)
+
+  // The sections of the day are whatever you created, ordered by when the
+  // first thing went into each — not a fixed four that assumes every day has
+  // a lunch and only one snack.
+  const meals: Meal[] = []
+  for (const e of [...entries].sort((a, b) => a.createdAt - b.createdAt)) {
+    if (!meals.includes(e.meal)) meals.push(e.meal)
+  }
+
+  // Launched from the "Log food" icon shortcut: go straight to adding.
+  useEffect(() => {
+    if (launch !== 'food') return
+    setAdding(guessMeal(meals))
+    onLaunchHandled?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [launch, onLaunchHandled])
 
   const macros = [
     { key: 'protein', label: 'Protein', color: 'var(--series-1)', got: totals.protein, goal: targets.protein },
@@ -161,9 +191,9 @@ export default function Today({
                   key={f.id}
                   className="chip"
                   onClick={async () => {
-                    const label =
+                    const portionLabel =
                       f.defaultPortion >= 0 ? f.portions[f.defaultPortion].label : `${grams} g`
-                    await logFood(f.id!, grams, date, guessMeal(), label)
+                    await logFood(f.id!, grams, date, guessMeal(meals), portionLabel)
                     toast(`${f.name} logged`)
                   }}
                 >
@@ -177,37 +207,28 @@ export default function Today({
       )}
 
       {/* ------------------------------------------------------ meals */}
-      {MEALS.map((meal) => {
+      {meals.map((meal) => {
         const items = entries.filter((e) => e.meal === meal)
         const t = sum(items)
         return (
           <div className="card tight" key={meal}>
             <div className="card-head">
-              <h2>{MEAL_LABEL[meal]}</h2>
+              <button
+                className="btn ghost sm"
+                style={{ padding: 0, minHeight: 0, fontSize: 16, fontWeight: 650 }}
+                onClick={() => setRenaming(meal)}
+              >
+                {label(meal)}
+              </button>
               <div className="row" style={{ gap: 4 }}>
                 {items.length > 0 && <span className="small muted num">{Math.round(t.kcal)} kcal</span>}
-                <button className="iconbtn" onClick={() => setAdding(meal)} aria-label={`Add to ${MEAL_LABEL[meal]}`}>
+                <button className="iconbtn" onClick={() => setAdding(meal)} aria-label={`Add to ${label(meal)}`}>
                   <Icon.plus />
                 </button>
               </div>
             </div>
 
-            {items.length === 0 ? (
-              <div className="row" style={{ gap: 8 }}>
-                <button className="btn sm ghost muted" onClick={() => setAdding(meal)}>
-                  + Add food
-                </button>
-                <button
-                  className="btn sm ghost muted"
-                  onClick={async () => {
-                    const n = await copyMeal(addDays(date, -1), date, meal)
-                    toast(n ? `Copied ${n} item${n > 1 ? 's' : ''} from yesterday` : 'Nothing logged yesterday')
-                  }}
-                >
-                  Copy yesterday
-                </button>
-              </div>
-            ) : (
+            {(
               <div>
                 {items.map((e) => (
                   <button key={e.id} className="item" onClick={() => setEditing(e)}>
@@ -233,6 +254,35 @@ export default function Today({
         )
       })}
 
+      {entries.length === 0 && previousDay && (
+        <button
+          className="btn block"
+          onClick={async () => {
+            const n = await copyDay(previousDay, date)
+            toast(n ? `Copied ${n} item${n > 1 ? 's' : ''} from ${formatDay(previousDay)}` : 'Nothing to copy')
+          }}
+        >
+          Copy {formatDay(previousDay).toLowerCase()}
+        </button>
+      )}
+
+      <div className="row" style={{ gap: 8 }}>
+        <button className="btn grow" onClick={() => setNaming(true)}>
+          <Icon.plus /> Add a meal
+        </button>
+        {entries.length > 0 && previousDay && (
+          <button
+            className="btn grow"
+            onClick={async () => {
+              const n = await copyDay(previousDay, date)
+              toast(n ? `Added ${n} item${n > 1 ? 's' : ''} from ${formatDay(previousDay)}` : 'Nothing to copy')
+            }}
+          >
+            Copy {formatDay(previousDay).toLowerCase()}
+          </button>
+        )}
+      </div>
+
       {/* ------------------------------------------------------ day extras */}
       <div className="grid-2">
         <div className="card tight">
@@ -255,10 +305,39 @@ export default function Today({
         </div>
       </div>
 
+      {naming && (
+        <NameMeal
+          used={meals}
+          known={knownMeals}
+          onPick={(name) => {
+            setNaming(false)
+            setAdding(name)
+          }}
+          onClose={() => setNaming(false)}
+        />
+      )}
+
+      {renaming !== null && (
+        <NameMeal
+          initial={label(renaming)}
+          used={meals.filter((m) => m !== renaming)}
+          known={knownMeals}
+          title="Rename"
+          onPick={async (name) => {
+            const rows = entries.filter((e) => e.meal === renaming)
+            await Promise.all(rows.map((e) => db.entries.update(e.id!, { meal: name })))
+            setRenaming(null)
+            toast('Renamed')
+          }}
+          onClose={() => setRenaming(null)}
+        />
+      )}
+
       {adding && (
         <AddFood
           date={date}
           meal={adding}
+          mealsToday={meals}
           onClose={() => setAdding(null)}
           toast={toast}
         />
@@ -290,7 +369,7 @@ function SaveTemplate({
   onClose: () => void
   toast: (m: string) => void
 }) {
-  const [name, setName] = useState(`My ${MEAL_LABEL[meal].toLowerCase()}`)
+  const [name, setName] = useState(`My ${label(meal).toLowerCase()}`)
   const usable = items.filter((e) => e.foodId != null)
 
   return (
@@ -334,13 +413,91 @@ function SaveTemplate({
   )
 }
 
-/** Picks the meal a quick-add most likely belongs to, from the time of day. */
-function guessMeal(): Meal {
+/** Best guess at which section a quick-add belongs to, from the clock. */
+function guessMeal(existing: Meal[]): Meal {
   const h = new Date().getHours()
-  if (h < 11) return 'breakfast'
-  if (h < 16) return 'lunch'
-  if (h < 21) return 'dinner'
-  return 'snack'
+  const wanted = h < 11 ? 'Breakfast' : h < 16 ? 'Lunch' : h < 21 ? 'Dinner' : 'Snack'
+  // Prefer a section already open today, matched loosely, so a quick-add lands
+  // in "Lunch" rather than creating a second one.
+  const match = existing.find((m) => m.toLowerCase() === wanted.toLowerCase())
+  return match ?? existing[existing.length - 1] ?? wanted
+}
+
+/** Naming or renaming a section of the day. */
+function NameMeal({
+  initial = '',
+  used,
+  known,
+  title = 'New meal',
+  onPick,
+  onClose,
+}: {
+  initial?: string
+  used: Meal[]
+  /** Names from your own history, offered before the generic ones. */
+  known: Meal[]
+  title?: string
+  onPick: (name: string) => void
+  onClose: () => void
+}) {
+  const [name, setName] = useState(initial)
+  const taken = used.some((m) => m.toLowerCase() === name.trim().toLowerCase())
+
+  const free = (n: string) => !used.some((m) => m.toLowerCase() === n.toLowerCase())
+  const yours = known.filter(free)
+  const generic = MEAL_SUGGESTIONS.filter(
+    (sug) => free(sug) && !known.some((k) => k.toLowerCase() === sug.toLowerCase()),
+  )
+
+  return (
+    <Sheet title={title} onClose={onClose}>
+      <div className="field">
+        <label>Name</label>
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Breakfast, second lunch, midnight raid…"
+        />
+      </div>
+
+      {yours.length > 0 && (
+        <div className="stack tight">
+          <h3>You usually call it</h3>
+          <div className="scroll-x">
+            {yours.map((n) => (
+              <button key={n} className="chip" onClick={() => onPick(n)}>
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {generic.length > 0 && (
+        <div className="stack tight">
+          {yours.length > 0 && <h3>Or</h3>}
+          <div className="scroll-x">
+            {generic.map((sug) => (
+              <button key={sug} className="chip" onClick={() => onPick(sug)}>
+                {sug}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {taken && <div className="tiny" style={{ color: 'var(--serious)' }}>Already used today.</div>}
+
+      <button
+        className="btn primary block"
+        disabled={!name.trim() || taken}
+        onClick={() => onPick(name.trim())}
+      >
+        Use this name
+      </button>
+    </Sheet>
+  )
 }
 
 function EditEntry({

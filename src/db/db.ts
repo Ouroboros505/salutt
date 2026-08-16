@@ -35,8 +35,26 @@ export interface Food {
   createdAt: number
 }
 
-export type Meal = 'breakfast' | 'lunch' | 'dinner' | 'snack'
-export const MEALS: Meal[] = ['breakfast', 'lunch', 'dinner', 'snack']
+/**
+ * The name of a section of the day, chosen by you.
+ *
+ * Not an enum: a fixed Breakfast/Lunch/Dinner/Snack forces days to fit a shape
+ * they often do not. Skipped lunch, three separate snacks, a pre-workout meal —
+ * all of that is normal, and the log should follow the day rather than the
+ * other way round.
+ */
+export type Meal = string
+
+/** Offered as suggestions when naming a new one. Nothing is mandatory. */
+export const MEAL_SUGGESTIONS = [
+  'Breakfast',
+  'Lunch',
+  'Dinner',
+  'Snack',
+  'Pre-workout',
+  'Post-workout',
+  'Late night',
+]
 
 /**
  * One logged food. Macros are snapshotted at log time so that correcting a
