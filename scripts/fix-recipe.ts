@@ -64,6 +64,11 @@ async function main() {
       })
       console.log(`  ${before}\n  -> ${item.grams} g ${item.name.slice(0, 44)} = ${Math.round(item.kcal)} kcal\n`)
     }
+    // Nothing was weighed after cooking, and nothing will be. A covered pot
+    // loses only what evaporates, so the raw total less that is the dish.
+    if (!recipe.cookedG) recipe.cookLossPct = 8
+    if (!recipe.density) recipe.density = 1.03
+    if (!recipe.containerMl) recipe.containerMl = 750
     const kcal = recipe.items.reduce((t: number, i: any) => t + i.kcal, 0)
     const protein = recipe.items.reduce((t: number, i: any) => t + i.protein, 0)
     const grams = recipe.items.reduce((t: number, i: any) => t + i.grams, 0)

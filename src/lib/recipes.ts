@@ -26,12 +26,30 @@ export function recipeTotals(items: RecipeItem[]): Totals & { grams: number } {
 }
 
 /** Weight the portions are measured against. */
-export function finishedWeight(recipe: Pick<Recipe, 'items' | 'cookedG'>): number {
-  return recipe.cookedG > 0 ? recipe.cookedG : recipeTotals(recipe.items).grams
+/**
+ * How the pot was run, and what fraction of the raw weight that boils away.
+ *
+ * Only evaporation counts. Water the meat gives up does not leave a covered
+ * pot — it ends up in the sauce and is still in the box at lunchtime — which
+ * is why these are far smaller than the yield tables for a roasted joint.
+ */
+export const COOK_STYLES: { label: string; loss: number }[] = [
+  { label: 'Lid on the whole time', loss: 0.08 },
+  { label: 'Lid off some of the time', loss: 0.2 },
+  { label: 'Reduced right down', loss: 0.35 },
+  { label: 'Nothing cooked off', loss: 0 },
+]
+
+export function finishedWeight(recipe: Pick<Recipe, 'items' | 'cookedG' | 'cookLossPct'>): number {
+  if (recipe.cookedG > 0) return recipe.cookedG
+  const raw = recipeTotals(recipe.items).grams
+  // Nothing weighed: take the raw total less whatever evaporated.
+  const loss = Math.min(0.6, Math.max(0, (recipe.cookLossPct ?? 0) / 100))
+  return raw * (1 - loss)
 }
 
 /** Macros per 100 g of the finished dish — what a portion is scaled from. */
-export function per100(recipe: Pick<Recipe, 'items' | 'cookedG'>): Totals {
+export function per100(recipe: Pick<Recipe, 'items' | 'cookedG' | 'cookLossPct'>): Totals {
   const totals = recipeTotals(recipe.items)
   const weight = finishedWeight(recipe)
   if (weight <= 0) return { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }
@@ -46,7 +64,7 @@ export function per100(recipe: Pick<Recipe, 'items' | 'cookedG'>): Totals {
 }
 
 /** Macros for a given weight of the finished dish. */
-export function portion(recipe: Pick<Recipe, 'items' | 'cookedG'>, grams: number): Totals {
+export function portion(recipe: Pick<Recipe, 'items' | 'cookedG' | 'cookLossPct'>, grams: number): Totals {
   const p = per100(recipe)
   const f = grams / 100
   const r = (v: number) => Math.round(v * f * 10) / 10

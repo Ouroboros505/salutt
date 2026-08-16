@@ -180,6 +180,13 @@ export interface Recipe {
    * to be estimated from volume instead. Far less accurate — see DISH_TYPES.
    */
   density?: number
+  /**
+   * Percent of the raw weight lost to evaporation, when the finished dish was
+   * not weighed. Only what leaves the pot counts: water the meat gives up
+   * stays in the sauce, so a covered braise loses far less than the yield
+   * tables for the meat alone suggest.
+   */
+  cookLossPct?: number
   notes?: string
   useCount: number
   lastUsed: number

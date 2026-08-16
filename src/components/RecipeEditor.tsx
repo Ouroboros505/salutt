@@ -14,10 +14,8 @@ import type { FoodHit } from '../lib/foodApi'
  */
 type Candidate = FoodHit & { foodId?: number; mine: boolean }
 import {
-  boxWeight,
-  containerDensity,
+  COOK_STYLES,
   DISH_TYPES,
-  estimatedBoxes,
   finishedWeight,
   spreadFor,
   per100,
@@ -58,9 +56,6 @@ export default function RecipeEditor({
   const p100 = per100(draft)
   const loss = waterLossPct(draft)
   const perServing = servingGrams(draft)
-  const box = boxWeight(draft)
-  const density = containerDensity(draft)
-  const boxGuess = estimatedBoxes(draft)
 
   const save = async () => {
     const row = {
@@ -184,75 +179,75 @@ export default function RecipeEditor({
         </div>
 
         <div className="tiny muted">
-          Weigh the tray after cooking. Water leaves as it cooks, so the finished dish is lighter
-          than what went in and denser per gram — scaling off the raw total would overstate every
-          portion. Leave it blank to use the raw total anyway.
+          Weighing the finished dish is the exact route, but nobody weighs a full pot. Leave it
+          blank and say how the pot was run instead — only what evaporates is lost, since water the
+          meat gives up stays in the sauce.
         </div>
 
-        <div className="grid-2">
-          <Field label="Filled how many boxes" hint="optional">
-            <NumberInput
-              value={draft.containers}
-              unit="×"
-              placeholder="5"
-              onChange={(v) => setDraft({ ...draft, containers: v || undefined })}
-            />
-          </Field>
-          <Field label="Box size (ml)" hint="optional">
-            <NumberInput
-              value={draft.containerMl}
-              unit="ml"
-              placeholder="750"
-              onChange={(v) => setDraft({ ...draft, containerMl: v || undefined })}
-            />
-          </Field>
-        </div>
-
-        {!draft.containers && draft.containerMl ? (
+        {!draft.cookedG && (
           <div className="stack tight">
-            <div className="tiny muted">
-              If you did not count the boxes, pick what the dish is like and the weight gets
-              estimated from the volume instead.
-            </div>
             <div className="scroll-x">
-              {DISH_TYPES.map((t) => (
+              {COOK_STYLES.map((c) => (
                 <button
-                  key={t.label}
+                  key={c.label}
                   className="chip"
-                  aria-pressed={draft.density === t.density}
-                  onClick={() => setDraft({ ...draft, density: t.density })}
+                  aria-pressed={(draft.cookLossPct ?? -1) === Math.round(c.loss * 100)}
+                  onClick={() => setDraft({ ...draft, cookLossPct: Math.round(c.loss * 100) })}
                 >
-                  {t.label} <span className="muted num">±{Math.round(t.spread * 100)}%</span>
+                  {c.label}
                 </button>
               ))}
             </div>
-          </div>
-        ) : null}
-
-        {box && (
-          <div className="small secondary num">
-            One full box ≈ <strong>{Math.round(box.grams)} g</strong>
-            {box.source === 'counted' ? ' — from the batch, so this is exact.' : ' — estimated.'}
-          </div>
-        )}
-
-        {box?.source === 'estimated' && (
-          <div className="tiny" style={{ color: 'var(--serious)' }}>
-            Dishes of this kind vary about ±{Math.round(spreadFor(draft.density) * 100)}%, so that
-            is ±{Math.round(box.grams * spreadFor(draft.density))} g a box — worth roughly{' '}
-            {Math.round((box.grams * spreadFor(draft.density) * per100(draft).kcal) / 100)} kcal on
-            a single lunch, every day you eat it.
-            {boxGuess ? ` This batch should fill about ${boxGuess.toFixed(1)} boxes — ` : ' '}
-            counting the boxes, or weighing one full one once, makes it exact.
+            {draft.cookLossPct != null && totals.grams > 0 && (
+              <div className="tiny muted num">
+                {Math.round(totals.grams)} g raw − {draft.cookLossPct}% evaporated ≈{' '}
+                <strong>{Math.round(finishedWeight(draft))} g</strong> in the pot
+              </div>
+            )}
           </div>
         )}
 
-        {density !== null && (density < 0.55 || density > 1.35) && (
-          <div className="tiny" style={{ color: 'var(--serious)' }}>
-            That works out at {density.toFixed(2)} g/ml. Cooked food is usually 0.8–1.1, so either
-            the cooked weight or the box size is probably off.
+        {/* The one number a lunch is actually built from. */}
+        {totals.grams > 0 && (
+          <div className="card tight">
+            <div className="row between">
+              <span className="stat-label">Per 100 g of the finished dish</span>
+              <span className="stat-value num">{Math.round(p100.kcal)} kcal</span>
+            </div>
+            <div className="row between small num">
+              <span>Protein {p100.protein.toFixed(1)} g</span>
+              <span>Carbs {p100.carbs.toFixed(1)} g</span>
+              <span>Fat {p100.fat.toFixed(1)} g</span>
+            </div>
           </div>
         )}
+
+        {/* Density is what turns a share of the lunch box into grams. It is
+            the dish as it sits in a container, packing included, so it is
+            picked from measured whole dishes rather than reasoned about. */}
+        <div className="stack tight">
+          <div className="tiny muted">What is it like in the box? Sets how a share becomes grams.</div>
+          <div className="scroll-x">
+            {DISH_TYPES.map((t) => (
+              <button
+                key={t.label}
+                className="chip"
+                aria-pressed={draft.density === t.density}
+                onClick={() => setDraft({ ...draft, density: t.density })}
+              >
+                {t.label} <span className="muted num">{t.density}</span>
+              </button>
+            ))}
+          </div>
+          {draft.density && (
+            <div className="tiny muted num">
+              70% of a 750 ml box ={' '}
+              <strong>{Math.round(0.7 * 750 * draft.density)} g</strong> ={' '}
+              {Math.round((0.7 * 750 * draft.density * p100.kcal) / 100)} kcal, ±
+              {Math.round(spreadFor(draft.density) * 100)}%
+            </div>
+          )}
+        </div>
 
         {loss !== null && (
           <div
