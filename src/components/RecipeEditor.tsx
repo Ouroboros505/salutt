@@ -3,6 +3,16 @@ import { db, type Recipe, type RecipeItem } from '../db/db'
 import { scale, searchLocal } from '../db/ops'
 import { loadFoodDb, searchFoodDb } from '../lib/foodDb'
 import type { FoodHit } from '../lib/foodApi'
+
+/**
+ * A candidate ingredient, carrying where it came from.
+ *
+ * Which source matched is the difference between the exact product you buy and
+ * a generic database entry that happens to share a name, so it is kept rather
+ * than flattened away — and shown, so a wrong pick is visible before it is
+ * baked into a week of lunches.
+ */
+type Candidate = FoodHit & { foodId?: number; mine: boolean }
 import {
   boxWeight,
   containerDensity,
@@ -347,7 +357,7 @@ const PART_WORDS = ['yolk', 'white', 'skin', 'shell', 'powder', 'powdered', 'dri
 
 interface Resolved {
   line: ParsedLine
-  hit: FoodHit | null
+  hit: Candidate | null
   grams: number
   include: boolean
 }
@@ -385,7 +395,10 @@ function PasteRecipe({
           continue
         }
         const mine = await searchLocal(line.query, 5)
-        const candidates: FoodHit[] = [...mine, ...searchFoodDb(line.query, entries, 5)]
+        const candidates: Candidate[] = [
+          ...mine.map((f) => ({ ...f, foodId: f.id, mine: true })),
+          ...searchFoodDb(line.query, entries, 5).map((f) => ({ ...f, mine: false })),
+        ]
 
         // For a counted line the match has to know what one piece weighs —
         // but preferring any entry with a portion picks egg *yolk* for "3
@@ -412,7 +425,7 @@ function PasteRecipe({
           })
           .sort((a, b) => b.score - a.score)
 
-        const hit: FoodHit | null =
+        const hit: Candidate | null =
           (line.count != null ? usable[0]?.c : undefined) ?? candidates[0] ?? null
 
         let grams = line.grams ?? 0
@@ -454,7 +467,12 @@ function PasteRecipe({
                   style={{ width: 20, height: 20, flex: 'none' }}
                 />
                 <div className="grow" style={{ minWidth: 0 }}>
-                  <div className="item-title truncate">{r.hit?.name ?? r.line.query}</div>
+                  <div className="item-title truncate">
+                    {r.hit?.name ?? r.line.query}
+                    {r.hit?.mine && (
+                      <span className="tiny" style={{ color: 'var(--success-text)' }}> · yours</span>
+                    )}
+                  </div>
                   <div className="tiny muted truncate">
                     {r.line.raw}
                     {r.line.confidence === 'negligible'
@@ -540,8 +558,8 @@ function IngredientPicker({
   onClose: () => void
 }) {
   const [query, setQuery] = useState('')
-  const [hits, setHits] = useState<FoodHit[]>([])
-  const [chosen, setChosen] = useState<FoodHit | null>(null)
+  const [hits, setHits] = useState<Candidate[]>([])
+  const [chosen, setChosen] = useState<Candidate | null>(null)
   const [grams, setGrams] = useState('100')
   const entries = useRef<Awaited<ReturnType<typeof loadFoodDb>> | null>(null)
 
@@ -567,9 +585,14 @@ function IngredientPicker({
       const mine = await searchLocal(q, 8)
       const bundled = entries.current ? searchFoodDb(q, entries.current, 20) : []
       if (!alive) return
-      const mineHits: FoodHit[] = mine.map((f) => ({ ...f }))
+      const mineHits: Candidate[] = mine.map((f) => ({ ...f, foodId: f.id, mine: true }))
       const seen = new Set(mineHits.map((f) => f.name.toLowerCase()))
-      setHits([...mineHits, ...bundled.filter((b) => !seen.has(b.name.toLowerCase()))])
+      setHits([
+        ...mineHits,
+        ...bundled
+          .filter((b) => !seen.has(b.name.toLowerCase()))
+          .map((b) => ({ ...b, mine: false })),
+      ])
     })()
     return () => {
       alive = false
@@ -602,7 +625,7 @@ function IngredientPicker({
           disabled={g <= 0}
           onClick={() =>
             onAdd({
-              foodId: undefined,
+              foodId: chosen.foodId,
               name: chosen.name,
               brand: chosen.brand,
               grams: g,
@@ -642,7 +665,12 @@ function IngredientPicker({
             {hits.slice(0, 25).map((h, i) => (
               <button key={i} className="item" onClick={() => setChosen(h)}>
                 <div className="grow">
-                  <div className="item-title truncate">{h.name}</div>
+                  <div className="item-title truncate">
+                    {h.name}
+                    {h.mine && (
+                      <span className="tiny" style={{ color: 'var(--success-text)' }}> · yours</span>
+                    )}
+                  </div>
                   <div className="tiny muted truncate">
                     {h.brand ? `${h.brand} · ` : ''}
                     {Math.round(h.kcal)} kcal / 100 g
