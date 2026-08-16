@@ -148,14 +148,31 @@ function touch(row) {
 var summarise = (data) => Object.entries(data).filter(([, rows]) => Array.isArray(rows) && rows.length).map(([t, rows]) => `${t}=${rows.length}`).join(" ");
 function change(data) {
   const notes = [];
-  const before = data.entries?.length ?? 0;
-  const junk = (data.entries ?? []).filter((e) => e.name === "offline entry");
-  data.entries = (data.entries ?? []).filter((e) => e.name !== "offline entry");
-  for (const e of junk) {
-    ;
-    (data.tombstones ??= []).push({ table: "entries", key: e.id, at: Date.now() });
+  if (!(data.foods ?? []).some((f) => /rice/i.test(f.name))) {
+    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1;
+    (data.foods ??= []).push(
+      touch({
+        id: nextId,
+        name: "Rice, white, long-grain, cooked",
+        kcal: 130,
+        protein: 2.69,
+        carbs: 28.2,
+        fat: 0.28,
+        fiber: 0.4,
+        // A cup is a fixed volume, so this doubles as the density measurement
+        // the lunch box needs: 158 g / 236.6 ml = 0.67 g/ml.
+        portions: [{ label: "1 cup", grams: 158 }],
+        defaultPortion: 0,
+        liquid: false,
+        source: "usda",
+        favorite: false,
+        useCount: 0,
+        lastUsed: 0,
+        createdAt: Date.now()
+      })
+    );
+    notes.push("added Rice, white, long-grain, cooked (130 kcal/100 g, 0.67 g/ml)");
   }
-  if (before !== data.entries.length) notes.push(`removed ${before - data.entries.length} test entry`);
   return notes;
 }
 async function main() {
