@@ -12,6 +12,7 @@ import Settings from './screens/Settings'
 import ScaleSync from './components/ScaleSync'
 import ScaleResult from './components/ScaleResult'
 import { Sheet } from './components/ui'
+import UpdatePrompt from './components/UpdatePrompt'
 import { bluetoothBlockedReason, pickScale } from './lib/scale'
 import { useScaleListener } from './lib/useScaleListener'
 import { useSync } from './lib/useSync'
@@ -281,6 +282,7 @@ export default function App() {
 
       {settingsOpen && <Settings settings={settings} onClose={() => setSettingsOpen(false)} toast={show} />}
       {message && <Toast message={message} />}
+      <UpdatePrompt />
     </div>
   )
 }

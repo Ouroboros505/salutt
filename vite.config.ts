@@ -2,11 +2,14 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+const BUILD_STAMP = new Date().toISOString().slice(0, 16).replace('T', ' ')
+
 export default defineConfig({
+  define: { __BUILD__: JSON.stringify(BUILD_STAMP) },
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['icon.svg'],
       manifest: {
         name: 'Salutt',
@@ -49,6 +52,10 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Take over as soon as the new worker is installed, so accepting an
+        // update needs one reload rather than closing every tab.
+        skipWaiting: true,
+        clientsClaim: true,
         // The bundled food database is a ~2 MB JSON, over Workbox's default
         // 2 MiB precache ceiling; without raising it the file is silently
         // skipped and food search stops working offline.

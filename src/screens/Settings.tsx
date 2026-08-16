@@ -502,7 +502,7 @@ export default function Settings({
       <DangerZone toast={toast} onDone={onClose} />
 
       <div className="tiny muted" style={{ textAlign: 'center' }}>
-        Salutt · local-first · no accounts, no servers
+        Salutt · built {__BUILD__}
       </div>
     </Sheet>
   )

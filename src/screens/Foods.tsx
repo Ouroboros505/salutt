@@ -1,9 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Food, type MealTemplate, type Recipe } from '../db/db'
 import { Field, Icon, Sheet } from '../components/ui'
 import RecipeEditor from '../components/RecipeEditor'
 import { finishedWeight, per100, servingGrams } from '../lib/recipes'
+import { loadFoodDb, searchFoodDb } from '../lib/foodDb'
+import type { FoodHit } from '../lib/foodApi'
+import { saveFood } from '../db/ops'
 
 export default function Foods({ toast }: { toast: (m: string) => void }) {
   const [query, setQuery] = useState('')
@@ -13,6 +16,33 @@ export default function Foods({ toast }: { toast: (m: string) => void }) {
   const foods = useLiveQuery(() => db.foods.toArray(), []) ?? []
   const templates = useLiveQuery(() => db.mealTemplates.orderBy('lastUsed').reverse().toArray(), []) ?? []
   const recipes = useLiveQuery(() => db.recipes.orderBy('lastUsed').reverse().toArray(), []) ?? []
+
+  // Searching here used to look only at foods already logged, so on a fresh
+  // install typing a food name returned "your library is empty" — technically
+  // true and completely unhelpful. The built-in database answers too, and
+  // anything picked from it joins the library.
+  const entries = useRef<Awaited<ReturnType<typeof loadFoodDb>> | null>(null)
+  const [dbReady, setDbReady] = useState(false)
+  const [fromDb, setFromDb] = useState<FoodHit[]>([])
+
+  useEffect(() => {
+    let alive = true
+    void loadFoodDb()
+      .then((e) => {
+        if (!alive) return
+        entries.current = e
+        setDbReady(true)
+      })
+      .catch(() => setDbReady(false))
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!entries.current) return
+    setFromDb(searchFoodDb(query, entries.current, 25))
+  }, [query, dbReady])
 
   const q = query.trim().toLowerCase()
   const shown = foods
@@ -95,7 +125,7 @@ export default function Foods({ toast }: { toast: (m: string) => void }) {
           <div className="empty">
             {foods.length === 0
               ? 'Your library fills up as you log. Anything you search or scan gets saved here.'
-              : 'No matches'}
+              : 'Nothing in your library matches — see the database below.'}
           </div>
         ) : (
           <div>
@@ -118,6 +148,40 @@ export default function Foods({ toast }: { toast: (m: string) => void }) {
           </div>
         )}
       </div>
+
+      {q.length >= 2 && fromDb.length > 0 && (
+        <div className="card tight">
+          <div className="card-head">
+            <h3>Food database</h3>
+            <span className="tiny muted">tap to add to your library</span>
+          </div>
+          <div>
+            {fromDb.map((h, i) => (
+              <button
+                key={i}
+                className="item"
+                onClick={async () => {
+                  const id = await saveFood(h)
+                  const saved = await db.foods.get(id)
+                  if (saved) setEditing(saved)
+                }}
+              >
+                <div className="grow">
+                  <div className="item-title truncate">{h.name}</div>
+                  <div className="tiny muted truncate">
+                    {h.brand ? `${h.brand} · ` : ''}
+                    {Math.round(h.kcal)} kcal · P {h.protein} C {h.carbs} F {h.fat} / 100 g
+                    {h.portions.length ? ` · ${h.portions[0].label}` : ''}
+                  </div>
+                </div>
+                <span className="muted">
+                  <Icon.plus />
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {editing && <EditFood food={editing} onClose={() => setEditing(null)} toast={toast} />}
 
