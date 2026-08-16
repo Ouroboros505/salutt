@@ -4,7 +4,7 @@ import { db, type Measurement, type Settings } from '../db/db'
 import { addDays, formatShort, todayISO } from '../lib/date'
 import { bmi, navyBodyFat, projectGoal, trendSlopeKgPerWeek, weightTrend } from '../lib/metrics'
 import { TrendChart } from '../components/charts'
-import { Field, Icon, Segmented, Sheet } from '../components/ui'
+import { Field, Icon, NumberInput, Segmented, Sheet } from '../components/ui'
 import type { ListenerState } from '../lib/useScaleListener'
 import type { ScaleReading } from '../lib/scale'
 import { bodyFatBand } from '../lib/bodyComp'
@@ -314,18 +314,20 @@ function WeighInSheet({ onClose, toast }: { onClose: () => void; toast: (m: stri
         label="Weight (kg)"
         hint={existing ? `Replaces the ${existing.kg} kg already logged for this day.` : undefined}
       >
-        <input
+        <NumberInput
           autoFocus
-          type="number"
-          inputMode="decimal"
-          step="0.01"
-          value={kg}
-          onChange={(e) => setKg(e.target.value)}
+          value={parseFloat(kg) || undefined}
+          unit="kg"
           placeholder={existing ? String(existing.kg) : '75.40'}
+          onChange={(v) => setKg(v === undefined ? '' : String(v))}
         />
       </Field>
       <Field label="Body fat % (optional)" hint="From the scale's app, if you trust it.">
-        <input type="number" inputMode="decimal" step="0.1" value={bfp} onChange={(e) => setBfp(e.target.value)} />
+        <NumberInput
+          value={parseFloat(bfp) || undefined}
+          unit="%"
+          onChange={(v) => setBfp(v === undefined ? '' : String(v))}
+        />
       </Field>
 
       <button
@@ -375,14 +377,14 @@ function MeasureSheet({
 
       <div className="grid-2">
         {TAPE.map((t) => (
-          <Field key={String(t.key)} label={`${t.label} (cm)`}>
-            <input
-              type="number"
-              inputMode="decimal"
-              step="0.1"
-              value={vals[String(t.key)] ?? ''}
+          <Field key={String(t.key)} label={t.label}>
+            <NumberInput
+              value={vals[String(t.key)] ? parseFloat(vals[String(t.key)]) : undefined}
+              unit="cm"
               placeholder={last?.[t.key] != null ? String(last[t.key]) : ''}
-              onChange={(e) => setVals({ ...vals, [String(t.key)]: e.target.value })}
+              onChange={(v) =>
+                setVals({ ...vals, [String(t.key)]: v === undefined ? '' : String(v) })
+              }
             />
           </Field>
         ))}

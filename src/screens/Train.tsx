@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type ISODate, type SetEntry, type Workout } from '../db/db'
 import { formatDay, todayISO } from '../lib/date'
-import { Field, Icon, Segmented, Sheet } from '../components/ui'
+import { Field, Icon, NumberInput, Segmented, Sheet } from '../components/ui'
 
 const KINDS = [
   { value: 'strength' as const, label: 'Strength' },
@@ -174,22 +174,20 @@ function WorkoutSheet({
                 placeholder="Exercise"
                 onChange={(e) => setSet(i, { exercise: e.target.value })}
               />
-              <input
-                style={{ width: 62 }}
-                type="number"
-                inputMode="numeric"
-                value={s.reps}
-                aria-label="Reps"
-                onChange={(e) => setSet(i, { reps: parseInt(e.target.value) || 0 })}
-              />
-              <input
-                style={{ width: 72 }}
-                type="number"
-                inputMode="decimal"
-                value={s.weightKg}
-                aria-label="Weight in kg"
-                onChange={(e) => setSet(i, { weightKg: parseFloat(e.target.value) || 0 })}
-              />
+              <div style={{ width: 76, flex: 'none' }}>
+                <NumberInput
+                  value={s.reps || undefined}
+                  unit="×"
+                  onChange={(v) => setSet(i, { reps: v ?? 0 })}
+                />
+              </div>
+              <div style={{ width: 86, flex: 'none' }}>
+                <NumberInput
+                  value={s.weightKg || undefined}
+                  unit="kg"
+                  onChange={(v) => setSet(i, { weightKg: v ?? 0 })}
+                />
+              </div>
               <button
                 className="iconbtn"
                 aria-label="Delete set"
@@ -205,31 +203,19 @@ function WorkoutSheet({
 
       <div className="grid-2">
         <Field label="Duration (min)">
-          <input
-            type="number"
-            inputMode="numeric"
-            value={w.durationMin ?? ''}
-            onChange={(e) => setW({ ...w, durationMin: e.target.value ? parseInt(e.target.value) : undefined })}
+          <NumberInput
+            value={w.durationMin}
+            unit="min"
+            onChange={(v) => setW({ ...w, durationMin: v })}
           />
         </Field>
         {w.kind === 'cardio' ? (
           <Field label="Distance (km)">
-            <input
-              type="number"
-              inputMode="decimal"
-              step="0.1"
-              value={w.distanceKm ?? ''}
-              onChange={(e) => setW({ ...w, distanceKm: e.target.value ? parseFloat(e.target.value) : undefined })}
-            />
+            <NumberInput value={w.distanceKm} unit="km" onChange={(v) => setW({ ...w, distanceKm: v })} />
           </Field>
         ) : (
           <Field label="Calories" hint="optional">
-            <input
-              type="number"
-              inputMode="numeric"
-              value={w.kcal ?? ''}
-              onChange={(e) => setW({ ...w, kcal: e.target.value ? parseInt(e.target.value) : undefined })}
-            />
+            <NumberInput value={w.kcal} unit="kcal" onChange={(v) => setW({ ...w, kcal: v })} />
           </Field>
         )}
       </div>

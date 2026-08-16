@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 /* ---------------------------------------------------------------- icons */
 
@@ -145,6 +145,83 @@ export function Meter({ value, max, color }: { value: number; max: number; color
   return (
     <div className="meter">
       <span style={{ width: `${pct}%`, background: color ?? 'var(--accent)' }} />
+    </div>
+  )
+}
+
+/**
+ * A number field that behaves.
+ *
+ * Two problems with binding a number straight to an input. Clearing it yields
+ * 0, which renders as "0", so the next keystroke gives "064" — the zero cannot
+ * be deleted. And a bare box gives no clue whether it wants grams, millilitres
+ * or a count.
+ *
+ * So the text is held as text while being edited and only converted on the way
+ * out, and the unit is shown inside the field.
+ */
+export function NumberInput({
+  value,
+  onChange,
+  unit,
+  placeholder,
+  step,
+  autoFocus,
+  selectOnFocus = true,
+}: {
+  value: number | undefined
+  onChange: (v: number | undefined) => void
+  unit?: string
+  placeholder?: string
+  step?: string
+  autoFocus?: boolean
+  selectOnFocus?: boolean
+}) {
+  const [text, setText] = useState(value === undefined ? '' : String(value))
+  const [editing, setEditing] = useState(false)
+
+  // While typing, the text is the truth; otherwise follow the value in.
+  useEffect(() => {
+    if (!editing) setText(value === undefined ? '' : String(value))
+  }, [value, editing])
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        type="text"
+        inputMode="decimal"
+        autoFocus={autoFocus}
+        value={text}
+        placeholder={placeholder}
+        step={step}
+        onFocus={(e) => {
+          setEditing(true)
+          if (selectOnFocus) e.target.select()
+        }}
+        onBlur={() => setEditing(false)}
+        onChange={(e) => {
+          // Digits, one separator, optional minus — anything else is a typo.
+          const next = e.target.value.replace(/[^0-9.,-]/g, '')
+          setText(next)
+          const parsed = parseFloat(next.replace(',', '.'))
+          onChange(next.trim() === '' || !Number.isFinite(parsed) ? undefined : parsed)
+        }}
+        style={unit ? { paddingRight: 34 } : undefined}
+      />
+      {unit && (
+        <span
+          className="tiny muted"
+          style={{
+            position: 'absolute',
+            right: 11,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            pointerEvents: 'none',
+          }}
+        >
+          {unit}
+        </span>
+      )}
     </div>
   )
 }

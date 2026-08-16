@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Food, type MealTemplate, type Recipe } from '../db/db'
-import { Field, Icon, Sheet } from '../components/ui'
+import { Field, Icon, NumberInput, Sheet } from '../components/ui'
 import RecipeEditor from '../components/RecipeEditor'
+import { CreateFood } from '../components/AddFood'
 import { finishedWeight, per100, servingGrams } from '../lib/recipes'
 import { loadFoodDb, searchFoodDb } from '../lib/foodDb'
 import type { FoodHit } from '../lib/foodApi'
@@ -11,6 +12,7 @@ import { saveFood } from '../db/ops'
 export default function Foods({ toast }: { toast: (m: string) => void }) {
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState<Food | null>(null)
+  const [creating, setCreating] = useState(false)
   const [recipe, setRecipe] = useState<Recipe | 'new' | null>(null)
 
   const foods = useLiveQuery(() => db.foods.toArray(), []) ?? []
@@ -118,7 +120,10 @@ export default function Foods({ toast }: { toast: (m: string) => void }) {
       <div className="card tight">
         <div className="card-head">
           <h3>Foods</h3>
-          <span className="tiny muted num">{foods.length}</span>
+          <span className="tiny muted num grow">{foods.length}</span>
+          <button className="btn sm" onClick={() => setCreating(true)}>
+            <Icon.plus /> New
+          </button>
         </div>
 
         {shown.length === 0 ? (
@@ -135,7 +140,7 @@ export default function Foods({ toast }: { toast: (m: string) => void }) {
                   <div className="item-title truncate">{f.name}</div>
                   <div className="tiny muted truncate">
                     {f.brand ? `${f.brand} · ` : ''}
-                    {Math.round(f.kcal)} kcal · P {f.protein} C {f.carbs} F {f.fat} / 100 g
+                    {macroLine(f)}
                     {f.useCount > 0 ? ` · used ${f.useCount}×` : ''}
                   </div>
                 </div>
@@ -170,8 +175,7 @@ export default function Foods({ toast }: { toast: (m: string) => void }) {
                   <div className="item-title truncate">{h.name}</div>
                   <div className="tiny muted truncate">
                     {h.brand ? `${h.brand} · ` : ''}
-                    {Math.round(h.kcal)} kcal · P {h.protein} C {h.carbs} F {h.fat} / 100 g
-                    {h.portions.length ? ` · ${h.portions[0].label}` : ''}
+                    {macroLine(h)}
                   </div>
                 </div>
                 <span className="muted">
@@ -185,6 +189,19 @@ export default function Foods({ toast }: { toast: (m: string) => void }) {
 
       {editing && <EditFood food={editing} onClose={() => setEditing(null)} toast={toast} />}
 
+      {creating && (
+        <Sheet title="New food" onClose={() => setCreating(false)}>
+          <CreateFood
+            initialName={q}
+            onCreated={(food) => {
+              setCreating(false)
+              toast(`${food.name} added`)
+              setEditing(food)
+            }}
+          />
+        </Sheet>
+      )}
+
       {recipe && (
         <RecipeEditor
           recipe={recipe === 'new' ? undefined : recipe}
@@ -194,6 +211,28 @@ export default function Foods({ toast }: { toast: (m: string) => void }) {
       )}
     </div>
   )
+}
+
+/**
+ * A food's own serving is the number worth showing — it is what the packet
+ * says and what a portion is logged in. Per 100 g stays as the comparable
+ * figure beside it.
+ */
+function macroLine(f: {
+  kcal: number
+  protein: number
+  carbs: number
+  fat: number
+  portions: { label: string; grams: number }[]
+  defaultPortion?: number
+}): string {
+  const p = f.portions[f.defaultPortion ?? 0] ?? f.portions[0]
+  const at = (g: number) => (v: number) => Math.round((v * g) / 100 * 10) / 10
+  if (p && p.grams > 0) {
+    const r = at(p.grams)
+    return `${Math.round((f.kcal * p.grams) / 100)} kcal · P ${r(f.protein)} C ${r(f.carbs)} F ${r(f.fat)} per ${p.label} · ${Math.round(f.kcal)} kcal/100 g`
+  }
+  return `${Math.round(f.kcal)} kcal · P ${f.protein} C ${f.carbs} F ${f.fat} / 100 g`
 }
 
 function TemplateRow({ template, toast }: { template: MealTemplate; toast: (m: string) => void }) {
@@ -220,6 +259,24 @@ function TemplateRow({ template, toast }: { template: MealTemplate; toast: (m: s
 }
 
 function EditFood({ food, onClose, toast }: { food: Food; onClose: () => void; toast: (m: string) => void }) {
+  const [portions, setPortions] = useState(food.portions)
+  const [favorite, setFavorite] = useState(food.favorite)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  /**
+   * Nutrition is stored per 100 g so any portion can be scaled from it, but
+   * that is rarely the number printed on the packet — chia is per 24 g, a
+   * hash brown per patty. So the numbers can be read and edited on whichever
+   * basis you have in front of you, and the conversion happens here rather
+   * than in your head.
+   */
+  const [basis, setBasis] = useState(100)
+  const bases = [{ label: '100 g', grams: 100 }, ...food.portions.filter((p) => p.grams > 0)]
+
+  const show = (per100: number, g: number) => {
+    const v = Math.round((per100 * g) / 100 * 100) / 100
+    return String(v)
+  }
   const [f, setF] = useState({
     name: food.name,
     brand: food.brand ?? '',
@@ -229,12 +286,26 @@ function EditFood({ food, onClose, toast }: { food: Food; onClose: () => void; t
     fat: String(food.fat),
     fiber: String(food.fiber),
   })
-  const [portions, setPortions] = useState(food.portions)
-  const [favorite, setFavorite] = useState(food.favorite)
-  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value })
   const n = (v: string) => Math.max(0, parseFloat(v) || 0)
+
+  // Fields hold what is displayed, so switching basis rewrites them; saving
+  // converts the other way. Values only ever round-trip through per-100 g once.
+  const rebase = (to: number) => {
+    const conv = (v: string) => show((n(v) * 100) / basis, to)
+    setF({
+      ...f,
+      kcal: conv(f.kcal),
+      protein: conv(f.protein),
+      carbs: conv(f.carbs),
+      fat: conv(f.fat),
+      fiber: conv(f.fiber),
+    })
+    setBasis(to)
+  }
+  // Per 100 g, whatever basis is on screen.
+  const per100 = (v: string) => Math.round((n(v) * 100) / basis * 100) / 100
 
   return (
     <Sheet
@@ -258,8 +329,23 @@ function EditFood({ food, onClose, toast }: { food: Food; onClose: () => void; t
         <input value={f.brand} onChange={set('brand')} />
       </Field>
 
+      {bases.length > 1 && (
+        <div className="scroll-x">
+          {bases.map((b) => (
+            <button
+              key={b.label}
+              className="chip"
+              aria-pressed={basis === b.grams}
+              onClick={() => rebase(b.grams)}
+            >
+              per {b.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="grid-2">
-        <Field label="Calories / 100 g">
+        <Field label="Calories">
           <input type="number" inputMode="decimal" value={f.kcal} onChange={set('kcal')} />
         </Field>
         <Field label="Protein (g)">
@@ -274,6 +360,13 @@ function EditFood({ food, onClose, toast }: { food: Food; onClose: () => void; t
         <Field label="Fibre (g)">
           <input type="number" inputMode="decimal" value={f.fiber} onChange={set('fiber')} />
         </Field>
+      </div>
+      <div className="tiny muted">
+        {basis === 100
+          ? bases.length > 1
+            ? 'Showing the numbers for 100 g. Switch above to read or type them per serving instead.'
+            : 'Showing the numbers for 100 g. Add a portion below to be able to use the serving on the packet.'
+          : `Showing the numbers for ${basis} g — type them straight off the label.`}
       </div>
 
       <div className="card tight">
@@ -297,16 +390,15 @@ function EditFood({ food, onClose, toast }: { food: Food; onClose: () => void; t
                 setPortions(portions.map((x, j) => (i === j ? { ...x, label: e.target.value } : x)))
               }
             />
-            <input
-              style={{ width: 80 }}
-              type="number"
-              inputMode="decimal"
-              value={p.grams}
-              aria-label="Grams"
-              onChange={(e) =>
-                setPortions(portions.map((x, j) => (i === j ? { ...x, grams: parseFloat(e.target.value) || 0 } : x)))
-              }
-            />
+            <div style={{ width: 96, flex: 'none' }}>
+              <NumberInput
+                value={p.grams || undefined}
+                unit="g"
+                onChange={(v) =>
+                  setPortions(portions.map((x, j) => (i === j ? { ...x, grams: v ?? 0 } : x)))
+                }
+              />
+            </div>
             <button
               className="iconbtn"
               aria-label="Remove portion"
@@ -326,11 +418,11 @@ function EditFood({ food, onClose, toast }: { food: Food; onClose: () => void; t
           await db.foods.update(food.id!, {
             name: f.name.trim(),
             brand: f.brand.trim() || undefined,
-            kcal: n(f.kcal),
-            protein: n(f.protein),
-            carbs: n(f.carbs),
-            fat: n(f.fat),
-            fiber: n(f.fiber),
+            kcal: per100(f.kcal),
+            protein: per100(f.protein),
+            carbs: per100(f.carbs),
+            fat: per100(f.fat),
+            fiber: per100(f.fiber),
             portions: clean,
             defaultPortion: Math.min(food.defaultPortion, clean.length - 1),
             favorite,

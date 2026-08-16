@@ -5,7 +5,7 @@ import { logFood, logRecipe, quickFoods, saveFood, scale, searchLocal } from '..
 import { boxWeight, finishedWeight, per100, servingGrams } from '../lib/recipes'
 import { lookupBarcode, searchRemote, type FoodHit } from '../lib/foodApi'
 import { loadFoodDb, searchFoodDb } from '../lib/foodDb'
-import { Field, Icon, Sheet } from '../components/ui'
+import { Field, Icon, NumberInput, Sheet } from '../components/ui'
 import BarcodeScanner from './BarcodeScanner'
 
 
@@ -288,13 +288,16 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function FoodRow({ food, onPick }: { food: Food; onPick: () => void }) {
+  const p = food.portions[food.defaultPortion] ?? food.portions[0]
   return (
     <button className="item" onClick={onPick}>
       <div className="grow">
         <div className="item-title truncate">{food.name}</div>
         <div className="tiny muted truncate">
           {food.brand ? `${food.brand} · ` : ''}
-          {Math.round(food.kcal)} kcal / 100 g
+          {p
+            ? `${Math.round((food.kcal * p.grams) / 100)} kcal per ${p.label} · ${Math.round(food.kcal)} /100 g`
+            : `${Math.round(food.kcal)} kcal / 100 g`}
         </div>
       </div>
       {food.favorite && <span style={{ color: 'var(--series-4)' }}>★</span>}
@@ -306,14 +309,18 @@ function FoodRow({ food, onPick }: { food: Food; onPick: () => void }) {
 }
 
 function HitRow({ hit, onPick }: { hit: FoodHit; onPick: () => void }) {
+  const p = hit.portions[0]
   return (
     <button className="item" onClick={onPick}>
       <div className="grow">
         <div className="item-title truncate">{hit.name}</div>
         <div className="tiny muted truncate">
           {hit.brand ? `${hit.brand} · ` : ''}
-          {Math.round(hit.kcal)} kcal / 100 g · {hit.source === 'usda' ? 'USDA' : 'Open Food Facts'}
-          {hit.portions.length ? ` · ${hit.portions[0].label}` : ''}
+          {/* Per serving first when there is one — that is the number on the
+              packet, and the one worth recognising. */}
+          {p
+            ? `${Math.round((hit.kcal * p.grams) / 100)} kcal per ${p.label} · ${Math.round(hit.kcal)} /100 g`
+            : `${Math.round(hit.kcal)} kcal / 100 g`}
         </div>
       </div>
       <span className="muted">
@@ -613,84 +620,121 @@ function RecipePortion({
 
 /* ---------------------------------------------------------------- create */
 
-function CreateFood({
+export function CreateFood({
   initialName,
   onCreated,
 }: {
   initialName: string
   onCreated: (food: Food) => void
 }) {
-  const [f, setF] = useState({
-    name: initialName,
-    brand: '',
-    kcal: '',
-    protein: '',
-    carbs: '',
-    fat: '',
-    fiber: '',
-    servingLabel: '',
-    servingGrams: '',
-  })
-  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setF({ ...f, [k]: e.target.value })
-  const n = (v: string) => Math.max(0, parseFloat(v) || 0)
+  /**
+   * Packets state their numbers per serving — 24 g of chia, 64 g of hash
+   * brown — while everything here is stored per 100 g so portions can scale.
+   * Making you do that division by hand for every product is the sort of
+   * friction that stops a log being kept, so the form takes the label as
+   * written and converts.
+   */
+  const [perServing, setPerServing] = useState(true)
+  const [name, setName] = useState(initialName)
+  const [brand, setBrand] = useState('')
+  const [servingG, setServingG] = useState<number | undefined>(undefined)
+  const [servingLabel, setServingLabel] = useState('')
+  const [v, setV] = useState<Record<string, number | undefined>>({})
 
-  const valid = f.name.trim() !== '' && n(f.kcal) > 0
+  const set = (k: string) => (x: number | undefined) => setV({ ...v, [k]: x })
+  const basis = perServing ? servingG : 100
+  const ready = name.trim() !== '' && !!v.kcal && !!basis && basis > 0
+
+  // What gets stored, whichever way the numbers were typed in.
+  const to100 = (x: number | undefined) =>
+    !x || !basis ? 0 : Math.round((x * 100) / basis * 100) / 100
 
   return (
     <>
-      <div className="tiny muted">Enter the values per 100 g (or per 100 ml) from the label.</div>
+      <div className="scroll-x">
+        <button className="chip" aria-pressed={perServing} onClick={() => setPerServing(true)}>
+          Numbers per serving
+        </button>
+        <button className="chip" aria-pressed={!perServing} onClick={() => setPerServing(false)}>
+          Per 100 g
+        </button>
+      </div>
+
+      <div className="tiny muted">
+        {perServing
+          ? 'Copy the label exactly as printed — serving size first, then the numbers for that serving.'
+          : 'For values already given per 100 g.'}
+      </div>
 
       <Field label="Name">
-        <input value={f.name} onChange={set('name')} placeholder="e.g. Greek yoghurt 0%" />
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Chia seeds"
+        />
       </Field>
       <Field label="Brand (optional)">
-        <input value={f.brand} onChange={set('brand')} />
+        <input value={brand} onChange={(e) => setBrand(e.target.value)} />
       </Field>
 
+      {perServing && (
+        <div className="grid-2">
+          <Field label="Serving size">
+            <NumberInput value={servingG} unit="g" placeholder="24" onChange={setServingG} />
+          </Field>
+          <Field label="Called" hint="optional">
+            <input
+              value={servingLabel}
+              onChange={(e) => setServingLabel(e.target.value)}
+              placeholder="1 tbsp, 1 patty…"
+            />
+          </Field>
+        </div>
+      )}
+
       <div className="grid-2">
-        <Field label="Calories / 100 g">
-          <input type="number" inputMode="decimal" value={f.kcal} onChange={set('kcal')} />
+        <Field label="Calories">
+          <NumberInput value={v.kcal} unit="kcal" onChange={set('kcal')} />
         </Field>
-        <Field label="Protein (g)">
-          <input type="number" inputMode="decimal" value={f.protein} onChange={set('protein')} />
+        <Field label="Protein">
+          <NumberInput value={v.protein} unit="g" onChange={set('protein')} />
         </Field>
-        <Field label="Carbs (g)">
-          <input type="number" inputMode="decimal" value={f.carbs} onChange={set('carbs')} />
+        <Field label="Carbs">
+          <NumberInput value={v.carbs} unit="g" onChange={set('carbs')} />
         </Field>
-        <Field label="Fat (g)">
-          <input type="number" inputMode="decimal" value={f.fat} onChange={set('fat')} />
+        <Field label="Fat">
+          <NumberInput value={v.fat} unit="g" onChange={set('fat')} />
         </Field>
-        <Field label="Fibre (g)">
-          <input type="number" inputMode="decimal" value={f.fiber} onChange={set('fiber')} />
+        <Field label="Fibre">
+          <NumberInput value={v.fiber} unit="g" onChange={set('fiber')} />
         </Field>
       </div>
 
-      <div className="grid-2">
-        <Field label="Serving name" hint="optional">
-          <input value={f.servingLabel} onChange={set('servingLabel')} placeholder="1 cup" />
-        </Field>
-        <Field label="Serving grams">
-          <input type="number" inputMode="decimal" value={f.servingGrams} onChange={set('servingGrams')} />
-        </Field>
-      </div>
+      {perServing && basis && basis > 0 && v.kcal ? (
+        <div className="card tight">
+          <div className="tiny muted">Stored as, per 100 g</div>
+          <div className="small num">
+            {to100(v.kcal)} kcal · P {to100(v.protein)} C {to100(v.carbs)} F {to100(v.fat)}
+          </div>
+        </div>
+      ) : null}
 
       <button
         className="btn primary block"
-        disabled={!valid}
+        disabled={!ready}
         onClick={async () => {
           const portions =
-            n(f.servingGrams) > 0
-              ? [{ label: f.servingLabel.trim() || '1 serving', grams: n(f.servingGrams) }]
+            perServing && servingG
+              ? [{ label: servingLabel.trim() || `1 serving (${servingG} g)`, grams: servingG }]
               : []
           const id = await db.foods.add({
-            name: f.name.trim(),
-            brand: f.brand.trim() || undefined,
-            kcal: n(f.kcal),
-            protein: n(f.protein),
-            carbs: n(f.carbs),
-            fat: n(f.fat),
-            fiber: n(f.fiber),
+            name: name.trim(),
+            brand: brand.trim() || undefined,
+            kcal: to100(v.kcal),
+            protein: to100(v.protein),
+            carbs: to100(v.carbs),
+            fat: to100(v.fat),
+            fiber: to100(v.fiber),
             portions,
             defaultPortion: portions.length ? 0 : -1,
             liquid: false,
@@ -704,7 +748,7 @@ function CreateFood({
           if (food) onCreated(food)
         }}
       >
-        Save food
+        {perServing && !basis ? 'Enter the serving size first' : 'Save food'}
       </button>
     </>
   )

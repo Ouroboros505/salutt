@@ -26,7 +26,7 @@ import {
   waterLossPct,
 } from '../lib/recipes'
 import { parseRecipeText, type ParsedLine } from '../lib/parseRecipe'
-import { Field, Icon, Sheet } from './ui'
+import { Field, Icon, NumberInput, Sheet } from './ui'
 
 type Draft = Omit<Recipe, 'id' | 'useCount' | 'lastUsed' | 'createdAt'>
 
@@ -166,22 +166,19 @@ export default function RecipeEditor({
         <h3>Finished dish</h3>
         <div className="grid-2">
           <Field label="Cooked weight (g)">
-            <input
-              type="number"
-              inputMode="numeric"
-              value={draft.cookedG || ''}
+            <NumberInput
+              value={draft.cookedG || undefined}
+              unit="g"
               placeholder={String(Math.round(totals.grams) || '')}
-              onChange={(e) => setDraft({ ...draft, cookedG: parseFloat(e.target.value) || 0 })}
+              onChange={(v) => setDraft({ ...draft, cookedG: v ?? 0 })}
             />
           </Field>
-          <Field label="Portions" hint="optional">
-            <input
-              type="number"
-              inputMode="numeric"
-              value={draft.servings ?? ''}
-              onChange={(e) =>
-                setDraft({ ...draft, servings: parseInt(e.target.value) || undefined })
-              }
+          <Field label="Cut into how many portions" hint="optional">
+            <NumberInput
+              value={draft.servings}
+              unit="×"
+              placeholder="6"
+              onChange={(v) => setDraft({ ...draft, servings: v || undefined })}
             />
           </Field>
         </div>
@@ -194,25 +191,19 @@ export default function RecipeEditor({
 
         <div className="grid-2">
           <Field label="Filled how many boxes" hint="optional">
-            <input
-              type="number"
-              inputMode="numeric"
-              value={draft.containers ?? ''}
+            <NumberInput
+              value={draft.containers}
+              unit="×"
               placeholder="5"
-              onChange={(e) =>
-                setDraft({ ...draft, containers: parseFloat(e.target.value) || undefined })
-              }
+              onChange={(v) => setDraft({ ...draft, containers: v || undefined })}
             />
           </Field>
           <Field label="Box size (ml)" hint="optional">
-            <input
-              type="number"
-              inputMode="numeric"
-              value={draft.containerMl ?? ''}
+            <NumberInput
+              value={draft.containerMl}
+              unit="ml"
               placeholder="750"
-              onChange={(e) =>
-                setDraft({ ...draft, containerMl: parseFloat(e.target.value) || undefined })
-              }
+              onChange={(v) => setDraft({ ...draft, containerMl: v || undefined })}
             />
           </Field>
         </div>
@@ -484,20 +475,15 @@ function PasteRecipe({
                           : ''}
                   </div>
                 </div>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  value={r.grams || ''}
-                  placeholder="g"
-                  onChange={(e) =>
-                    setRows(
-                      rows.map((x, j) =>
-                        i === j ? { ...x, grams: parseFloat(e.target.value) || 0 } : x,
-                      ),
-                    )
-                  }
-                  style={{ width: 74, flex: 'none' }}
-                />
+                <div style={{ width: 92, flex: 'none' }}>
+                  <NumberInput
+                    value={r.grams || undefined}
+                    unit="g"
+                    onChange={(v) =>
+                      setRows(rows.map((x, j) => (i === j ? { ...x, grams: v ?? 0 } : x)))
+                    }
+                  />
+                </div>
               </div>
             </div>
           ))}
@@ -605,13 +591,11 @@ function IngredientPicker({
     return (
       <Sheet title={chosen.name} onClose={() => setChosen(null)}>
         <Field label="Raw weight (g)" hint="What goes into the pot, before cooking">
-          <input
+          <NumberInput
             autoFocus
-            type="number"
-            inputMode="decimal"
-            value={grams}
-            onChange={(e) => setGrams(e.target.value)}
-            onFocus={(e) => e.target.select()}
+            value={parseFloat(grams) || undefined}
+            unit="g"
+            onChange={(v) => setGrams(v === undefined ? '' : String(v))}
           />
         </Field>
         <div className="row between small num">
