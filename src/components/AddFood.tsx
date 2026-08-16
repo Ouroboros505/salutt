@@ -8,6 +8,7 @@ import { loadFoodDb, searchFoodDb } from '../lib/foodDb'
 import { Field, Icon, NumberInput, Sheet } from '../components/ui'
 import BarcodeScanner from './BarcodeScanner'
 import BoxBuilder from './BoxBuilder'
+import PlateBuilder from './PlateBuilder'
 
 
 type Stage =
@@ -16,6 +17,7 @@ type Stage =
   | { kind: 'recipe'; recipe: Recipe }
   | { kind: 'create'; name: string }
   | { kind: 'box' }
+  | { kind: 'plate' }
 
 export default function AddFood({
   date,
@@ -139,7 +141,9 @@ export default function AddFood({
           ? 'New food'
           : stage.kind === 'box'
             ? `Fill the box — ${meal}`
-            : `Add to ${meal}`
+            : stage.kind === 'plate'
+              ? `Eating out — ${meal}`
+              : `Add to ${meal}`
 
   if (scanning) return <BarcodeScanner onDetect={onScan} onClose={() => setScanning(false)} />
 
@@ -178,6 +182,12 @@ export default function AddFood({
               box is a different job from looking one food up. */}
           <button className="btn block" onClick={() => setStage({ kind: 'box' })}>
             <Icon.box /> Build a box — meal prep, a side, a drink
+          </button>
+
+          {/* Somebody else cooked it, nobody weighed it, and no search is
+              going to turn up the tray at a birthday party. */}
+          <button className="btn block" onClick={() => setStage({ kind: 'plate' })}>
+            <Icon.plate /> Eating out — estimate a plate
           </button>
 
           {matchingRecipes.length > 0 && (
@@ -262,6 +272,10 @@ export default function AddFood({
           onDone={onClose}
           toast={toast}
         />
+      )}
+
+      {stage.kind === 'plate' && (
+        <PlateBuilder date={date} meal={meal} onDone={onClose} toast={toast} />
       )}
 
       {stage.kind === 'portion' && (
