@@ -60,12 +60,12 @@ export default function ScaleSync({
       setPhase('waiting')
     } catch (e) {
       const err = e as Error
-      // Cancelling the browser's device chooser is not a failure.
-      if (err.name === 'NotFoundError' && /cancel|user/i.test(err.message)) {
+      // Dismissing the browser's device chooser is a choice, not a failure.
+      if (err.name === 'NotFoundError' && /cancel/i.test(err.message)) {
         setPhase('idle')
         return
       }
-      setError(err.message || 'Could not connect to the scale.')
+      setError(describeBleError(err))
       setPhase('error')
     }
   }, [])
@@ -125,10 +125,20 @@ export default function ScaleSync({
         <>
           {phase === 'idle' && (
             <>
-              <div className="small secondary">
-                Turn Bluetooth on, then connect. Once connected, step on the scale barefoot — the
-                weight arrives first and the body-composition pass finishes a couple of seconds later.
-              </div>
+              <ol className="small secondary" style={{ paddingLeft: 18, margin: 0, lineHeight: 1.7 }}>
+                <li>Turn Bluetooth on.</li>
+                <li>
+                  <strong>Close the VeSync app completely.</strong> The scale accepts one connection
+                  at a time, so if VeSync holds it, Salutt cannot.
+                </li>
+                <li>
+                  <strong>Step on the scale to wake it,</strong> then tap Connect straight away — it
+                  only broadcasts for a few seconds before going back to sleep.
+                </li>
+                <li>Pick <em>Etekcity Fitness Scale</em> from the list Chrome shows.</li>
+                <li>Stand on it barefoot and still. Weight lands first; body composition follows a
+                  couple of seconds later.</li>
+              </ol>
               <button className="btn primary block" onClick={start}>
                 Connect to scale
               </button>
@@ -224,6 +234,28 @@ export default function ScaleSync({
       )}
     </Sheet>
   )
+}
+
+/**
+ * Web Bluetooth reports failures as bare DOMExceptions whose messages assume
+ * you know the spec. Translate the ones that actually happen with this scale
+ * into something you can act on.
+ */
+function describeBleError(err: Error): string {
+  switch (err.name) {
+    case 'NotFoundError':
+      return 'Chrome could not see the scale. Step on it to wake it up — it only broadcasts for a few seconds — then tap Connect again. If it still does not appear, make sure the VeSync app is fully closed.'
+    case 'SecurityError':
+      return 'The browser blocked Bluetooth access. Salutt has to be on an https:// address, and Chrome needs the Nearby devices permission.'
+    case 'NetworkError':
+      return 'Connected, then lost it. The scale probably went back to sleep, or another app grabbed it. Step on it and try again.'
+    case 'NotSupportedError':
+      return 'This device does not expose the characteristic Salutt expects. If it is definitely an ESF-551, send this message on.'
+    case 'InvalidStateError':
+      return 'Bluetooth is not ready. Check it is switched on, then try again.'
+    default:
+      return err.message || 'Could not connect to the scale.'
+  }
 }
 
 function Metric({ label, value, sub }: { label: string; value: string; sub?: string }) {
