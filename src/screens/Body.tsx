@@ -7,6 +7,8 @@ import { TrendChart } from '../components/charts'
 import { Field, Icon, Segmented, Sheet } from '../components/ui'
 import ScaleSync from '../components/ScaleSync'
 import { bluetoothBlockedReason, pickScale } from '../lib/scale'
+import { useScaleListener } from '../lib/useScaleListener'
+import ScaleResult from '../components/ScaleResult'
 import { bodyFatBand } from '../lib/bodyComp'
 
 const RANGES = [
@@ -41,6 +43,11 @@ export default function Body({
   const [measuring, setMeasuring] = useState(false)
   const [syncing, setSyncing] = useState<BluetoothDevice | null>(null)
   const [picking, setPicking] = useState(false)
+
+  // Connects on its own to a scale Chrome already remembers, so stepping on it
+  // surfaces a reading with no tap. Paused while the manual sheet is open, so
+  // the two never fight over the one connection the scale allows.
+  const listener = useScaleListener(!syncing)
 
   // requestDevice() only works inside a user gesture, so the chooser is opened
   // straight from this handler rather than from a step inside the sheet. Once
@@ -125,6 +132,13 @@ export default function Body({
             <button className="btn sm" onClick={() => setWeighing(true)}>
               <Icon.plus /> Enter manually
             </button>
+            {listener.state === 'listening' && (
+              <div className="tiny" style={{ color: 'var(--success-text)' }}>
+                {listener.live
+                  ? `scale ${listener.live.kg.toFixed(1)} kg…`
+                  : 'scale connected — step on'}
+              </div>
+            )}
           </div>
         </div>
 
@@ -261,6 +275,17 @@ export default function Body({
           toast={toast}
         />
       )}
+      {listener.settled && !syncing && (
+        <Sheet title="Weigh-in detected" onClose={listener.clear}>
+          <ScaleResult
+            reading={listener.settled}
+            settings={settings}
+            onDone={listener.clear}
+            toast={toast}
+          />
+        </Sheet>
+      )}
+
       {weighing && <WeighInSheet onClose={() => setWeighing(false)} toast={toast} />}
       {measuring && <MeasureSheet last={last} onClose={() => setMeasuring(false)} toast={toast} />}
     </div>

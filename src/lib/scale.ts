@@ -152,6 +152,27 @@ export function canRememberDevices(): boolean {
 }
 
 /**
+ * The already-paired scale, if the browser remembers it — no chooser, and no
+ * user gesture needed, so this can run on its own when a screen opens.
+ *
+ * Returns null unless Chrome has both `#enable-experimental-web-platform-features`
+ * (for getDevices itself) and `#enable-web-bluetooth-new-permissions-backend`
+ * (so the permission survives a reload). Without them the chooser is
+ * unavoidable, which is a browser limitation rather than an app one.
+ */
+export async function getRememberedScale(): Promise<BluetoothDevice | null> {
+  if (!canRememberDevices() || !window.isSecureContext) return null
+  try {
+    const known = await (
+      navigator.bluetooth as unknown as { getDevices(): Promise<BluetoothDevice[]> }
+    ).getDevices()
+    return known.find((d) => /etekcity|scale/i.test(d.name ?? '')) ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Connects to a device from pickScale() and streams readings until
  * `disconnect()` is called. No user gesture required at this point.
  */

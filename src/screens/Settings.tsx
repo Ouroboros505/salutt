@@ -3,7 +3,7 @@ import { db, saveSettings, type Settings as S } from '../db/db'
 import { exportBackup, importBackup } from '../lib/backup'
 import { ageFrom, bmrMifflin, computeTargets } from '../lib/metrics'
 import { Field, Icon, Sheet } from '../components/ui'
-import { bluetoothBlockedReason } from '../lib/scale'
+import { bluetoothBlockedReason, canRememberDevices } from '../lib/scale'
 import { foodDbSize } from '../lib/foodDb'
 
 const ACTIVITY = [
@@ -35,6 +35,7 @@ export default function Settings({
 
   const num = (v: string) => (v === '' ? undefined : parseFloat(v))
   const scaleBlocked = bluetoothBlockedReason()
+  const remembers = canRememberDevices()
 
   const [dbCount, setDbCount] = useState<number | null>(null)
   useEffect(() => {
@@ -267,10 +268,36 @@ export default function Settings({
         </div>
         {scaleBlocked ? (
           <div className="tiny" style={{ color: 'var(--serious)' }}>{scaleBlocked}</div>
-        ) : (
+        ) : remembers ? (
           <div className="tiny" style={{ color: 'var(--success-text)' }}>
-            Bluetooth available in this browser.
+            This browser can remember the scale — open Body with the scale awake and it connects on
+            its own, no tap.
           </div>
+        ) : (
+          <details>
+            <summary className="tiny" style={{ cursor: 'pointer', color: 'var(--serious)' }}>
+              Remove the device picker (two Chrome flags)
+            </summary>
+            <div className="stack tight" style={{ paddingTop: 8 }}>
+              <div className="tiny muted">
+                Chrome forgets Bluetooth devices between visits, so it asks you to pick the scale
+                every time. Both switches below are still experimental, which is why they are off by
+                default — this is a browser limitation, not a Salutt one. Turn them on and Salutt
+                connects by itself whenever you open Body with the scale awake.
+              </div>
+              <div className="tiny num" style={{ lineHeight: 1.8 }}>
+                <div>
+                  1. <strong>chrome://flags/#enable-experimental-web-platform-features</strong> →
+                  Enabled
+                </div>
+                <div>
+                  2. <strong>chrome://flags/#enable-web-bluetooth-new-permissions-backend</strong> →
+                  Enabled
+                </div>
+                <div>3. Relaunch Chrome, then pair the scale once more.</div>
+              </div>
+            </div>
+          </details>
         )}
 
         <label className="row between" style={{ gap: 10, cursor: 'pointer' }}>
