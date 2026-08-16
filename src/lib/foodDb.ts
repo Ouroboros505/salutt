@@ -222,6 +222,15 @@ export function searchFoodDb(query: string, entries: Indexed[], limit = 30): Foo
     let score = 0
     if (e.head.startsWith(q)) score += 120
     else if (e.head.includes(q)) score += 60
+
+    // A term that appears as a whole word is a far better match than one
+    // buried inside another: "salt" should find salt, not salted butter, and
+    // "black pepper" should find the spice, not a cheese snack that mentions
+    // both words in passing.
+    for (const t of terms) {
+      if (e.words.includes(t)) score += 35
+      else if (t.length > 3 && e.words.some((w) => w.startsWith(t))) score += 12
+    }
     const first = e.head.indexOf(terms[0])
     if (first === 0) score += 40
     else if (first > 0 && e.head[first - 1] === ' ') score += 20

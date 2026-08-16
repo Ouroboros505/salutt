@@ -64,10 +64,64 @@ const COUNT_WORDS = new Set([
   'x', 'piece', 'pieces', 'unit', 'units', 'whole', 'medium', 'large', 'small',
   'slice', 'slices', 'patty', 'patties', 'scoop', 'scoops', 'clove', 'cloves',
   'can', 'cans', 'tin', 'tins', 'bar', 'bars', 'egg', 'eggs', 'fillet', 'fillets',
-  'breast', 'breasts', 'handful', 'handfuls',
+  'breast', 'breasts', 'handful', 'handfuls', 'cube', 'cubes', 'jar', 'jars',
+  'packet', 'packets', 'pack', 'packs', 'bunch', 'bunches', 'sprig', 'sprigs',
+  'stick', 'sticks', 'head', 'heads', 'stalk', 'stalks', 'sheet', 'sheets',
 ])
 
-export type Confidence = 'exact' | 'approx' | 'guess'
+/** Lines that are structure, not food. */
+const HEADINGS = new Set([
+  'ingredients', 'ingredient', 'directions', 'method', 'instructions', 'steps',
+  'preparation', 'notes', 'topping', 'toppings', 'sauce', 'for the sauce',
+  'garnish', 'optional', 'serves', 'equipment',
+])
+
+/**
+ * How a food was prepared, which is not part of what it is.
+ *
+ * "2 yellow onions, chopped" has to search for onions, not for "onions,
+ * chopped" — the preparation is why the line fails to match otherwise.
+ */
+const PREPARATION = [
+  'chopped', 'finely chopped', 'roughly chopped', 'diced', 'minced', 'sliced',
+  'thinly sliced', 'drained', 'rinsed', 'drained & rinsed', 'drained and rinsed',
+  'juiced', 'cubed', 'shredded', 'grated', 'peeled', 'trimmed', 'crushed',
+  'melted', 'softened', 'beaten', 'divided', 'to taste', 'plus more',
+  'room temperature', 'cut into chunks', 'in large chunks', 'in chunks',
+  'halved', 'quartered', 'seeded', 'deseeded', 'stemmed', 'thawed', 'frozen',
+  'fresh', 'optional', 'from jar', 'from a jar', 'or more', 'packed',
+]
+
+/**
+ * Seasonings whose contribution to a day's intake is nil.
+ *
+ * The food database deliberately excludes zero-calorie entries, so these never
+ * match anything — which looks like a failure rather than the non-event it is.
+ * A teaspoon of salt is 0 kcal and a teaspoon of cumin is about 8; neither
+ * belongs in a log. Flagged rather than silently dropped, so the list still
+ * shows every line that was pasted.
+ */
+const NEGLIGIBLE = [
+  'salt', 'pepper', 'black pepper', 'white pepper', 'cumin', 'thyme', 'oregano',
+  'paprika', 'cinnamon', 'nutmeg', 'turmeric', 'chilli', 'chili', 'cayenne',
+  'bay leaf', 'bay leaves', 'rosemary', 'basil', 'parsley', 'coriander',
+  'cilantro', 'dill', 'sage', 'cardamom', 'clove', 'cloves', 'ginger powder',
+  'garlic powder', 'onion powder', 'spice', 'spices', 'seasoning', 'herbs',
+  'water', 'vinegar', 'baking powder', 'baking soda', 'stevia', 'sweetener',
+]
+
+/** Common names the database files under something else. */
+const SYNONYMS: [RegExp, string][] = [
+  [/\bcoriander leaves?/i, 'cilantro'],
+  [/\bspring onion/i, 'scallion'],
+  [/\bcourgette/i, 'zucchini'],
+  [/\baubergine/i, 'eggplant'],
+  [/\bmince\b/i, 'ground'],
+  [/\bbu?[oy]{1,2}on|bouillon/i, 'bouillon'],
+  [/\bstock cube/i, 'bouillon'],
+]
+
+export type Confidence = 'exact' | 'approx' | 'guess' | 'negligible'
 
 export interface ParsedLine {
   /** The original text, so a failed line can still be shown and fixed. */
@@ -97,6 +151,35 @@ function parseQuantity(text: string): number | null {
 
 const FRACTION_CHARS: Record<string, number> = { '½': 0.5, '¼': 0.25, '¾': 0.75, '⅓': 1 / 3, '⅔': 2 / 3 }
 
+/**
+ * Pulls a per-unit size out of a bracket: "4 cans black beans (15 oz each)".
+ *
+ * Without this the brackets are discarded and four cans become four unknowns,
+ * when the line actually says exactly how much is in each one.
+ */
+function bracketedSize(line: string): number | null {
+  for (const inner of line.match(/\(([^)]*)\)/g) ?? []) {
+    const m = /([\d.,/]+)\s*(g|gr|grams?|kg|oz|ounces?|lb|lbs|pounds?|ml|l|litres?|liters?)\b/i.exec(inner)
+    if (!m) continue
+    const qty = parseQuantity(m[1])
+    if (qty === null) continue
+    const unit = m[2].toLowerCase()
+    const grams = MASS_UNITS[unit] ?? VOLUME_UNITS[unit]
+    if (grams) return qty * grams
+  }
+  return null
+}
+
+function stripPreparation(text: string): string {
+  let out = text
+  // Anything after a comma that is only preparation is noise, as is a trailing
+  // preparation word with no comma at all.
+  for (const word of PREPARATION) {
+    out = out.replace(new RegExp(`,?\\s*\\b${word}\\b`, 'gi'), '')
+  }
+  return out.replace(/[,&]+\s*$/, '').replace(/\s+/g, ' ').trim()
+}
+
 function normalise(line: string): string {
   let out = line.trim()
   // Strip bullets only. A leading number is almost always the quantity, so
@@ -116,6 +199,10 @@ function normalise(line: string): string {
  * "chicken breast 500g" and bare "olive oil".
  */
 export function parseLine(raw: string): ParsedLine | null {
+  const trimmed = raw.trim()
+  if (HEADINGS.has(trimmed.toLowerCase().replace(/[:.]$/, ''))) return null
+
+  const perUnit = bracketedSize(trimmed)
   const line = normalise(raw)
   if (!line || line.length < 2) return null
 
@@ -140,28 +227,65 @@ export function parseLine(raw: string): ParsedLine | null {
     const qty = parseQuantity(qtyText)
     if (qty === null || qty <= 0) return null
     const unit = (unitText ?? '').toLowerCase()
-    const food = name.trim().replace(/^of\s+/i, '')
+    // "pork butt/shoulder" is one cut written two ways; take the first.
+    const food = stripPreparation(name.trim().replace(/^of\s+/i, '')).split('/')[0].trim()
     if (!food) return null
 
+    // Whether the word after the number is a measure or part of the name
+    // decides what the food is even called: in "2 bell peppers", "bell" is
+    // not a unit. Work that out before deciding anything else, or the check
+    // below sees "peppers" and writes the line off as a seasoning.
+    const isMeasure = !!MASS_UNITS[unit] || !!VOLUME_UNITS[unit] || COUNT_WORDS.has(unit)
+    let fullFood = isMeasure || !unit ? food : `${unit} ${food}`.trim()
+    // Applied to the complete name: "bell" is only recognisable as part of
+    // "bell pepper" once the two halves are back together.
+    for (const [pattern, replacement] of SYNONYMS) fullFood = fullFood.replace(pattern, replacement)
+
+    const bare = fullFood
+      .toLowerCase()
+      .replace(/\bground\b|\bdried\b|\bfresh\b|\bminced\b/g, '')
+      .trim()
+    if (NEGLIGIBLE.some((n) => bare === n || bare === `${n}s`)) {
+      return {
+        ...base,
+        query: fullFood,
+        grams: null,
+        count: null,
+        confidence: 'negligible',
+        note: 'no calories worth logging',
+      }
+    }
+
     if (MASS_UNITS[unit]) {
-      return { ...base, query: food, grams: qty * MASS_UNITS[unit], confidence: 'exact' }
+      return { ...base, query: fullFood, grams: qty * MASS_UNITS[unit], confidence: 'exact' }
     }
     if (VOLUME_UNITS[unit]) {
       return {
         ...base,
-        query: food,
+        query: fullFood,
         grams: qty * VOLUME_UNITS[unit],
         confidence: 'approx',
         note: `${unit} converted at the density of water — check anything oily or powdery`,
       }
     }
+    // A bracketed size makes a counted line exact: 4 cans of 15 oz is a weight.
+    if (perUnit && (!unit || COUNT_WORDS.has(unit))) {
+      return {
+        ...base,
+        query: fullFood,
+        grams: qty * perUnit,
+        confidence: 'exact',
+        note: `${qty} × ${Math.round(perUnit)} g from the label`,
+      }
+    }
+
     if (!unit || COUNT_WORDS.has(unit)) {
       // "3 eggs" needs the food's own portion to become grams. The counting
       // word is kept aside rather than searched for: "slices" is how it is
       // measured, not part of what the food is called.
       return {
         ...base,
-        query: food,
+        query: fullFood,
         count: qty,
         countUnit: unit || undefined,
         confidence: 'approx',
@@ -169,7 +293,7 @@ export function parseLine(raw: string): ParsedLine | null {
       }
     }
     // The word after the number was part of the food name, not a unit.
-    return { ...base, query: `${unit} ${food}`.trim(), count: qty, confidence: 'approx', note: 'counted, not weighed' }
+    return { ...base, query: fullFood, count: qty, confidence: 'approx', note: 'counted, not weighed' }
   }
 
   if (leading) {

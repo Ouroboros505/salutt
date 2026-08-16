@@ -293,6 +293,12 @@ function PasteRecipe({
       const out: Resolved[] = []
 
       for (const line of parsed) {
+        // Seasonings contribute nothing; show them as skipped rather than
+        // hunting for a match that the database deliberately does not carry.
+        if (line.confidence === 'negligible') {
+          out.push({ line, hit: null, grams: 0, include: false })
+          continue
+        }
         const mine = await searchLocal(line.query, 5)
         const candidates: FoodHit[] = [...mine, ...searchFoodDb(line.query, entries, 5)]
 
@@ -356,7 +362,7 @@ function PasteRecipe({
                 <input
                   type="checkbox"
                   checked={r.include}
-                  disabled={!r.hit}
+                  disabled={!r.hit || r.line.confidence === 'negligible'}
                   onChange={(e) =>
                     setRows(rows.map((x, j) => (i === j ? { ...x, include: e.target.checked } : x)))
                   }
@@ -366,8 +372,13 @@ function PasteRecipe({
                   <div className="item-title truncate">{r.hit?.name ?? r.line.query}</div>
                   <div className="tiny muted truncate">
                     {r.line.raw}
-                    {!r.hit && ' · no match found'}
-                    {r.line.note && r.hit ? ` · ${r.line.note}` : ''}
+                    {r.line.confidence === 'negligible'
+                      ? ' · skipped, no calories worth logging'
+                      : !r.hit
+                        ? ' · no match found'
+                        : r.line.note
+                          ? ` · ${r.line.note}`
+                          : ''}
                   </div>
                 </div>
                 <input
