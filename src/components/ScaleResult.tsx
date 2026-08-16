@@ -51,7 +51,7 @@ export default function ScaleResult({
       <div className="card">
         <div className="stat-label">Measured</div>
         <div className="hero num">
-          {reading.kg.toFixed(1)} <span className="hero-unit">kg</span>
+          {reading.kg.toFixed(2)} <span className="hero-unit">kg</span>
         </div>
         {reading.impedance ? (
           <div className="tiny muted num">impedance {reading.impedance} Ω</div>

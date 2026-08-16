@@ -93,7 +93,7 @@ export default function Body({
             </div>
             {latest?.raw != null && (
               <div className="tiny muted num">
-                last reading {latest.raw.toFixed(1)} kg · {formatShort(latest.date)}
+                last reading {latest.raw.toFixed(2)} kg · {formatShort(latest.date)}
               </div>
             )}
           </div>
@@ -247,7 +247,7 @@ function ScaleStatus({ state, live }: { state: ListenerState; live: ScaleReading
   const text =
     state === 'connected'
       ? live
-        ? `scale ${live.kg.toFixed(1)} kg…`
+        ? `scale ${live.kg.toFixed(2)} kg…`
         : 'scale connected — step on'
       : state === 'connecting'
         ? 'scale waking…'
@@ -318,10 +318,10 @@ function WeighInSheet({ onClose, toast }: { onClose: () => void; toast: (m: stri
           autoFocus
           type="number"
           inputMode="decimal"
-          step="0.1"
+          step="0.01"
           value={kg}
           onChange={(e) => setKg(e.target.value)}
-          placeholder={existing ? String(existing.kg) : '75.4'}
+          placeholder={existing ? String(existing.kg) : '75.40'}
         />
       </Field>
       <Field label="Body fat % (optional)" hint="From the scale's app, if you trust it.">

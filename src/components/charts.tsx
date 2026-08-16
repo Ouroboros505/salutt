@@ -177,7 +177,7 @@ export function TrendChart({
       lines: [
         d.label,
         `Trend ${d.trend.toFixed(1)} ${unit}`,
-        ...(d.raw != null ? [`Scale ${d.raw.toFixed(1)} ${unit}`] : []),
+        ...(d.raw != null ? [`Scale ${d.raw.toFixed(2)} ${unit}`] : []),
       ],
     })
   }

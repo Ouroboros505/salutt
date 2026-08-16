@@ -27,6 +27,7 @@ export default function ScaleSync({
   const [error, setError] = useState<string | null>(null)
   const [live, setLive] = useState<ScaleReading | null>(null)
   const [final, setFinal] = useState<ScaleReading | null>(null)
+  const [battery, setBattery] = useState<number | null>(null)
   const session = useRef<ScaleSession | null>(null)
 
   useEffect(() => {
@@ -68,6 +69,7 @@ export default function ScaleSync({
           return
         }
         session.current = s
+        setBattery(s.info.batteryPct ?? null)
         setPhase('waiting')
       })
       .catch((e) => {
@@ -86,6 +88,13 @@ export default function ScaleSync({
   return (
     <Sheet title={device.name ?? 'Scale'} onClose={onClose}>
       {phase === 'connecting' && <div className="empty">Connecting…</div>}
+
+      {battery != null && (
+        <div className="row between small">
+          <span className="muted">Scale battery</span>
+          <span className="num">{battery}%</span>
+        </div>
+      )}
 
       {phase === 'error' && (
         <>
@@ -109,7 +118,7 @@ export default function ScaleSync({
           <div className="card">
             <div className="stat-label">Reading…</div>
             <div className="hero num" style={{ opacity: 0.45 }}>
-              {live.kg.toFixed(1)} <span className="hero-unit">kg</span>
+              {live.kg.toFixed(2)} <span className="hero-unit">kg</span>
             </div>
             <div className="tiny muted">Hold still until it settles.</div>
           </div>

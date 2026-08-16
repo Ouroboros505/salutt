@@ -237,7 +237,7 @@ export default function Today({
           <h3>Weight</h3>
           {todayWeight ? (
             <div className="stat-value num">
-              {todayWeight.kg.toFixed(1)} <span className="hero-unit">kg</span>
+              {todayWeight.kg.toFixed(2)} <span className="hero-unit">kg</span>
             </div>
           ) : (
             <div className="small muted">{isToday ? 'Not weighed today' : 'No weigh-in'}</div>

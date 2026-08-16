@@ -43,6 +43,15 @@ const DEVICE_INFO_SERVICE = u16(0x180a)
 const HW_REVISION = u16(0x2a27)
 const SW_REVISION = u16(0x2a28)
 
+/**
+ * Standard Battery Service. The reverse-engineered ESF-551 protocol has no
+ * battery field, and the Home Assistant integration exposes no battery sensor
+ * either, so this very likely is not present — but probing costs one failed
+ * lookup and the alternative is never knowing.
+ */
+const BATTERY_SERVICE = u16(0x180f)
+const BATTERY_LEVEL = u16(0x2a19)
+
 export type DisplayUnit = 'kg' | 'lb' | 'st'
 
 export interface ScaleReading {
@@ -58,6 +67,8 @@ export interface ScaleInfo {
   name: string
   hwVersion?: string
   swVersion?: string
+  /** Percentage, only if the scale happens to expose a Battery Service. */
+  batteryPct?: number
 }
 
 export class ScaleUnsupportedError extends Error {}
@@ -141,7 +152,7 @@ export async function pickScale(): Promise<{ device: BluetoothDevice; remembered
 
   const device = await bt.requestDevice({
     filters: [{ namePrefix: 'Etekcity' }, { services: [CANDIDATE_SERVICES[0]] }],
-    optionalServices: [...CANDIDATE_SERVICES, DEVICE_INFO_SERVICE],
+    optionalServices: [...CANDIDATE_SERVICES, DEVICE_INFO_SERVICE, BATTERY_SERVICE],
   })
   return { device, remembered: false }
 }
@@ -220,6 +231,14 @@ export async function openScale(
     info.swVersion = dec.decode(await (await dis.getCharacteristic(SW_REVISION)).readValue())
   } catch {
     // Version strings are cosmetic; never fail a sync over them.
+  }
+
+  try {
+    const battery = await server.getPrimaryService(BATTERY_SERVICE)
+    const level = await (await battery.getCharacteristic(BATTERY_LEVEL)).readValue()
+    info.batteryPct = level.getUint8(0)
+  } catch {
+    // Expected: this scale almost certainly has no Battery Service.
   }
 
   const handler = (event: Event) => {
