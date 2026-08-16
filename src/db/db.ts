@@ -219,6 +219,8 @@ export interface Settings {
   fatPctKcal: number
   /** Half-life in days for the smoothed weight trend. */
   trendHalfLifeDays: number
+  /** The lunch container you fill, in millilitres. */
+  boxMl?: number
   /** Athletic body type — shifts the scale's body-fat derivation. */
   athlete?: boolean
   usdaApiKey?: string
@@ -239,6 +241,7 @@ export const DEFAULT_SETTINGS: Settings = {
   proteinGPerKg: 1.8,
   fatPctKcal: 0.28,
   trendHalfLifeDays: 10,
+  boxMl: 750,
 }
 
 class SaluttDB extends Dexie {

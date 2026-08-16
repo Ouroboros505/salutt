@@ -19,6 +19,10 @@ const TABLES = [
   'measurements',
   'workouts',
   'mealTemplates',
+  // Recipes arrived after this list was written and were silently left out of
+  // every backup and every sync, which would have lost them on a new phone.
+  // Restores tolerate its absence, so older backups still load.
+  'recipes',
   'settings',
 ] as const
 
@@ -89,6 +93,14 @@ export async function importBackup(file: File, replace: boolean): Promise<Import
   const counts: Record<string, number> = {}
   await db.transaction('rw', TABLES.map((t) => db.table(t)), async () => {
     for (const name of TABLES) {
+      // A backup written before a table existed carries no key for it. Clearing
+      // on that basis would delete live data to match a file that never had an
+      // opinion about it — which is how restoring an older copy would have
+      // wiped every recipe. Absent means "unknown", not "empty".
+      if (!(name in parsed.data)) {
+        counts[name] = 0
+        continue
+      }
       const rows = (parsed.data[name] ?? []) as Record<string, unknown>[]
       const table = db.table(name)
       if (replace) await table.clear()

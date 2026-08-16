@@ -166,3 +166,88 @@ export function containerDensity(
   if (grams === null || !recipe.containerMl || recipe.containerMl <= 0) return null
   return grams / recipe.containerMl
 }
+
+/* ------------------------------------------------------------------ the box */
+
+/**
+ * A lunch box is rarely one dish. Ours is usually a block of whatever was
+ * meal-prepped filling most of it and a starch filling the rest, and the two
+ * have quite different densities — 70% of a 750 ml box in stew weighs half as
+ * much again as the same volume of rice. Splitting the box by eye is easy;
+ * converting each share to grams is not, so that is done here.
+ */
+export type BoxPart = {
+  key: string
+  name: string
+  /** Share of the container, 0-100. */
+  pct: number
+  /** g per ml for this component specifically. */
+  density: number
+  per100: Totals
+  recipeId?: number
+  foodId?: number
+  /**
+   * Volume × density is a real estimate with real error. When a batch was
+   * weighed and you know how many lunches it was split into, division gives
+   * the exact weight instead — no density, no guessing at how full the box is.
+   */
+  batchGrams?: number
+  lunches?: number
+}
+
+/** Grams of one component, from its share of the box. */
+export function partGrams(part: Pick<BoxPart, 'pct' | 'density' | 'batchGrams' | 'lunches'>, boxMl: number): number {
+  if (part.batchGrams && part.lunches && part.lunches > 0) {
+    return Math.round(part.batchGrams / part.lunches)
+  }
+  if (!(boxMl > 0) || !(part.density > 0)) return 0
+  return Math.round((part.pct / 100) * boxMl * part.density)
+}
+
+/** Whether a part's weight is divided from a weighed batch or estimated. */
+export function partIsExact(part: Pick<BoxPart, 'batchGrams' | 'lunches'>): boolean {
+  return !!(part.batchGrams && part.lunches && part.lunches > 0)
+}
+
+/** The grams either side of a part's estimate, from its category spread. */
+export function partError(part: BoxPart, boxMl: number): number {
+  if (partIsExact(part)) return 0
+  return Math.round(partGrams(part, boxMl) * spreadFor(part.density))
+}
+
+/**
+ * A starting density from the name, so the common cases need no thought.
+ * Everything here is a measured category density, not a guess at the food.
+ */
+export function guessDensity(name: string): number {
+  const n = name.toLowerCase()
+  const rules: [RegExp, number][] = [
+    [/pasta|noodle|spaghetti|macaroni|penne|fusilli|lasagn/, 1.05],
+    [/soup|broth|stock|conso/, 1.04],
+    [/stew|chill?i|curry|sauce|braise|ragu|goulash/, 1.03],
+    [/mince|casserole|shepherd|bolognese|meatloaf|mash/, 0.95],
+    [/rice|quinoa|couscous|bulgur|barley|grain|oat|farro|millet/, 0.84],
+    [/bean|lentil|chickpea|pea|legume|dal|dhal/, 0.76],
+    [/salad|lettuce|spinach|greens|rocket|arugula|kale/, 0.38],
+    [/chicken|beef|pork|turkey|fish|salmon|shrimp|meat|veg|broccoli|carrot/, 0.57],
+  ]
+  for (const [re, d] of rules) if (re.test(n)) return d
+  // Cooked mixed dishes cluster here when nothing else matches.
+  return 0.95
+}
+
+export function boxTotals(parts: BoxPart[], boxMl: number): Totals & { grams: number; pct: number } {
+  const out = { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, grams: 0, pct: 0 }
+  for (const p of parts) {
+    const g = partGrams(p, boxMl)
+    const f = g / 100
+    out.kcal += p.per100.kcal * f
+    out.protein += p.per100.protein * f
+    out.carbs += p.per100.carbs * f
+    out.fat += p.per100.fat * f
+    out.fiber += p.per100.fiber * f
+    out.grams += g
+    out.pct += p.pct
+  }
+  return out
+}

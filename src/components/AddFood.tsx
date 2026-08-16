@@ -7,6 +7,7 @@ import { lookupBarcode, searchRemote, type FoodHit } from '../lib/foodApi'
 import { loadFoodDb, searchFoodDb } from '../lib/foodDb'
 import { Field, Icon, NumberInput, Sheet } from '../components/ui'
 import BarcodeScanner from './BarcodeScanner'
+import BoxBuilder from './BoxBuilder'
 
 
 type Stage =
@@ -14,6 +15,7 @@ type Stage =
   | { kind: 'portion'; food: Food }
   | { kind: 'recipe'; recipe: Recipe }
   | { kind: 'create'; name: string }
+  | { kind: 'box' }
 
 export default function AddFood({
   date,
@@ -135,7 +137,9 @@ export default function AddFood({
         ? stage.recipe.name
         : stage.kind === 'create'
           ? 'New food'
-          : `Add to ${meal}`
+          : stage.kind === 'box'
+            ? `Fill the box — ${meal}`
+            : `Add to ${meal}`
 
   if (scanning) return <BarcodeScanner onDetect={onScan} onClose={() => setScanning(false)} />
 
@@ -168,6 +172,13 @@ export default function AddFood({
           </div>
 
           {error && <div className="tiny" style={{ color: 'var(--critical)' }}>{error}</div>}
+
+          {/* A packed lunch is one container filled with two or three things,
+              none of them weighable at the time. Assembling it by share of the
+              box is a different job from looking one food up. */}
+          <button className="btn block" onClick={() => setStage({ kind: 'box' })}>
+            <Icon.box /> Build a box — meal prep, a side, a drink
+          </button>
 
           {matchingRecipes.length > 0 && (
             <Section title="Your meal preps">
@@ -240,6 +251,17 @@ export default function AddFood({
             </button>
           )}
         </>
+      )}
+
+      {stage.kind === 'box' && (
+        <BoxBuilder
+          date={date}
+          meal={meal}
+          boxMl={settings?.boxMl ?? 750}
+          onBoxMl={(ml) => void db.settings.update('settings', { boxMl: ml })}
+          onDone={onClose}
+          toast={toast}
+        />
       )}
 
       {stage.kind === 'portion' && (
