@@ -9,3 +9,13 @@ pages_build_output_dir = "dist"
 [[kv_namespaces]]
 binding = "SALUTT_KV"
 id = "5d31d8a237ad4b2799fe0aee97c1353d"
+
+# Stops new accounts being claimed. Claiming is the only way a stranger's
+# request can cause a KV write, and KV writes are capped per day across the
+# whole Cloudflare account — shared with everything else deployed on it.
+#
+# Declared here rather than in the dashboard because deploying with a
+# wrangler.toml replaces the deployment config, silently discarding vars set
+# through the UI. Unset temporarily to enrol a new recovery phrase.
+[vars]
+SALUTT_LOCK = "1"

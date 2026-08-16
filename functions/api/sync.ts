@@ -14,6 +14,18 @@
 
 interface Env {
   SALUTT_KV: KVNamespace
+  /**
+   * Set to "1" once your account exists, to stop new ones being created.
+   *
+   * Claiming an id is the only path by which someone else's request can cause
+   * a KV write, and KV writes are capped per day across the whole Cloudflare
+   * account — so an open claim endpoint is a way for a stranger to exhaust a
+   * quota that other services on the account depend on. With this set, only
+   * ids that already exist may write.
+   *
+   * Unset it temporarily if you ever need to enrol a new recovery phrase.
+   */
+  SALUTT_LOCK?: string
 }
 
 // A backup is JSON, mostly small; this is far above a decade of logging and
@@ -23,12 +35,16 @@ const MAX_BYTES = 8 * 1024 * 1024
 const ID_RE = /^[0-9a-f]{32}$/
 const AUTH_RE = /^[0-9a-f]{64}$/
 
-// Guessing a recovery phrase means deriving an id and asking whether it exists,
-// so the only real brake is how many times a caller may ask. Each wrong guess
-// produces a different id, which makes per-id limiting useless — this is per
-// source address.
-const PROBE_LIMIT = 40
-const PROBE_WINDOW_SECONDS = 60
+// A failed lookup is answered slowly. This replaces a counter kept in KV,
+// which was a mistake: every probe cost a KV write, the free tier allows 1,000
+// per day account-wide, and anything else on the account shares that budget —
+// so a bot spraying this endpoint could have exhausted the quota and broken
+// unrelated services. A delay costs nothing and cannot be exhausted.
+//
+// It is also barely needed. The recovery phrase carries ~52 bits, so guessing
+// one online would take on the order of 2^51 requests; the phrase is the
+// defence, not the rate limit.
+const FAILURE_DELAY_MS = 400
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -54,18 +70,8 @@ interface Identity {
   authHash: string
 }
 
-/** Returns true when this caller has probed too many unknown ids recently. */
-async function throttled(env: Env, request: Request): Promise<boolean> {
-  const ip = request.headers.get('CF-Connecting-IP')
-  if (!ip) return false
-  const bucket = `probe:${ip}:${Math.floor(Date.now() / (PROBE_WINDOW_SECONDS * 1000))}`
-  const seen = Number((await env.SALUTT_KV.get(bucket)) ?? '0')
-  if (seen >= PROBE_LIMIT) return true
-  await env.SALUTT_KV.put(bucket, String(seen + 1), {
-    expirationTtl: Math.max(60, PROBE_WINDOW_SECONDS * 2),
-  })
-  return false
-}
+/** Slows a failed lookup, without storing anything. */
+const penalise = () => new Promise((resolve) => setTimeout(resolve, FAILURE_DELAY_MS))
 
 async function identify(request: Request): Promise<Identity | null> {
   const id = request.headers.get('X-Salutt-Id') ?? ''
@@ -88,6 +94,7 @@ async function authorize(
   const stored = await env.SALUTT_KV.get(`auth:${who.id}`)
   if (stored === null) {
     if (!claimIfUnknown) return 'unknown'
+    if (env.SALUTT_LOCK === '1') return 'denied'
     await env.SALUTT_KV.put(`auth:${who.id}`, who.authHash)
     return 'ok'
   }
@@ -99,9 +106,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (!who) return json({ error: 'bad request' }, 400)
 
   const state = await authorize(env, who, false)
-  if (state !== 'ok' && (await throttled(env, request))) {
-    return json({ error: 'too many attempts' }, 429)
-  }
+  if (state !== 'ok') await penalise()
   if (state === 'denied') return json({ error: 'forbidden' }, 403)
   if (state === 'unknown') return json({ error: 'not found' }, 404)
 
@@ -117,7 +122,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!who) return json({ error: 'bad request' }, 400)
 
   const state = await authorize(env, who, true)
-  if (state === 'denied') return json({ error: 'forbidden' }, 403)
+  if (state === 'denied') {
+    await penalise()
+    return json({ error: 'forbidden' }, 403)
+  }
 
   const body = await request.text()
   if (body.length > MAX_BYTES) return json({ error: 'too large' }, 413)
