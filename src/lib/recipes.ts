@@ -79,21 +79,35 @@ export function waterLossPct(recipe: Pick<Recipe, 'items' | 'cookedG'>): number 
 }
 
 /**
- * Typical densities, for estimating a box weight when it was never measured.
+ * Densities measured, not guessed.
  *
- * Real dishes vary by roughly ±15% within any of these categories, which on a
- * 750 ml box is over 100 g — worth around 150 kcal on a single lunch. Useful
- * as a starting point, no substitute for weighing one box once.
+ * Derived from 3,860 cup-weight measurements in USDA's portion data: a food
+ * that records "1 cup = 240 g" is stating a density of 240/236.6 g/ml. Each
+ * figure is the median for its category, and `spread` is the interquartile
+ * half-width — how much real dishes of that kind actually vary.
+ *
+ * Checking this mattered. Two earlier estimates were badly wrong: cooked pasta
+ * in sauce is dense (1.05), not loose (0.75), and chunky meat and veg is far
+ * airier (0.57) than the 0.85 assumed. On a 750 ml box those were errors of
+ * 29% and 49% — several hundred calories a lunch, every day of the week.
  */
-export const DISH_TYPES: { label: string; density: number }[] = [
-  { label: 'Soup or broth', density: 1.0 },
-  { label: 'Stew, chilli, curry', density: 0.95 },
-  { label: 'Dense, mince or casserole', density: 1.05 },
-  { label: 'Meat and veg, little sauce', density: 0.85 },
-  { label: 'Rice or grain based', density: 0.8 },
-  { label: 'Pasta dish', density: 0.75 },
-  { label: 'Leafy salad', density: 0.35 },
+export const DISH_TYPES: { label: string; density: number; spread: number }[] = [
+  { label: 'Pasta dish', density: 1.05, spread: 0.05 },
+  { label: 'Soup or broth', density: 1.04, spread: 0.02 },
+  { label: 'Stew, chilli, curry', density: 1.03, spread: 0.11 },
+  { label: 'Dense, mince or casserole', density: 0.95, spread: 0.2 },
+  { label: 'Rice or grain based', density: 0.84, spread: 0.19 },
+  { label: 'Beans or legumes', density: 0.76, spread: 0.11 },
+  { label: 'Chunky meat and veg', density: 0.57, spread: 0.19 },
+  { label: 'Leafy salad', density: 0.38, spread: 0.12 },
 ]
+
+/** The measured variability of whichever category a density came from. */
+export function spreadFor(density: number | undefined): number {
+  if (!density) return 0.15
+  const match = DISH_TYPES.find((t) => Math.abs(t.density - density) < 0.005)
+  return match?.spread ?? 0.15
+}
 
 export type BoxEstimate = {
   grams: number

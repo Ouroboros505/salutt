@@ -9,6 +9,7 @@ import {
   DISH_TYPES,
   estimatedBoxes,
   finishedWeight,
+  spreadFor,
   per100,
   recipeTotals,
   servingGrams,
@@ -220,7 +221,7 @@ export default function RecipeEditor({
                   aria-pressed={draft.density === t.density}
                   onClick={() => setDraft({ ...draft, density: t.density })}
                 >
-                  {t.label}
+                  {t.label} <span className="muted num">±{Math.round(t.spread * 100)}%</span>
                 </button>
               ))}
             </div>
@@ -236,9 +237,10 @@ export default function RecipeEditor({
 
         {box?.source === 'estimated' && (
           <div className="tiny" style={{ color: 'var(--serious)' }}>
-            Dishes vary about ±15% within a type, so that is ±{Math.round(box.grams * 0.15)} g a box
-            — worth roughly {Math.round((box.grams * 0.15 * per100(draft).kcal) / 100)} kcal on a
-            single lunch, every day you eat it.
+            Dishes of this kind vary about ±{Math.round(spreadFor(draft.density) * 100)}%, so that
+            is ±{Math.round(box.grams * spreadFor(draft.density))} g a box — worth roughly{' '}
+            {Math.round((box.grams * spreadFor(draft.density) * per100(draft).kcal) / 100)} kcal on
+            a single lunch, every day you eat it.
             {boxGuess ? ` This batch should fill about ${boxGuess.toFixed(1)} boxes — ` : ' '}
             counting the boxes, or weighing one full one once, makes it exact.
           </div>
