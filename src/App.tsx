@@ -52,9 +52,18 @@ const TITLES: Record<Tab, string> = {
  * device wrote it. Overwriting either side silently is how a day of logging
  * disappears, so it asks.
  */
+const SYNC_TABLES = ['entries', 'foods', 'recipes', 'weighIns', 'workouts', 'measurements'] as const
+
 function SyncGate({ settings, toast }: { settings: SettingsType; toast: (m: string) => void }) {
   const sync = useSync(settings)
   const [busy, setBusy] = useState(false)
+
+  // Counting both sides turns "whichever you choose replaces the other" into
+  // something answerable: a row that differs is a row about to be lost.
+  const local = useLiveQuery(async () => {
+    const pairs = await Promise.all(SYNC_TABLES.map(async (t) => [t, await db.table(t).count()] as const))
+    return Object.fromEntries(pairs) as Record<string, number>
+  }, [])
 
   if (sync.state !== 'remote-newer') return null
 
@@ -70,6 +79,31 @@ function SyncGate({ settings, toast }: { settings: SettingsType; toast: (m: stri
             , after this device last synced. That usually means you logged something on another
             device.
           </div>
+          {local && sync.remoteCounts && (
+            <div className="card tight">
+              <div className="row between tiny muted">
+                <span>&nbsp;</span>
+                <span>this phone · server</span>
+              </div>
+              {SYNC_TABLES.filter((t) => (local[t] ?? 0) || (sync.remoteCounts![t] ?? 0)).map((t) => {
+                const mine = local[t] ?? 0
+                const theirs = sync.remoteCounts![t] ?? 0
+                return (
+                  <div className="row between small" key={t}>
+                    <span style={{ textTransform: 'capitalize' }}>{t}</span>
+                    <span className="num" style={{ color: mine === theirs ? 'var(--text-muted)' : 'var(--serious)' }}>
+                      {mine} · {theirs}
+                    </span>
+                  </div>
+                )
+              })}
+              <div className="tiny muted">
+                Equal counts can still differ in their contents — an edited recipe counts the same
+                either way.
+              </div>
+            </div>
+          )}
+
           <button
             className="btn primary block"
             disabled={busy}
