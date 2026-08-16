@@ -23,6 +23,13 @@ const MAX_BYTES = 8 * 1024 * 1024
 const ID_RE = /^[0-9a-f]{32}$/
 const AUTH_RE = /^[0-9a-f]{64}$/
 
+// Guessing a recovery phrase means deriving an id and asking whether it exists,
+// so the only real brake is how many times a caller may ask. Each wrong guess
+// produces a different id, which makes per-id limiting useless — this is per
+// source address.
+const PROBE_LIMIT = 40
+const PROBE_WINDOW_SECONDS = 60
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -45,6 +52,19 @@ function constantTimeEqual(a: string, b: string): boolean {
 interface Identity {
   id: string
   authHash: string
+}
+
+/** Returns true when this caller has probed too many unknown ids recently. */
+async function throttled(env: Env, request: Request): Promise<boolean> {
+  const ip = request.headers.get('CF-Connecting-IP')
+  if (!ip) return false
+  const bucket = `probe:${ip}:${Math.floor(Date.now() / (PROBE_WINDOW_SECONDS * 1000))}`
+  const seen = Number((await env.SALUTT_KV.get(bucket)) ?? '0')
+  if (seen >= PROBE_LIMIT) return true
+  await env.SALUTT_KV.put(bucket, String(seen + 1), {
+    expirationTtl: Math.max(60, PROBE_WINDOW_SECONDS * 2),
+  })
+  return false
 }
 
 async function identify(request: Request): Promise<Identity | null> {
@@ -79,6 +99,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (!who) return json({ error: 'bad request' }, 400)
 
   const state = await authorize(env, who, false)
+  if (state !== 'ok' && (await throttled(env, request))) {
+    return json({ error: 'too many attempts' }, 429)
+  }
   if (state === 'denied') return json({ error: 'forbidden' }, 403)
   if (state === 'unknown') return json({ error: 'not found' }, 404)
 

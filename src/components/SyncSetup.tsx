@@ -1,6 +1,16 @@
 import { useState } from 'react'
 import { saveSettings, type Settings } from '../db/db'
-import { generateSecret, hasLocalData, looksLikeSecret, pull, push, WrongSecretError } from '../lib/sync'
+import {
+  estimateBits,
+  generatePassphrase,
+  generateSecret,
+  hasLocalData,
+  looksLikeSecret,
+  pull,
+  push,
+  strengthOf,
+  WrongSecretError,
+} from '../lib/sync'
 import { Field, Icon } from './ui'
 
 /**
@@ -21,13 +31,15 @@ export default function SyncSetup({
 }) {
   const [mode, setMode] = useState<'choose' | 'new' | 'restore'>('choose')
   const [fresh, setFresh] = useState<string>('')
+  const [custom, setCustom] = useState(false)
   const [entered, setEntered] = useState('')
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const startNew = () => {
-    setFresh(generateSecret())
+    setFresh(generatePassphrase())
+    setCustom(false)
     setMode('new')
   }
 
@@ -95,47 +107,128 @@ export default function SyncSetup({
   }
 
   if (mode === 'new') {
+    const bits = estimateBits(fresh)
+    const strength = strengthOf(fresh)
+    const tooWeak = custom && strength === 'weak'
+
     return (
       <>
         <div className="card tight">
-          <h3>Your recovery code</h3>
-          <div
-            className="num"
-            style={{
-              fontSize: 17,
-              fontWeight: 650,
-              letterSpacing: '0.04em',
-              lineHeight: 1.6,
-              wordBreak: 'break-all',
-            }}
-          >
-            {fresh}
+          <h3>Your recovery phrase</h3>
+          {custom ? (
+            <input
+              autoFocus
+              value={fresh}
+              onChange={(e) => setFresh(e.target.value)}
+              placeholder="something only you would pick"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+            />
+          ) : (
+            <div
+              className="num"
+              style={{ fontSize: 19, fontWeight: 650, lineHeight: 1.5, wordBreak: 'break-word' }}
+            >
+              {fresh}
+            </div>
+          )}
+
+          <div className="row between tiny">
+            <span
+              style={{
+                color:
+                  strength === 'strong'
+                    ? 'var(--success-text)'
+                    : strength === 'fair'
+                      ? 'var(--serious)'
+                      : 'var(--critical)',
+              }}
+            >
+              {strength === 'strong' ? 'Strong' : strength === 'fair' ? 'Fair' : 'Too easy to guess'}
+              {fresh ? ` · about ${bits} bits` : ''}
+            </span>
+            <span className="muted">{fresh.length} chars</span>
           </div>
-          <button
-            className="btn sm"
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(fresh)
-                toast('Copied')
-              } catch {
-                toast('Select and copy it by hand')
-              }
-            }}
-          >
-            Copy
-          </button>
+
+          <div className="row" style={{ gap: 8 }}>
+            {!custom && (
+              <button className="btn sm grow" onClick={() => setFresh(generatePassphrase())}>
+                Another
+              </button>
+            )}
+            <button
+              className="btn sm grow"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(fresh)
+                  toast('Copied')
+                } catch {
+                  toast('Select and copy it by hand')
+                }
+              }}
+            >
+              Copy
+            </button>
+          </div>
+
+          <div className="scroll-x">
+            <button
+              className="chip"
+              aria-pressed={!custom && fresh.includes('-') && !fresh.startsWith('SLT')}
+              onClick={() => {
+                setCustom(false)
+                setFresh(generatePassphrase())
+              }}
+            >
+              Words
+            </button>
+            <button
+              className="chip"
+              aria-pressed={fresh.startsWith('SLT')}
+              onClick={() => {
+                setCustom(false)
+                setFresh(generateSecret())
+              }}
+            >
+              Random code
+            </button>
+            <button
+              className="chip"
+              aria-pressed={custom}
+              onClick={() => {
+                setCustom(true)
+                setFresh('')
+              }}
+            >
+              My own
+            </button>
+          </div>
         </div>
 
-        <div className="card tight" style={{ borderColor: 'var(--serious)' }}>
-          <div className="small">
-            <strong>Save this somewhere safe now</strong> — a password manager, or written down.
+        {tooWeak ? (
+          <div className="card tight" style={{ borderColor: 'var(--critical)' }}>
+            <div className="small">
+              <strong>That is guessable.</strong>
+            </div>
+            <div className="tiny muted">
+              Anyone can reach the sync endpoint, so a short phrase — especially one built round a
+              date — can be tried until it works. Five random words are easier to remember and far
+              harder to guess. Aim for 45 bits or more.
+            </div>
           </div>
-          <div className="tiny muted">
-            It is the only key to your data. Nobody can reset it, recover it, or read your backup
-            without it: the server stores ciphertext and never receives the key. Lose the code and
-            the backup is permanently unreadable.
+        ) : (
+          <div className="card tight" style={{ borderColor: 'var(--serious)' }}>
+            <div className="small">
+              <strong>Save this somewhere you will still have it in a year.</strong>
+            </div>
+            <div className="tiny muted">
+              It is the only key to your data. Nobody can reset or recover it: the server stores
+              ciphertext and never receives the key. Lose the phrase and the backup is permanently
+              unreadable.
+            </div>
           </div>
-        </div>
+        )}
 
         <label className="row" style={{ gap: 10, cursor: 'pointer' }}>
           <input
@@ -144,12 +237,16 @@ export default function SyncSetup({
             onChange={(e) => setSaved(e.target.checked)}
             style={{ width: 22, height: 22, flex: 'none' }}
           />
-          <span className="small">I have saved my recovery code</span>
+          <span className="small">I have saved my recovery phrase</span>
         </label>
 
         {error && <div className="tiny" style={{ color: 'var(--critical)' }}>{error}</div>}
 
-        <button className="btn primary block" disabled={!saved || busy} onClick={enable}>
+        <button
+          className="btn primary block"
+          disabled={!saved || busy || tooWeak || !looksLikeSecret(fresh)}
+          onClick={enable}
+        >
           {busy ? 'Uploading…' : 'Turn on sync'}
         </button>
         <button className="btn ghost block muted" onClick={() => setMode('choose')}>
@@ -162,16 +259,16 @@ export default function SyncSetup({
   return (
     <>
       <div className="small secondary">
-        Enter the recovery code from your other device. Everything on this one will be replaced by
-        the stored copy.
+        Enter the recovery phrase from your other device. Everything on this one will be replaced
+        by the stored copy.
       </div>
-      <Field label="Recovery code">
+      <Field label="Recovery phrase">
         <input
           autoFocus
           value={entered}
           onChange={(e) => setEntered(e.target.value)}
-          placeholder="SLT-XXXX-XXXX-XXXX…"
-          autoCapitalize="characters"
+          placeholder="word-word-word-word-word"
+          autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
         />

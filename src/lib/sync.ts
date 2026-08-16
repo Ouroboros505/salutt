@@ -1,5 +1,6 @@
 import { buildBackup, importBackup } from './backup'
 import { db, getSettings, saveSettings } from '../db/db'
+import { WORDS } from './wordlist'
 
 /**
  * Encrypted sync to your own server.
@@ -16,13 +17,107 @@ import { db, getSettings, saveSettings } from '../db/db'
  */
 
 const ENDPOINT = '/api/sync'
-const PBKDF2_ROUNDS = 100_000
+// OWASP's current floor for PBKDF2-HMAC-SHA256. Runs once per session and the
+// result is cached, so the cost lands on an attacker rather than on you.
+const PBKDF2_ROUNDS = 310_000
 
 /* ---------------------------------------------------------------- secret */
 
 // Crockford base32 without I, L, O, U — no character pairs that get misread
 // when copying a code by hand.
 const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
+
+/**
+ * Five words from the EFF short list: 51.7 bits, and rememberable.
+ *
+ * This is the recommended form. A code you cannot recall is a code you will
+ * paste somewhere insecure, or lose.
+ */
+export function generatePassphrase(count = 5): string {
+  const picks: string[] = []
+  const buf = new Uint32Array(count)
+  crypto.getRandomValues(buf)
+  for (let i = 0; i < count; i++) picks.push(WORDS[buf[i] % WORDS.length])
+  return picks.join('-')
+}
+
+/** Shapes so common that their length says nothing about their strength. */
+const COMMON = new Set([
+  'password', 'passwd', 'letmein', 'welcome', 'admin', 'qwerty', 'iloveyou', 'monkey',
+  'dragon', 'football', 'baseball', 'sunshine', 'princess', 'superman', 'trustno',
+  'master', 'shadow', 'michael', 'jennifer', 'hunter', 'ranger', 'secret', 'salutt',
+])
+
+/**
+ * Rough entropy of a secret the user typed themselves, in bits.
+ *
+ * The job is not precision, it is refusing to call something strong when it is
+ * not. Naive per-character counting scores `password1` at 47 bits and a
+ * surname plus a year at 83, which is exactly backwards — both are among the
+ * first things anyone would try. So words are counted as words, and the shapes
+ * people actually pick are penalised specifically.
+ */
+export function estimateBits(secret: string): number {
+  const s = secret.trim()
+  if (!s) return 0
+
+  const lower = s.toLowerCase()
+  const tokens = lower.split(/[^a-z0-9]+/).filter(Boolean)
+  const wordTokens = tokens.filter((t) => /^[a-z]+$/.test(t) && t.length >= 3)
+
+  // A phrase generated from the EFF list: entropy is exactly the dice roll.
+  if (wordTokens.length >= 4 && wordTokens.every((w) => WORDS.includes(w))) {
+    return Math.round(wordTokens.length * Math.log2(WORDS.length))
+  }
+
+  // Several words the user chose. Words are not random characters — counting
+  // them per character wildly overstates a phrase like "correct horse battery
+  // staple". Roughly 11 bits per word is the usual conservative figure.
+  if (wordTokens.length >= 3) {
+    const digitTokens = tokens.filter((t) => /^\d+$/.test(t))
+    const digitBits = digitTokens.reduce((n, t) => n + t.length * 3.32, 0)
+    const penalty = wordTokens.some((w) => COMMON.has(w)) ? 11 : 0
+    return Math.max(0, Math.round(wordTokens.length * 11 + digitBits - penalty))
+  }
+
+  // One word with digits stuck on the end is the single most common password
+  // shape there is, and its strength is the word plus the digits, nothing more.
+  const wordDigits = /^([a-z]+)(\d{1,6})$/.exec(lower.replace(/[^a-z0-9]/g, ''))
+  if (wordDigits) {
+    const [, word, digits] = wordDigits
+    const wordBits = COMMON.has(word) ? 5 : 11
+    return Math.round(wordBits + digits.length * 3.32)
+  }
+
+  let pool = 0
+  if (/[a-z]/.test(s)) pool += 26
+  if (/[A-Z]/.test(s)) pool += 26
+  if (/[0-9]/.test(s)) pool += 10
+  if (/[^a-zA-Z0-9]/.test(s)) pool += 20
+  let bits = s.length * Math.log2(pool || 1)
+
+  // A year, a date, or a long digit run is almost never a random choice.
+  if (/\b(19|20)\d{2}\b/.test(s)) bits -= 14
+  const digits = s.replace(/\D/g, '')
+  if (digits.length >= 6) bits -= digits.length * 1.5
+  if (/(.)\1{2,}/.test(s)) bits -= 8
+  if (/(abc|bcd|cde|123|234|345|456|567|678|789|qwe|asd|zxc)/i.test(s)) bits -= 10
+  if (COMMON.has(lower.replace(/[^a-z]/g, ''))) bits -= 25
+
+  return Math.max(0, Math.round(bits))
+}
+
+export type Strength = 'weak' | 'fair' | 'strong'
+
+export function strengthOf(secret: string): Strength {
+  const bits = estimateBits(secret)
+  // 50 bits is the bar because the attack here is online: every guess costs a
+  // request to a rate-limited endpoint, not a GPU cycle. Five words from the
+  // EFF list clear it at ~52.
+  if (bits < 45) return 'weak'
+  if (bits < 50) return 'fair'
+  return 'strong'
+}
 
 /** A 160-bit recovery code, formatted in groups so it can be read aloud. */
 export function generateSecret(): string {
@@ -33,12 +128,22 @@ export function generateSecret(): string {
 }
 
 /** Accepts the code however it was typed: any case, with or without dashes. */
+/**
+ * Canonical form of a secret, so the same phrase typed differently derives the
+ * same key. Word phrases keep their separators as single dashes; the generated
+ * SLT code is case- and dash-insensitive.
+ */
 export function normalizeSecret(secret: string): string {
-  return secret.toUpperCase().replace(/[^0-9A-Z]/g, '').replace(/^SLT/, '')
+  const s = secret.trim()
+  if (/^SLT[-\s]/i.test(s) || /^[0-9A-Z\s-]+$/i.test(s.replace(/[a-z]/g, 'A'))) {
+    const compact = s.toUpperCase().replace(/[^0-9A-Z]/g, '')
+    if (compact.startsWith('SLT')) return compact.slice(3)
+  }
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
 export function looksLikeSecret(secret: string): boolean {
-  return normalizeSecret(secret).length >= 20
+  return normalizeSecret(secret).length >= 12
 }
 
 /* ---------------------------------------------------------------- keys */
@@ -103,12 +208,24 @@ export async function deriveKeys(secret: string): Promise<SyncKeys> {
 
 const unb64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0))
 
+async function gzip(bytes: Uint8Array<ArrayBuffer>): Promise<Uint8Array<ArrayBuffer>> {
+  const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'))
+  return new Uint8Array(await new Response(stream).arrayBuffer())
+}
+
+async function gunzip(bytes: Uint8Array<ArrayBuffer>): Promise<Uint8Array<ArrayBuffer>> {
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))
+  return new Uint8Array(await new Response(stream).arrayBuffer())
+}
+
 async function encrypt(keys: SyncKeys, plaintext: string): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12))
+  // Compressed first: a year of logging goes from ~1.1 MB to ~170 KB, which is
+  // both less to store and less to push over mobile data.
   const ct = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv },
     keys.key,
-    new TextEncoder().encode(plaintext),
+    await gzip(new TextEncoder().encode(plaintext) as Uint8Array<ArrayBuffer>),
   )
   const joined = new Uint8Array(iv.length + ct.byteLength)
   joined.set(iv, 0)
@@ -128,7 +245,7 @@ async function decrypt(keys: SyncKeys, payload: string): Promise<string> {
     keys.key,
     raw.subarray(12),
   )
-  return new TextDecoder().decode(plain)
+  return new TextDecoder().decode(await gunzip(new Uint8Array(plain)))
 }
 
 /* ---------------------------------------------------------------- transport */
