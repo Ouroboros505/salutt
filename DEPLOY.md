@@ -18,8 +18,8 @@ detour on the way to an APK.
 |---|---|---|
 | Iterate | save file → live on phone | rebuild + reinstall every time |
 | Web Bluetooth (the scale) | works — runs on Chrome's engine | **broken** — Android WebView has no Web Bluetooth |
-| Long-term upkeep | none; static files | yearly target-SDK bumps or Play delists you; Gradle/plugin churn |
-| Signing key | none | lose it and you can never update the app again |
+| Long-term upkeep | none; static files | Gradle/plugin churn on every SDK upgrade |
+| Signing key | only to change the shell | lose it and you can never update the app again |
 | Offline | service worker precaches everything | bundled |
 | Real app on the phone | yes, once wrapped as a TWA | yes |
 
@@ -29,15 +29,46 @@ Android WebView not implementing Web Bluetooth is the decisive one:
 A TWA gets a real APK *without* giving up any of the left column, because the
 APK is a ~2 MB shell around your hosted URL rather than a copy of the code.
 
+**None of this requires the Play Store.** Sideloading a signed APK is fine, and
+it sidesteps Play's yearly target-SDK deadline entirely — that is a store
+policy, not an Android one, and a sideloaded app keeps working regardless. It
+also means the signing key matters far less here than for a bundled app: with a
+TWA you almost never rebuild the shell, because content updates arrive over the
+web. Back the keystore up anyway, but it is not the landmine it would be for a
+Capacitor build.
+
 ---
 
-## 1. Host it — Cloudflare Pages
+## 1. Host it — Cloudflare Pages, on a domain you own
+
+Same Cloudflare account as `montejongas.com`. That site is a Next.js app
+deployed as a **Worker** (OpenNext); Salutt is pure static files, so it belongs
+in **Pages** — a separate project in the same account. They do not interact.
 
 Chosen over GitHub Pages because Pages free tier serves project sites from
 `user.github.io/repo/`, a subpath on an origin shared with every other repo you
 own. TWA verification claims a whole origin via `/.well-known/assetlinks.json`
-at its root, so a subpath deploy makes step 3 messy. `salutt.pages.dev` is its
-own origin. It also keeps the source private and does not force a public repo.
+at its root, so a subpath deploy makes step 3 messy.
+
+### Use `salutt.montejongas.com`, not `salutt.pages.dev`
+
+Both are free and both get automatic certificates. Prefer the one on your own
+domain, for a reason that only shows up years later:
+
+**Browser storage is keyed to origin, and `pages.dev` is not an origin you
+own.** If you ever leave Cloudflare, that hostname stops resolving and the
+installed PWA's database goes with it. A domain you control can be pointed at
+any host, forever, and the app carries on with its data intact.
+
+Cloudflare already runs the `montejongas.com` zone, so adding the custom domain
+to the Pages project creates the DNS record and issues the certificate
+automatically — nothing to configure by hand.
+
+One thing to know: subdomains appear in public Certificate Transparency logs, so
+`salutt.montejongas.com` becomes publicly enumerable. Nothing sensitive is
+exposed — the server holds only the app, never your log — but it does publicly
+associate a personal health app with your business domain. Use a different
+domain you own if that bothers you.
 
 ### Credentials, headless
 
@@ -74,7 +105,7 @@ First run creates the project. Afterwards it is one command, a few seconds.
 
 ## 2. Install it on the phone
 
-Open `https://salutt.pages.dev` in Chrome → menu → **Add to Home Screen**.
+Open your deployed URL in Chrome → menu → **Add to Home Screen**.
 
 You now have an icon in the app drawer, a window with no browser UI, and the
 whole app cached offline. Camera, Web Bluetooth and the service worker all work
@@ -89,11 +120,13 @@ the hard way.)
 
 ## 3. Optional: the TWA APK
 
-Only worth doing if you specifically want a sideloadable file or a Play Store
-listing. The installed PWA is otherwise equivalent.
+Only worth doing if you specifically want a sideloadable file. The installed
+PWA is otherwise equivalent — same icon, same standalone window, same offline
+behaviour. No Play Store account required; you can host the APK yourself and
+download it on the phone, allowing "install unknown apps" once.
 
 ```bash
-npx @bubblewrap/cli init --manifest https://salutt.pages.dev/manifest.webmanifest
+npx @bubblewrap/cli init --manifest https://salutt.montejongas.com/manifest.webmanifest
 npx @bubblewrap/cli build
 ```
 
@@ -104,7 +137,7 @@ It prints a signing-key fingerprint and generates an `assetlinks.json`. That
 file must be served at:
 
 ```
-https://salutt.pages.dev/.well-known/assetlinks.json
+https://salutt.montejongas.com/.well-known/assetlinks.json
 ```
 
 Put it in `public/.well-known/assetlinks.json` and redeploy — Vite copies
@@ -112,6 +145,8 @@ Put it in `public/.well-known/assetlinks.json` and redeploy — Vite copies
 bar, which defeats the point.
 
 **Keep the generated `android.keystore` and its password somewhere safe.** Lose
-it and you cannot ship an update to that app ever again — this is the one
-irreversible thing in the whole process. It is gitignored deliberately; back it
-up alongside your Salutt data exports.
+it and you cannot update *that installed app* again — you would have to
+uninstall and sideload a fresh one, which wipes its storage. It matters less
+here than for a bundled app, since the shell rarely changes, but it is still the
+only irreversible artefact in the process. Gitignored deliberately; back it up
+alongside your Salutt data exports.
