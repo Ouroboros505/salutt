@@ -186,6 +186,8 @@ export type BoxPart = {
   per100: Totals
   recipeId?: number
   foodId?: number
+  /** True when the density came from a measurement, not a family average. */
+  measured?: boolean
   /**
    * Volume × density is a real estimate with real error. When a batch was
    * weighed and you know how many lunches it was split into, division gives
@@ -250,4 +252,68 @@ export function boxTotals(parts: BoxPart[], boxMl: number): Totals & { grams: nu
     out.pct += p.pct
   }
   return out
+}
+
+/* ------------------------------------------------- density from ingredients */
+
+const ML_PER: Record<string, number> = {
+  cup: 236.588,
+  tbsp: 14.787,
+  tablespoon: 14.787,
+  tsp: 4.929,
+  teaspoon: 4.929,
+  'fl oz': 29.574,
+  floz: 29.574,
+  ml: 1,
+  liter: 1000,
+  litre: 1000,
+  quart: 946.35,
+  pint: 473.18,
+}
+
+const VOLUME_LABEL = /^([\d.]*)\s*(cups?|tbsps?|tablespoons?|tsps?|teaspoons?|fl ozs?|flozs?|ml|liters?|litres?|quarts?|pints?)\b/i
+
+/**
+ * Packed density of a single ingredient, from a measured volume portion.
+ *
+ * A cup is a fixed volume, so a USDA cup weight is a density measurement -
+ * and it is the *packed* density, air gaps included, which is exactly what a
+ * container of it weighs. Far better than assigning the whole dish to a
+ * category by eye. Weight-based portions (oz, lb, "1 breast") say nothing
+ * about volume and are skipped.
+ */
+export function densityFromPortions(portions: { label: string; grams: number }[]): number | null {
+  for (const p of portions) {
+    const m = VOLUME_LABEL.exec(p.label.trim())
+    if (!m) continue
+    // USDA labels many portions as a bare "cup", meaning one of them.
+    const count = m[1] ? parseFloat(m[1]) : 1
+    const unit = m[2].toLowerCase().replace(/s$/, '')
+    const ml = count * (ML_PER[unit] ?? ML_PER[unit.replace(/s$/, '')] ?? 0)
+    if (!(ml > 0) || !(p.grams > 0)) continue
+    const d = p.grams / ml
+    // Outside this range it is a mislabelled portion, not a food.
+    if (d > 0.05 && d < 2) return d
+  }
+  return null
+}
+
+/**
+ * Why a recipe's density is not summed from its ingredients.
+ *
+ * It was tried. Per-ingredient figures from the database are *packed*
+ * densities — a cup of diced pork is 0.57 g/ml because half of it is air.
+ * Adding those volumes counts the gaps as real volume, but in anything with
+ * a sauce the liquid fills them, so the sum reads a third low: 0.67 g/ml
+ * against the 0.94-1.08 that USDA measures for chilli, curry and chunky
+ * soup. On 70% of a 750 ml box that is a 265 g error, worth some 400 kcal.
+ *
+ * So a dish keeps its measured category density, which was taken from whole
+ * cooked dishes and already includes the packing. The way past the estimate
+ * is not a cleverer model but a single weighing — see calibratedDensity.
+ */
+export function calibratedDensity(fullBoxGrams: number, boxMl: number): number | null {
+  if (!(fullBoxGrams > 0) || !(boxMl > 0)) return null
+  const d = fullBoxGrams / boxMl
+  return d > 0.2 && d < 1.6 ? Math.round(d * 1000) / 1000 : null
 }

@@ -7,6 +7,8 @@ import { saveFood } from '../db/ops'
 import {
   DISH_TYPES,
   boxTotals,
+  calibratedDensity,
+  densityFromPortions,
   finishedWeight,
   guessDensity,
   partError,
@@ -121,7 +123,10 @@ export default function BoxBuilder({
           }
           addPart({
             name: f.name,
-            density: guessDensity(f.name),
+            // The food's own volume portion is a density measurement of that
+            // exact food; the category is only a family average.
+            density: densityFromPortions(f.portions ?? []) ?? guessDensity(f.name),
+            measured: !!densityFromPortions(f.portions ?? []),
             per100: { kcal: f.kcal, protein: f.protein, carbs: f.carbs, fat: f.fat, fiber: f.fiber },
             foodId: id,
           })
@@ -183,6 +188,25 @@ export default function BoxBuilder({
                   <Icon.close />
                 </button>
               </div>
+
+              {!exact && (
+                <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+                  <span className="tiny muted grow">
+                    {p.measured ? 'measured density' : 'estimated density'} {p.density} g/ml · a full
+                    box of just this weighs
+                  </span>
+                  <div style={{ width: 96, flex: 'none' }}>
+                    <NumberInput
+                      value={Math.round(p.density * boxMl)}
+                      unit="g"
+                      onChange={(v) => {
+                        const d = calibratedDensity(v ?? 0, boxMl)
+                        if (d) update(p.key, { density: d, measured: true })
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
 
               {p.batchGrams ? (
                 <div className="row" style={{ gap: 8, alignItems: 'center' }}>
