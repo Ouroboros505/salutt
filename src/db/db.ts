@@ -251,6 +251,29 @@ export const DEFAULT_SETTINGS: Settings = {
   boxMl: 750,
 }
 
+/**
+ * A row deleted on one device, remembered so a merge does not resurrect it.
+ * Without this, deleting something and syncing would simply copy it back from
+ * whichever device had not heard yet.
+ */
+export interface Tombstone {
+  id?: number
+  table: string
+  key: number | string
+  at: number
+}
+
+/** Tables that sync, and are therefore stamped and merged row by row. */
+export const SYNCED_TABLES = [
+  'foods',
+  'entries',
+  'weighIns',
+  'measurements',
+  'workouts',
+  'mealTemplates',
+  'recipes',
+] as const
+
 class SaluttDB extends Dexie {
   foods!: Table<Food, number>
   entries!: Table<Entry, number>
@@ -260,6 +283,7 @@ class SaluttDB extends Dexie {
   mealTemplates!: Table<MealTemplate, number>
   recipes!: Table<Recipe, number>
   settings!: Table<Settings, string>
+  tombstones!: Table<Tombstone, number>
 
   constructor() {
     super('salutt')
@@ -277,6 +301,45 @@ class SaluttDB extends Dexie {
     this.version(2).stores({
       recipes: '++id, name, lastUsed, useCount',
     })
+
+    // Row-level merge needs two things the schema did not have: when each row
+    // last changed, and a record of what was deleted.
+    this.version(3)
+      .stores({ tombstones: '++id, [table+key], at' })
+      .upgrade(async (tx) => {
+        // Existing rows predate stamping. Their creation time is the best
+        // evidence available, and it keeps them older than anything edited
+        // since, which is the ordering a merge wants.
+        for (const name of SYNCED_TABLES) {
+          await tx
+            .table(name)
+            .toCollection()
+            .modify((row: Record<string, unknown>) => {
+              if (row.updatedAt == null) {
+                row.updatedAt = (row.createdAt as number) ?? (row.lastUsed as number) ?? 0
+              }
+            })
+        }
+      })
+
+    // Stamp every write, so no call site has to remember to. Dexie types the
+    // three hooks as separate overloads, which a loop cannot satisfy.
+    for (const name of SYNCED_TABLES) {
+      const hooks = this.table(name).hook as unknown as (
+        event: string,
+        fn: (...args: never[]) => unknown,
+      ) => void
+      hooks('creating', ((_key: unknown, obj: Record<string, unknown>) => {
+        if (obj.updatedAt == null) obj.updatedAt = Date.now()
+      }) as never)
+      hooks('updating', ((mods: Record<string, unknown>) =>
+        'updatedAt' in mods ? undefined : { updatedAt: Date.now() }) as never)
+      hooks('deleting', ((key: number) => {
+        // Runs inside the transaction Dexie gives the hook, so the tombstone
+        // lands with the deletion or not at all.
+        void this.tombstones.put({ table: name, key, at: Date.now() })
+      }) as never)
+    }
   }
 }
 

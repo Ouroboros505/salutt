@@ -66,6 +66,10 @@ async function main() {
     }
     // Nothing was weighed after cooking, and nothing will be. A covered pot
     // loses only what evaporates, so the raw total less that is the dish.
+    // Merging orders rows by when they changed, and a row that predates
+    // stamping falls back to its creation time — which would leave this
+    // correction tied with the copy it is meant to replace.
+    recipe.updatedAt = Date.now()
     if (!recipe.cookedG) recipe.cookLossPct = 8
     if (!recipe.density) recipe.density = 1.03
     if (!recipe.containerMl) recipe.containerMl = 750

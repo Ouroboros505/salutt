@@ -23,6 +23,8 @@ const TABLES = [
   // every backup and every sync, which would have lost them on a new phone.
   // Restores tolerate its absence, so older backups still load.
   'recipes',
+  // Deletions have to travel too, or a merge resurrects them.
+  'tombstones',
   'settings',
 ] as const
 

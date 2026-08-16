@@ -180,6 +180,7 @@ async function main() {
   -> ${item.grams} g ${item.name.slice(0, 44)} = ${Math.round(item.kcal)} kcal
 `);
     }
+    recipe.updatedAt = Date.now();
     if (!recipe.cookedG) recipe.cookLossPct = 8;
     if (!recipe.density) recipe.density = 1.03;
     if (!recipe.containerMl) recipe.containerMl = 750;

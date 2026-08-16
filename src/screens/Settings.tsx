@@ -6,7 +6,7 @@ import { Field, Icon, Sheet } from '../components/ui'
 import { bluetoothBlockedReason, canRememberDevices } from '../lib/scale'
 import { foodDbSize } from '../lib/foodDb'
 import SyncSetup from '../components/SyncSetup'
-import { push } from '../lib/sync'
+import { syncMerge } from '../lib/sync'
 import {
   formatBytes,
   requestPersistentStorage,
@@ -288,7 +288,7 @@ export default function Settings({
                 onClick={async () => {
                   setSyncBusy(true)
                   try {
-                    await push(s.syncSecret!)
+                    await syncMerge(s.syncSecret!)
                     toast('Synced')
                     refreshStore()
                   } catch (e) {

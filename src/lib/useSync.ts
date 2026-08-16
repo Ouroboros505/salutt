@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { db, type Settings } from '../db/db'
-import { fetchRemote, push, WrongSecretError } from './sync'
+import { syncMerge, WrongSecretError } from './sync'
 
-export type SyncState = 'off' | 'idle' | 'syncing' | 'error' | 'remote-newer'
+export type SyncState = 'off' | 'idle' | 'syncing' | 'error'
 
 /**
  * Keeps the server copy up to date without being asked.
@@ -11,32 +11,26 @@ export type SyncState = 'off' | 'idle' | 'syncing' | 'error' | 'remote-newer'
  * backgrounded — but only when something actually changed, checked with a cheap
  * signature so an idle app does not re-upload the same database.
  *
- * It never pulls on its own. If the server copy is newer than what this device
- * last saw, that means another device wrote it, and quietly overwriting local
- * data is exactly the sort of thing that loses a day of logging. It reports
- * `remote-newer` and lets the user decide.
- *
- * While that question is outstanding every automatic push is held. Otherwise
- * the timer, or simply switching apps, pushes this device's copy over the one
- * being asked about — which destroys the very data the prompt exists to
- * protect, before it can even be read.
+ * Every sync folds the stored copy into this one and stores the result, so
+ * both directions travel in a single pass. Nothing is ever replaced wholesale,
+ * which is what used to make a difference between the two copies into a
+ * question the user had to answer — and answering it wrongly cost whichever
+ * side lost. Rows carry when they changed; the newer one wins, per row.
  */
 export function useSync(settings: Settings) {
   const secret = settings.syncSecret
   const [state, setState] = useState<SyncState>(secret ? 'idle' : 'off')
   const [error, setError] = useState<string | null>(null)
   const [remoteAt, setRemoteAt] = useState<number | null>(null)
-  // What the stored copy holds, so the choice can be made on evidence rather
-  // than on a timestamp and a guess.
-  const [remoteCounts, setRemoteCounts] = useState<Record<string, number> | null>(null)
   const lastPushed = useRef<string | null>(null)
-  // Read by the timer and the visibility handler, which capture their closure
-  // once and would otherwise never see the state change.
-  const conflicted = useRef(false)
+  // One sync at a time: the merge reads and writes the whole database, and two
+  // of them interleaving would each see the other half-applied.
+  const running = useRef(false)
   // Read rather than depended on: as a dependency, every successful push would
   // rewrite lastSync, re-run the effect and start another round trip.
   const lastSync = useRef(settings.lastSync)
   lastSync.current = settings.lastSync
+  const lastMerge = useRef(0)
 
   const signature = useCallback(async () => {
     const [entries, weighIns, workouts, measurements, foods, templates, recipes] = await Promise.all([
@@ -64,55 +58,41 @@ export function useSync(settings: Settings) {
 
   const syncNow = useCallback(
     async (force = false) => {
-      if (!secret) return
-      // An unresolved conflict means the server holds something this device has
-      // not merged. Pushing over it is never the right automatic answer.
-      if (conflicted.current && !force) return
+      if (!secret || running.current) return
       const sig = await signature()
-      if (!force && sig === lastPushed.current) return
+      // A merge still has to run when nothing local changed, or edits made on
+      // another device would never arrive. The signature only decides whether
+      // this is worth doing off a timer.
+      if (!force && sig === lastPushed.current && Date.now() - lastMerge.current < 5 * 60 * 1000) {
+        return
+      }
+      running.current = true
       setState('syncing')
       try {
-        await push(secret)
-        lastPushed.current = sig
+        const report = await syncMerge(secret)
+        lastPushed.current = await signature()
+        lastMerge.current = Date.now()
+        setRemoteAt(report.updatedAt)
         setError(null)
         setState('idle')
+        return report
       } catch (e) {
         setError(e instanceof WrongSecretError ? e.message : (e as Error).message)
         setState('error')
+      } finally {
+        running.current = false
       }
     },
     [secret, signature],
   )
 
-  // On open: is there a copy on the server this device has not seen?
+  // On open, and then on a timer: merge in whatever else has been written.
   useEffect(() => {
     if (!secret) {
       setState('off')
       return
     }
-    let alive = true
-    void (async () => {
-      try {
-        const remote = await fetchRemote(secret)
-        if (!alive) return
-        setRemoteAt(remote?.updatedAt ?? null)
-        const backup = remote?.backup as { counts?: Record<string, number> } | undefined
-        setRemoteCounts(backup?.counts ?? null)
-        if (remote && remote.updatedAt > (lastSync.current ?? 0) + 1000) {
-          conflicted.current = true
-          setState('remote-newer')
-          return
-        }
-        void syncNow()
-      } catch (e) {
-        if (!alive) return
-        setError((e as Error).message)
-        setState('error')
-      }
-    })()
-    return () => {
-      alive = false
-    }
+    void syncNow(true)
   }, [secret, syncNow])
 
   // While the app is in front, and once more on the way out.
@@ -129,15 +109,5 @@ export function useSync(settings: Settings) {
     }
   }, [secret, syncNow])
 
-  return {
-    state,
-    error,
-    remoteAt,
-    remoteCounts,
-    syncNow,
-    dismissRemote: () => {
-      conflicted.current = false
-      setState('idle')
-    },
-  }
+  return { state, error, remoteAt, syncNow }
 }

@@ -1,4 +1,5 @@
-import { buildBackup, importBackup } from './backup'
+import { buildBackup, importBackup, type Backup } from './backup'
+import { mergeInto, pruneTombstones, type MergeReport } from './merge'
 import { db, getSettings, saveSettings } from '../db/db'
 import { deriveKeys, fetchRemote, pushPayload, type SyncResult } from './syncCrypto'
 
@@ -31,6 +32,22 @@ export async function push(secret: string): Promise<SyncResult> {
 }
 
 /** Replaces everything on this device with the stored copy. */
+/**
+ * The ordinary sync: fold the server copy into this one, then store the
+ * result. Both directions in a single pass, so nothing has to be chosen
+ * between and neither side can quietly overwrite the other.
+ */
+export async function syncMerge(secret: string): Promise<MergeReport & { updatedAt: number }> {
+  const remote = await fetchRemote(secret)
+  const report = remote
+    ? await mergeInto(remote.backup as Backup)
+    : { pulled: 0, pushed: 0, removed: 0 }
+  await pruneTombstones()
+  const result = await pushPayload(secret, await buildBackup())
+  await saveSettings({ lastSync: result.updatedAt })
+  return { ...report, updatedAt: result.updatedAt }
+}
+
 export async function pull(secret: string): Promise<number> {
   const remote = await fetchRemote(secret)
   if (!remote) throw new Error('Nothing stored yet for this secret.')
