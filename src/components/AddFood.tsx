@@ -332,6 +332,9 @@ function HitRow({ hit, onPick }: { hit: FoodHit; onPick: () => void }) {
 
 /* ---------------------------------------------------------------- portion */
 
+/** Quantity mode for "the serving printed on the packet". */
+const SERVING = -2
+
 function PortionStep({
   food,
   date,
@@ -345,24 +348,40 @@ function PortionStep({
   mealsToday: Meal[]
   onDone: (msg: string) => void
 }) {
-  // -1 is the "grams" option; anything else indexes food.portions.
+  // -1 is the "grams" option, SERVING the packet-serving one; anything else
+  // indexes food.portions.
   const [portion, setPortion] = useState(food.defaultPortion ?? -1)
   const [qty, setQty] = useState(portion >= 0 ? '1' : '100')
   const [targetMeal, setTargetMeal] = useState<Meal>(meal)
   const [fav, setFav] = useState(food.favorite)
   const [remember, setRemember] = useState('')
+  /**
+   * The nutrition here is per 100 g, but a packet states its numbers per
+   * serving and tells you what that serving weighs. Reading that one number
+   * off the packet is far less work than weighing anything, so it can be
+   * typed in directly — and it is kept afterwards, so a food only ever has
+   * to be told once.
+   */
+  const [servingG, setServingG] = useState<number | undefined>(undefined)
 
   const grams = useMemo(() => {
     const q = parseFloat(qty) || 0
+    if (portion === SERVING) return q * (servingG ?? 0)
     return portion >= 0 ? q * food.portions[portion].grams : q
-  }, [qty, portion, food.portions])
+  }, [qty, portion, servingG, food.portions])
 
   const macros = scale(food, grams)
-  const label = portion >= 0 ? `${qty} × ${food.portions[portion].label}` : `${grams} g`
+  const servingLabel = `1 serving (${servingG ?? 0} g)`
+  const label =
+    portion === SERVING
+      ? `${qty} × serving (${Math.round(grams)} g)`
+      : portion >= 0
+        ? `${qty} × ${food.portions[portion].label}`
+        : `${grams} g`
 
   const choose = (i: number) => {
     setPortion(i)
-    setQty(i >= 0 ? '1' : '100')
+    setQty(i >= 0 || i === SERVING ? '1' : '100')
   }
 
   return (
@@ -373,12 +392,29 @@ function PortionStep({
             {p.label} <span className="muted num">{p.grams} g</span>
           </button>
         ))}
+        <button className="chip" aria-pressed={portion === SERVING} onClick={() => choose(SERVING)}>
+          Serving on the packet
+        </button>
         <button className="chip" aria-pressed={portion === -1} onClick={() => choose(-1)}>
           Grams
         </button>
       </div>
 
-      <Field label={portion >= 0 ? `How many (${food.portions[portion].label})` : 'Grams'}>
+      {portion === SERVING && (
+        <Field label="Serving size" hint="the grams printed on the packet">
+          <NumberInput value={servingG} unit="g" autoFocus placeholder="24" onChange={setServingG} />
+        </Field>
+      )}
+
+      <Field
+        label={
+          portion === SERVING
+            ? 'How many servings'
+            : portion >= 0
+              ? `How many (${food.portions[portion].label})`
+              : 'Grams'
+        }
+      >
         <input
           type="number"
           inputMode="decimal"
@@ -387,6 +423,13 @@ function PortionStep({
           onFocus={(e) => e.target.select()}
         />
       </Field>
+
+      {portion === SERVING && grams > 0 && (
+        <div className="tiny muted">
+          {qty} × {servingG} g = {Math.round(grams)} g. Saved with this food, so next time it is
+          just a button.
+        </div>
+      )}
 
       {/* Most packaged foods arrive from the database with no household
           measure, so the same weight gets typed in every single time. Naming it
@@ -455,7 +498,15 @@ function PortionStep({
           disabled={grams <= 0}
           onClick={async () => {
             const named = remember.trim()
-            if (portion === -1 && named && grams > 0) {
+            if (portion === SERVING && servingG) {
+              // Keep the serving, so the packet only ever gets read once.
+              const already = food.portions.findIndex((p) => p.grams === servingG)
+              const portions =
+                already >= 0 ? food.portions : [...food.portions, { label: servingLabel, grams: servingG }]
+              const idx = already >= 0 ? already : portions.length - 1
+              await db.foods.update(food.id!, { portions, defaultPortion: idx })
+              await logFood(food.id!, grams, date, targetMeal, label)
+            } else if (portion === -1 && named && grams > 0) {
               const portions = [...food.portions, { label: named, grams }]
               await db.foods.update(food.id!, { portions, defaultPortion: portions.length - 1 })
               await logFood(food.id!, grams, date, targetMeal, `1 × ${named}`)

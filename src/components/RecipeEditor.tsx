@@ -370,6 +370,9 @@ function PasteRecipe({
   const [text, setText] = useState('')
   const [rows, setRows] = useState<Resolved[] | null>(null)
   const [busy, setBusy] = useState(false)
+  // Which row has its search open. Only one at a time — the list is long
+  // enough without every row unfolding at once.
+  const [fixing, setFixing] = useState<number | null>(null)
 
   const resolve = async () => {
     setBusy(true)
@@ -438,11 +441,19 @@ function PasteRecipe({
 
   if (rows) {
     const ready = rows.filter((r) => r.include && r.hit && r.grams > 0)
+    const unmatched = rows.filter((r) => !r.hit && r.line.confidence !== 'negligible').length
     return (
       <Sheet title="Check the list" onClose={() => setRows(null)}>
         <div className="tiny muted">
-          Uncheck anything wrong, fix the weights, then add. Nothing is saved until you do.
+          Uncheck anything wrong, fix the weights, and use Change on anything it got wrong or
+          could not place. Nothing is saved until you add.
         </div>
+        {unmatched > 0 && (
+          <div className="tiny" style={{ color: 'var(--warn-text, var(--text-muted))' }}>
+            {unmatched} line{unmatched === 1 ? '' : 's'} still without a match — tap Find a match to
+            search for {unmatched === 1 ? 'it' : 'them'}.
+          </div>
+        )}
 
         <div className="card tight">
           {rows.map((r, i) => (
@@ -485,6 +496,45 @@ function PasteRecipe({
                   />
                 </div>
               </div>
+
+              <div className="row" style={{ gap: 8, paddingLeft: 28 }}>
+                <button
+                  className="btn sm"
+                  aria-expanded={fixing === i}
+                  onClick={() => setFixing(fixing === i ? null : i)}
+                >
+                  {fixing === i ? 'Close' : r.hit ? 'Change' : 'Find a match'}
+                </button>
+                {!r.hit && r.line.confidence !== 'negligible' && (
+                  <span className="tiny muted">or leave it out</span>
+                )}
+                {r.line.confidence === 'negligible' && (
+                  <span className="tiny muted">seasoning — add it only if you want to</span>
+                )}
+              </div>
+
+              {fixing === i && (
+                <MatchPicker
+                  initial={r.line.query}
+                  onPick={(c) => {
+                    setRows(
+                      rows.map((x, j) => {
+                        if (i !== j) return x
+                        // Keep a weight already worked out; otherwise take the
+                        // new food's own serving, or fall back to 100 g.
+                        const grams =
+                          x.grams > 0
+                            ? x.grams
+                            : x.line.count != null && c.portions[0]
+                              ? Math.round(x.line.count * c.portions[0].grams)
+                              : 100
+                        return { ...x, hit: c, grams, include: true }
+                      }),
+                    )
+                    setFixing(null)
+                  }}
+                />
+              )}
             </div>
           ))}
         </div>
@@ -536,17 +586,10 @@ function PasteRecipe({
 /* ---------------------------------------------------------------- picker */
 
 /** Choosing an ingredient and its raw weight. */
-function IngredientPicker({
-  onAdd,
-  onClose,
-}: {
-  onAdd: (item: RecipeItem) => void
-  onClose: () => void
-}) {
-  const [query, setQuery] = useState('')
+/** Your own foods first — a meal prep is built from things you buy. */
+function useCandidates(query: string, limit = 20): { hits: Candidate[]; searched: string | null } {
   const [hits, setHits] = useState<Candidate[]>([])
-  const [chosen, setChosen] = useState<Candidate | null>(null)
-  const [grams, setGrams] = useState('100')
+  const [searched, setSearched] = useState<string | null>(null)
   const entries = useRef<Awaited<ReturnType<typeof loadFoodDb>> | null>(null)
 
   useEffect(() => {
@@ -565,25 +608,110 @@ function IngredientPicker({
       const q = query.trim()
       if (q.length < 2) {
         setHits([])
+        setSearched(null)
         return
       }
-      // Your own foods first — a meal prep is built from things you buy.
       const mine = await searchLocal(q, 8)
-      const bundled = entries.current ? searchFoodDb(q, entries.current, 20) : []
+      const bundled = entries.current ? searchFoodDb(q, entries.current, limit) : []
       if (!alive) return
       const mineHits: Candidate[] = mine.map((f) => ({ ...f, foodId: f.id, mine: true }))
       const seen = new Set(mineHits.map((f) => f.name.toLowerCase()))
       setHits([
         ...mineHits,
-        ...bundled
-          .filter((b) => !seen.has(b.name.toLowerCase()))
-          .map((b) => ({ ...b, mine: false })),
+        ...bundled.filter((b) => !seen.has(b.name.toLowerCase())).map((b) => ({ ...b, mine: false })),
       ])
+      setSearched(q)
     })()
     return () => {
       alive = false
     }
-  }, [query])
+  }, [query, limit])
+
+  return { hits, searched }
+}
+
+/**
+ * The words a recipe uses are not always the words a food database files
+ * things under — "bell peppers" is "Peppers, sweet, red" in USDA, so the
+ * exact phrase finds nothing. Dropping the qualifier finds the family.
+ */
+function loosen(query: string): string | null {
+  const words = query.trim().split(/\s+/).filter(Boolean)
+  if (words.length < 2) return null
+  // The head noun is the last word in English; keep it and drop the rest.
+  const head = words[words.length - 1]
+  return head.length >= 3 ? head : words.slice(1).join(' ') || null
+}
+
+/**
+ * Fixing a wrong or missing match without leaving the list. A pasted recipe
+ * always has a few lines the parser cannot place — an odd pepper, a brand of
+ * stock — and sending you back to the text to fix them one at a time is worse
+ * than just showing the alternatives where the mistake is.
+ */
+function MatchPicker({ initial, onPick }: { initial: string; onPick: (c: Candidate) => void }) {
+  const [query, setQuery] = useState(initial)
+  const [loosened, setLoosened] = useState<string | null>(null)
+  const { hits, searched } = useCandidates(query, 12)
+
+  // If the phrase as written finds nothing, fall back once to the head noun
+  // rather than presenting an empty box. Only for the query it opened with —
+  // once you start typing, what you typed is what gets searched.
+  useEffect(() => {
+    if (loosened || searched !== query || hits.length > 0 || query !== initial) return
+    const simpler = loosen(query)
+    if (!simpler || simpler === query) return
+    setLoosened(query)
+    setQuery(simpler)
+  }, [hits.length, searched, query, initial, loosened])
+
+  return (
+    <div className="stack tight" style={{ paddingLeft: 28 }}>
+      <input
+        autoFocus
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search for the right food"
+        aria-label="Search for a match"
+      />
+      {loosened && (
+        <div className="tiny muted">
+          Nothing was filed under “{loosened}”, so this is “{query}”.
+        </div>
+      )}
+      {query.trim().length >= 2 && searched === query && hits.length === 0 && (
+        <div className="tiny muted">Nothing matches — try a shorter or plainer word.</div>
+      )}
+      {hits.slice(0, 6).map((h, i) => (
+        <button key={i} className="item" onClick={() => onPick(h)}>
+          <div className="grow" style={{ minWidth: 0 }}>
+            <div className="item-title truncate">
+              {h.name}
+              {h.mine && <span className="tiny" style={{ color: 'var(--success-text)' }}> · yours</span>}
+            </div>
+            <div className="tiny muted truncate">
+              {h.brand ? `${h.brand} · ` : ''}
+              {Math.round(h.kcal)} kcal / 100 g
+              {h.portions[0] ? ` · ${h.portions[0].label} ${h.portions[0].grams} g` : ''}
+            </div>
+          </div>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function IngredientPicker({
+  onAdd,
+  onClose,
+}: {
+  onAdd: (item: RecipeItem) => void
+  onClose: () => void
+}) {
+  const [query, setQuery] = useState('')
+  const [chosen, setChosen] = useState<Candidate | null>(null)
+  const [grams, setGrams] = useState('100')
+  const { hits } = useCandidates(query)
 
   if (chosen) {
     const g = parseFloat(grams) || 0

@@ -20,6 +20,7 @@ Usage:  python3 scripts/build-food-db.py [--skip-off]
 
 import json
 import os
+import re
 import sys
 import time
 import urllib.parse
@@ -171,6 +172,64 @@ def off_fetch(query, page, page_size=100):
         return json.load(resp)
 
 
+def serving_portion(serving_size, serving_quantity):
+    """
+    A packet states its nutrition per serving and tells you what that serving
+    weighs — the one quantity you can read off without a scale. Keeping it
+    means the number on the packet is loggable as printed.
+    """
+    try:
+        grams = float(serving_quantity)
+    except (TypeError, ValueError):
+        return []
+    # Outside this range it is a unit mix-up or a failed parse upstream.
+    if not 1 <= grams <= 1000:
+        return []
+    label = clean(serving_size or "")
+    # "30 g" says nothing the grams beside it do not; a household measure does.
+    if not label or re.fullmatch(r"[\d.,]+\s*(g|gr|gram|grams|ml|mL|l)\.?", label):
+        label = f"1 serving ({grams:g} g)"
+    return [[label[:40], round(grams, 1)]]
+
+
+def backfill_off_servings(rows, batch=20):
+    """
+    The search endpoint does not return serving fields, so they are fetched by
+    barcode afterwards — twenty at a time rather than one request per product.
+    """
+    codes = [r[8] for r in rows if r[8]]
+    found = {}
+    for i in range(0, len(codes), batch):
+        chunk = codes[i : i + batch]
+        url = (
+            "https://world.openfoodfacts.org/api/v2/search?code="
+            + ",".join(chunk)
+            + "&fields=code,serving_size,serving_quantity&page_size=100"
+        )
+        req = urllib.request.Request(url, headers={"User-Agent": "Salutt/0.1 (personal food log)"})
+        for attempt in range(3):
+            try:
+                with urllib.request.urlopen(req, timeout=90) as resp:
+                    data = json.load(resp)
+                break
+            except Exception as exc:
+                if attempt == 2:
+                    print(f"    servings {i}-{i+len(chunk)}: {exc}", file=sys.stderr)
+                    data = {}
+                else:
+                    time.sleep(2 + 3 * attempt)
+        for prod in data.get("products") or []:
+            p = serving_portion(prod.get("serving_size"), prod.get("serving_quantity"))
+            if p:
+                found[str(prod.get("code"))] = p
+        time.sleep(0.5)
+    for r in rows:
+        if r[8] in found:
+            r[7] = found[r[8]]
+    print(f"    servings found for {len(found)} of {len(codes)} products")
+    return rows
+
+
 OFF_CACHE = os.path.join(USDA_DIR, "off-aldi-cache.json")
 
 
@@ -234,6 +293,7 @@ def read_off_aldi(max_pages=4):
                 break
             time.sleep(0.4)
         print(f"    {brand}: {got}")
+    backfill_off_servings(rows)
     with open(OFF_CACHE, "w") as fh:
         json.dump(rows, fh)
     return rows
