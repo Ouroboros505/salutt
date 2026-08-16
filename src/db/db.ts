@@ -141,6 +141,13 @@ export interface Settings {
   /** Manual calorie target; when unset, the adaptive target is used. */
   kcalTargetOverride?: number
   proteinGPerKg: number
+  /**
+   * How the protein target is expressed. Grams per kilo scales with your body,
+   * which is what protein requirements actually track; percent of calories
+   * scales with intake, which means it falls exactly when you cut deeper.
+   */
+  proteinMode?: 'gPerKg' | 'pctKcal'
+  proteinPctKcal?: number
   fatPctKcal: number
   /** Half-life in days for the smoothed weight trend. */
   trendHalfLifeDays: number

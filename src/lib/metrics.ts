@@ -222,7 +222,10 @@ export function computeTargets(
   const floor = settings.sex === 'male' ? 1500 : 1200
   kcal = Math.max(floor, Math.round(kcal))
 
-  const protein = Math.round(settings.proteinGPerKg * kg)
+  const protein =
+    settings.proteinMode === 'pctKcal'
+      ? Math.round((kcal * (settings.proteinPctKcal ?? 0.3)) / 4)
+      : Math.round(settings.proteinGPerKg * kg)
   const fat = Math.round((kcal * settings.fatPctKcal) / 9)
   const carbs = Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4))
 

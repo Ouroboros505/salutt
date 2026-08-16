@@ -127,15 +127,64 @@ export default function Settings({
           </div>
         )}
 
-        <Field label="Protein (g per kg bodyweight)" hint="1.6-2.2 g/kg protects muscle in a deficit.">
-          <input
-            type="number"
-            inputMode="decimal"
-            step="0.1"
-            value={s.proteinGPerKg}
-            onChange={(e) => patch({ proteinGPerKg: num(e.target.value) ?? 1.8 })}
-          />
+        <Field label="Protein target">
+          <div className="scroll-x">
+            <button
+              className="chip"
+              aria-pressed={s.proteinMode !== 'pctKcal'}
+              onClick={() => patch({ proteinMode: 'gPerKg' })}
+            >
+              g per kg
+            </button>
+            <button
+              className="chip"
+              aria-pressed={s.proteinMode === 'pctKcal'}
+              onClick={() => patch({ proteinMode: 'pctKcal' })}
+            >
+              % of calories
+            </button>
+          </div>
         </Field>
+
+        {s.proteinMode === 'pctKcal' ? (
+          <Field
+            label="Protein (% of calories)"
+            hint={`${Math.round((preview.kcal * (s.proteinPctKcal ?? 0.3)) / 4)} g at ${preview.kcal} kcal · ${(
+              (preview.kcal * (s.proteinPctKcal ?? 0.3)) /
+              4 /
+              (s.startWeightKg ?? 75)
+            ).toFixed(2)} g/kg`}
+          >
+            <input
+              type="number"
+              inputMode="numeric"
+              value={Math.round((s.proteinPctKcal ?? 0.3) * 100)}
+              onChange={(e) => patch({ proteinPctKcal: (num(e.target.value) ?? 30) / 100 })}
+            />
+          </Field>
+        ) : (
+          <Field
+            label="Protein (g per kg bodyweight)"
+            hint={`1.6-2.2 g/kg protects muscle in a deficit · ${Math.round(
+              ((s.proteinGPerKg * (s.startWeightKg ?? 75) * 4) / preview.kcal) * 100,
+            )}% of calories`}
+          >
+            <input
+              type="number"
+              inputMode="decimal"
+              step="0.1"
+              value={s.proteinGPerKg}
+              onChange={(e) => patch({ proteinGPerKg: num(e.target.value) ?? 1.8 })}
+            />
+          </Field>
+        )}
+
+        {preview.protein * 4 + preview.fat * 9 > preview.kcal && (
+          <div className="tiny" style={{ color: 'var(--serious)' }}>
+            Protein and fat together already exceed the calorie target, leaving no room for carbs.
+            Lower one of them.
+          </div>
+        )}
 
         <Field label="Fat (% of calories)">
           <input
