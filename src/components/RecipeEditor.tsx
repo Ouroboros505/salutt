@@ -4,6 +4,7 @@ import { scale, searchLocal } from '../db/ops'
 import { loadFoodDb, searchFoodDb } from '../lib/foodDb'
 import type { FoodHit } from '../lib/foodApi'
 import { finishedWeight, per100, recipeTotals, servingGrams, waterLossPct } from '../lib/recipes'
+import { parseRecipeText, type ParsedLine } from '../lib/parseRecipe'
 import { Field, Icon, Sheet } from './ui'
 
 type Draft = Omit<Recipe, 'id' | 'useCount' | 'lastUsed' | 'createdAt'>
@@ -28,6 +29,7 @@ export default function RecipeEditor({
 }) {
   const [draft, setDraft] = useState<Draft>(recipe ? { ...recipe } : EMPTY)
   const [picking, setPicking] = useState(false)
+  const [pasting, setPasting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const totals = recipeTotals(draft.items)
@@ -50,6 +52,18 @@ export default function RecipeEditor({
     }
     toast(recipe ? 'Recipe updated' : 'Recipe saved')
     onClose()
+  }
+
+  if (pasting) {
+    return (
+      <PasteRecipe
+        onClose={() => setPasting(false)}
+        onDone={(items) => {
+          setDraft((d) => ({ ...d, items: [...d.items, ...items] }))
+          setPasting(false)
+        }}
+      />
+    )
   }
 
   if (picking) {
@@ -78,13 +92,20 @@ export default function RecipeEditor({
       <div className="card tight">
         <div className="card-head">
           <h3>Ingredients</h3>
-          <button className="btn sm" onClick={() => setPicking(true)}>
-            <Icon.plus /> Add
-          </button>
+          <div className="row" style={{ gap: 6 }}>
+            <button className="btn sm" onClick={() => setPasting(true)}>
+              Paste list
+            </button>
+            <button className="btn sm" onClick={() => setPicking(true)}>
+              <Icon.plus /> Add
+            </button>
+          </div>
         </div>
 
         {draft.items.length === 0 ? (
-          <div className="empty">Add everything that goes in, at raw weight.</div>
+          <div className="empty">
+            Add everything that goes in, at raw weight — or paste the whole list at once.
+          </div>
         ) : (
           <div>
             {draft.items.map((item, i) => (
@@ -225,6 +246,190 @@ function Cell({ label, value, sub }: { label: string; value: string; sub?: strin
       <div className="stat-value num">{value}</div>
       {sub && <div className="tiny muted">{sub}</div>}
     </div>
+  )
+}
+
+/* ---------------------------------------------------------------- paste */
+
+/**
+ * Parts of a food that are not the food itself.
+ *
+ * "3 eggs" matches egg yolk and egg white ahead of egg whole, because all
+ * three carry a portion and the names are equally close. Unless a part was
+ * actually asked for, prefer the one that is not a part.
+ */
+const PART_WORDS = ['yolk', 'white', 'skin', 'shell', 'powder', 'powdered', 'dried', 'substitute', 'juice']
+
+interface Resolved {
+  line: ParsedLine
+  hit: FoodHit | null
+  grams: number
+  include: boolean
+}
+
+/**
+ * Pasting a whole ingredient list at once.
+ *
+ * Everything it works out is shown before anything is added — matched food,
+ * resolved weight, and how sure it is — because a parser that quietly guesses
+ * wrong is worse than typing the list by hand.
+ */
+function PasteRecipe({
+  onDone,
+  onClose,
+}: {
+  onDone: (items: RecipeItem[]) => void
+  onClose: () => void
+}) {
+  const [text, setText] = useState('')
+  const [rows, setRows] = useState<Resolved[] | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const resolve = async () => {
+    setBusy(true)
+    try {
+      const entries = await loadFoodDb()
+      const parsed = parseRecipeText(text)
+      const out: Resolved[] = []
+
+      for (const line of parsed) {
+        const mine = await searchLocal(line.query, 5)
+        const candidates: FoodHit[] = [...mine, ...searchFoodDb(line.query, entries, 5)]
+
+        // For a counted line the match has to know what one piece weighs —
+        // but preferring any entry with a portion picks egg *yolk* for "3
+        // eggs", because that one happens to carry one. So prefer an entry
+        // whose portion is named after what was actually asked for.
+        const wanted = [line.countUnit, ...line.query.toLowerCase().split(/\s+/)]
+          .filter((w): w is string => !!w && w.length > 2)
+          .map((w) => w.replace(/s$/, ''))
+
+        const askedFor = (word: string) => line.query.toLowerCase().includes(word)
+        const unwantedParts = PART_WORDS.filter((w) => !askedFor(w))
+
+        const usable = candidates
+          .filter((c) => c.portions.length > 0)
+          .map((c, rank) => {
+            const name = c.name.toLowerCase()
+            let score = -rank
+            if (c.portions.some((portion) => wanted.some((w) => portion.label.toLowerCase().includes(w)))) {
+              score += 10
+            }
+            if (unwantedParts.some((w) => name.includes(w))) score -= 20
+            if (name.includes('whole')) score += 4
+            return { c, score }
+          })
+          .sort((a, b) => b.score - a.score)
+
+        const hit: FoodHit | null =
+          (line.count != null ? usable[0]?.c : undefined) ?? candidates[0] ?? null
+
+        let grams = line.grams ?? 0
+        if (grams === 0 && line.count != null && hit) {
+          // "3 eggs" only becomes a weight if the food knows what one weighs.
+          const named = line.countUnit
+            ? hit.portions.find((p) => p.label.toLowerCase().includes(line.countUnit!.replace(/s$/, '')))
+            : undefined
+          const chosen = named ?? hit.portions[0]
+          if (chosen) grams = line.count * chosen.grams
+        }
+        out.push({ line, hit, grams: Math.round(grams), include: !!hit && grams > 0 })
+      }
+      setRows(out)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (rows) {
+    const ready = rows.filter((r) => r.include && r.hit && r.grams > 0)
+    return (
+      <Sheet title="Check the list" onClose={() => setRows(null)}>
+        <div className="tiny muted">
+          Uncheck anything wrong, fix the weights, then add. Nothing is saved until you do.
+        </div>
+
+        <div className="card tight">
+          {rows.map((r, i) => (
+            <div key={i} className="stack tight" style={{ paddingBlock: 8, borderBottom: '1px solid var(--grid)' }}>
+              <div className="row" style={{ gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={r.include}
+                  disabled={!r.hit}
+                  onChange={(e) =>
+                    setRows(rows.map((x, j) => (i === j ? { ...x, include: e.target.checked } : x)))
+                  }
+                  style={{ width: 20, height: 20, flex: 'none' }}
+                />
+                <div className="grow" style={{ minWidth: 0 }}>
+                  <div className="item-title truncate">{r.hit?.name ?? r.line.query}</div>
+                  <div className="tiny muted truncate">
+                    {r.line.raw}
+                    {!r.hit && ' · no match found'}
+                    {r.line.note && r.hit ? ` · ${r.line.note}` : ''}
+                  </div>
+                </div>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={r.grams || ''}
+                  placeholder="g"
+                  onChange={(e) =>
+                    setRows(
+                      rows.map((x, j) =>
+                        i === j ? { ...x, grams: parseFloat(e.target.value) || 0 } : x,
+                      ),
+                    )
+                  }
+                  style={{ width: 74, flex: 'none' }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button
+          className="btn primary block"
+          disabled={ready.length === 0}
+          onClick={() =>
+            onDone(
+              ready.map((r) => ({
+                name: r.hit!.name,
+                brand: r.hit!.brand,
+                grams: r.grams,
+                ...scale(r.hit!, r.grams),
+              })),
+            )
+          }
+        >
+          Add {ready.length} ingredient{ready.length === 1 ? '' : 's'}
+        </button>
+        <button className="btn ghost block muted" onClick={() => setRows(null)}>
+          Back to the text
+        </button>
+      </Sheet>
+    )
+  }
+
+  return (
+    <Sheet title="Paste the ingredients" onClose={onClose}>
+      <div className="tiny muted">
+        One per line, however you wrote them down. Weights, counts and spoons are all understood;
+        anything it cannot work out gets flagged rather than guessed at.
+      </div>
+      <textarea
+        autoFocus
+        rows={10}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder={'1kg chicken breast\n500 g white rice\n2 tbsp olive oil\n3 eggs\n400g black beans'}
+        style={{ fontFamily: 'inherit' }}
+      />
+      <button className="btn primary block" disabled={!text.trim() || busy} onClick={resolve}>
+        {busy ? 'Reading…' : 'Read the list'}
+      </button>
+    </Sheet>
   )
 }
 
