@@ -4,6 +4,8 @@ import { db, type ISODate, type SetEntry, type Workout } from '../db/db'
 import { formatDay, todayISO } from '../lib/date'
 import { Field, Icon, NumberInput, Segmented, Sheet } from '../components/ui'
 import RideSheet from '../components/RideSheet'
+import SessionSheet from '../components/SessionSheet'
+import { planFor } from '../lib/program'
 
 const KINDS = [
   { value: 'strength' as const, label: 'Strength' },
@@ -15,6 +17,7 @@ const KINDS = [
 export default function Train({ date, toast }: { date: ISODate; toast: (m: string) => void }) {
   const [editing, setEditing] = useState<Workout | 'new' | null>(null)
   const [riding, setRiding] = useState(false)
+  const [session, setSession] = useState(false)
   // The energy cost of moving a body scales with the body, so the estimate
   // uses the most recent weigh-in rather than a stored constant.
   const latest = useLiveQuery(() => db.weighIns.orderBy('date').last(), [])
@@ -56,11 +59,14 @@ export default function Train({ date, toast }: { date: ISODate; toast: (m: strin
             )}
           </div>
           <div className="stack tight" style={{ alignItems: 'flex-end' }}>
-            <button className="btn primary" onClick={() => setEditing('new')}>
-              <Icon.plus /> Log
+            <button className="btn primary" onClick={() => setSession(true)}>
+              <Icon.plus /> Session
             </button>
             <button className="btn sm" onClick={() => setRiding(true)}>
               <Icon.bike /> Ride
+            </button>
+            <button className="btn sm" onClick={() => setEditing('new')}>
+              Free form
             </button>
           </div>
         </div>
@@ -93,6 +99,27 @@ export default function Train({ date, toast }: { date: ISODate; toast: (m: strin
           </div>
         </div>
       ))}
+
+      {/* What the plan asks for today, so it is visible before the gym. */}
+      {planFor(date) && (
+        <button className="card tight" style={{ width: '100%', textAlign: 'left' }} onClick={() => setSession(true)}>
+          <div className="row between">
+            <span className="stat-label">Planned today</span>
+            <span className="muted"><Icon.chevron /></span>
+          </div>
+          <div className="small">{planFor(date)!.name}</div>
+          <div className="tiny muted">{planFor(date)!.exercises.length} exercises · tap to log what you actually did</div>
+        </button>
+      )}
+
+      {session && (
+        <SessionSheet
+          date={date}
+          kg={latest?.kg ?? 70}
+          onClose={() => setSession(false)}
+          toast={toast}
+        />
+      )}
 
       {riding && (
         <RideSheet
