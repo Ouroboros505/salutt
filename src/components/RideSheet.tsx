@@ -28,7 +28,11 @@ export default function RideSheet({
   const [minutes, setMinutes] = useState<number | undefined>(15)
   const [km, setKm] = useState<number | undefined>(undefined)
   const [effort, setEffort] = useState(RIDE_EFFORTS[1])
-  const [returnTrip, setReturnTrip] = useState(true)
+  // One way by default: the ride home is rarely the ride out. A full
+  // backpack, a different route, a headwind, or simply being tired all make
+  // the return leg its own trip, and logging it as one keeps the speed — and
+  // so the energy — honest for each direction.
+  const [returnTrip, setReturnTrip] = useState(false)
 
   // The journeys you actually make, most-used first. A distance looked up
   // once on a map is worth keeping forever.
@@ -84,7 +88,7 @@ export default function RideSheet({
       )}
 
       <div className="grid-2">
-        <Field label="One way" hint="minutes in the saddle">
+        <Field label="Time" hint="what it actually took, this trip">
           <NumberInput value={minutes} unit="min" onChange={setMinutes} />
         </Field>
         <Field label="Distance" hint="optional">
@@ -92,20 +96,19 @@ export default function RideSheet({
         </Field>
       </div>
 
-      <label className="row" style={{ gap: 10, alignItems: 'center' }}>
-        <input
-          type="checkbox"
-          checked={returnTrip}
-          onChange={(e) => setReturnTrip(e.target.checked)}
-          style={{ width: 20, height: 20, flex: 'none' }}
-        />
-        <span className="small">
+      <div className="scroll-x">
+        <button className="chip" aria-pressed={!returnTrip} onClick={() => setReturnTrip(false)}>
+          One way
+        </button>
+        <button className="chip" aria-pressed={returnTrip} onClick={() => setReturnTrip(true)}>
           There and back
-          <span className="tiny muted" style={{ display: 'block' }}>
-            {returnTrip ? `counts ${totalMin} min` : 'one way only'}
-          </span>
-        </span>
-      </label>
+        </button>
+      </div>
+      <div className="tiny muted num">
+        {returnTrip
+          ? `counts ${totalMin} min — only if both legs were much the same`
+          : 'log the way back separately if it was different — heavier, slower, another route'}
+      </div>
 
       {fromSpeed ? (
         <div className="tiny muted num">
@@ -183,10 +186,18 @@ export default function RideSheet({
             sets: [],
             createdAt: Date.now(),
           })
-          // Keep the route ordered by what you actually ride.
+          // Keep the route ordered by what you actually ride, and let its
+          // stored time follow the last real one rather than an old guess.
           if (routeId) {
             const r = await db.routes.get(routeId)
-            if (r) await db.routes.update(routeId, { useCount: r.useCount + 1, lastUsed: Date.now() })
+            if (r) {
+              await db.routes.update(routeId, {
+                useCount: r.useCount + 1,
+                lastUsed: Date.now(),
+                minutes: minutes ?? r.minutes,
+                km: km ?? r.km,
+              })
+            }
           }
           toast(`${totalMin} min logged`)
           onClose()

@@ -287,7 +287,7 @@ export interface Route {
   id?: number
   name: string
   km: number
-  /** How long it usually takes, so the whole ride fills in from one tap. */
+  /** How long it took last time, so the whole ride fills in from one tap. */
   minutes: number
   useCount: number
   lastUsed: number
