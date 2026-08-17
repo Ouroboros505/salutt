@@ -93,6 +93,27 @@ function change(data: Data): string[] {
     notes.push(`removed ${strays.length} stray "Session" workouts and buried them`)
   }
 
+  // The regular journeys, both directions each, because the ride home is its
+  // own trip: a full backpack, a headwind, or simply being tired. Distances
+  // from Google Maps. The times are a starting estimate at a commuting pace
+  // and are replaced by the real one the first time each is logged.
+  //
+  // Ids well clear of 1 so they cannot land on a route created on the phone
+  // before this arrives — the merge still matches rows by key.
+  const ROUTES = [
+    { id: 101, name: 'Home → campus', km: 4.3, minutes: 17 },
+    { id: 102, name: 'Campus → home', km: 4.3, minutes: 17 },
+    { id: 103, name: 'Home → CoRec', km: 4.9, minutes: 19 },
+    { id: 104, name: 'CoRec → home', km: 4.9, minutes: 19 },
+  ]
+  for (const r of ROUTES) {
+    if ((data.routes ?? []).some((x) => x.name === r.name)) continue
+    ;(data.routes ??= []).push(
+      touch({ ...r, useCount: 0, lastUsed: 0, createdAt: Date.now() }),
+    )
+    notes.push(`saved route ${r.name} — ${r.km} km`)
+  }
+
   // --- example, currently a no-op -------------------------------------------
   // const recipe = data.recipes?.find((r) => r.name.includes('Braised'))
   // if (recipe) {
