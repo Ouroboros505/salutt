@@ -198,6 +198,10 @@ export const CATALOGUE: Exercise[] = [
   E('Pallof Press', 'Core', 2, '10-12/side', 3.5, 90, 'Cable machine', true),
   E('Dead Bug', 'Core', 3, '10/side', 3, 75, 'Floor'),
   E('Hanging Knee Raise', 'Core', 3, '12', 4, 90, 'Pull-up bar'),
+  // Forearms on the pads, back to the rest, legs lifted to horizontal. Harder
+  // than a knee raise because the lever is long and the hip flexors hold it.
+  E('Captain’s Chair Leg Raise', 'Core', 3, '12', 4.5, 95, 'Captain’s chair / power tower'),
+  E('Captain’s Chair Knee Raise', 'Core', 3, '15', 4, 90, 'Captain’s chair / power tower'),
   E('Cable Crunch', 'Core', 3, '15', 4, 90, 'Cable machine'),
   E('Hollow Hold', 'Core', 3, '30s', 4, 70, 'Floor'),
 
@@ -240,6 +244,14 @@ export const CATALOGUE: Exercise[] = [
  * Which convention each exercise follows. Anything not listed is a machine or
  * bodyweight movement, where the number on the stack is the number.
  */
+const BODYWEIGHT = [
+  'Push-Ups', 'Dips', 'Pull-Ups', 'Plank', 'Side Plank', 'Bird Dog', 'Mountain Climbers',
+  'Dead Bug', 'Hollow Hold', 'Hanging Knee Raise', 'Captain’s Chair Leg Raise',
+  'Captain’s Chair Knee Raise', 'Calf Raises', 'Lateral Band Walks',
+  'Banded Terminal Knee Extension', 'Movement Prep (bands, circles, bridges)',
+  'Cool-Down Stretch', 'Yoga Flow', 'Pigeon Pose', 'Legs-Up-The-Wall',
+]
+
 const LOAD_BY_NAME: Record<string, LoadStyle> = {
   'Barbell Bench Press': LOAD_BAR,
   'Incline Barbell Press': LOAD_BAR,
@@ -264,7 +276,9 @@ const LOAD_BY_NAME: Record<string, LoadStyle> = {
   'Overhead Triceps Extension': LOAD_ONE,
   'Preacher Curl': LOAD_ONE,
 }
-for (const ex of CATALOGUE) ex.load = LOAD_BY_NAME[ex.name] ?? LOAD_STACK
+for (const ex of CATALOGUE) {
+  ex.load = LOAD_BY_NAME[ex.name] ?? (BODYWEIGHT.includes(ex.name) ? LOAD_BODY : LOAD_STACK)
+}
 
 export const GROUPS: MuscleGroup[] = [
   'Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Legs', 'Core', 'Cardio', 'Mobility',
