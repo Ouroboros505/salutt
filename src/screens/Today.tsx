@@ -16,7 +16,7 @@ import {
   type PastMeal,
 } from '../db/ops'
 import { addDays, formatDay, todayISO } from '../lib/date'
-import { activityFlex, adaptiveTDEE, computeTargets, usualActivity, weightTrend } from '../lib/metrics'
+import { adaptiveTDEE, computeTargets, dayEnergy, usualActivity, weightTrend } from '../lib/metrics'
 import { Icon, Meter, Sheet } from '../components/ui'
 import AddFood from '../components/AddFood'
 
@@ -71,14 +71,22 @@ export default function Today({
 
   const trend = weightTrend(weighIns, settings.trendHalfLifeDays)
   const currentKg = trend.length ? trend[trend.length - 1].trend : null
-  // Only how far today departs from your own normal moves the target; the
-  // normal itself is already inside the maintenance figure.
-  const allWorkouts = useLiveQuery(() => db.workouts.toArray(), []) ?? []
-  const todayActivity = workouts.reduce((t, w) => t + (w.kcal ?? 0), 0)
-  const flex = activityFlex(todayActivity, usualActivity(allWorkouts, date))
-  const targets = computeTargets(settings, currentKg, adaptiveTDEE(allEntries, trend), flex)
 
   const totals = entries.length ? sum(entries) : { ...ZERO }
+
+  // Today's expenditure, computed from what is known and anchored to what was
+  // measured, rather than an average day's figure applied to every day.
+  const allWorkouts = useLiveQuery(() => db.workouts.toArray(), []) ?? []
+  const adaptive = adaptiveTDEE(allEntries, trend)
+  const todayActivity = workouts.reduce((t, w) => t + (w.kcal ?? 0), 0)
+  const meanActivity = usualActivity(allWorkouts, date)
+  const meanIntake = adaptive?.meanIntake ?? null
+  const maintenance = adaptive && adaptive.confidence !== 'low' ? adaptive.kcal : null
+  const energy =
+    currentKg && meanActivity != null
+      ? dayEnergy(settings, currentKg, totals.kcal, todayActivity, maintenance, meanActivity, meanIntake)
+      : null
+  const targets = computeTargets(settings, currentKg, adaptive, energy)
   const remaining = targets.kcal - totals.kcal
   const isToday = date === todayISO()
   const todayWeight = weighIns.find((w) => w.date === date)
@@ -140,10 +148,10 @@ export default function Today({
           <div style={{ textAlign: 'right' }}>
             <div className="small secondary num">{Math.round(totals.kcal).toLocaleString()} eaten</div>
             <div className="small muted num">of {targets.kcal.toLocaleString()} target</div>
-            {targets.flex && targets.flex.adjustment !== 0 && (
+            {targets.energy && (
               <div className="tiny muted num">
-                {targets.flex.adjustment > 0 ? '+' : ''}
-                {targets.flex.adjustment} vs your usual day
+                {targets.energy.total.toLocaleString()} kcal out today
+                {targets.energy.anchored ? '' : ' (estimated)'}
               </div>
             )}
           </div>

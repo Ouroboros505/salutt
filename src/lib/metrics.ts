@@ -193,50 +193,82 @@ export interface Targets {
   /** Where the calorie number came from, so the UI can be honest about it. */
   basis: 'manual' | 'adaptive' | 'formula'
   tdee: number
-  /** The unflexed figure, before today's activity was taken into account. */
+  /** The figure for an average day, before today's own energy was worked out. */
   baseKcal: number
-  /** How far today moved from the baseline, and why. */
-  flex: ActivityFlex | null
-}
-
-export interface ActivityFlex {
-  /** Estimated kcal of logged activity today. */
-  today: number
-  /** The rolling mean this is compared against. */
-  usual: number
-  /** Applied change to the target, already capped. */
-  adjustment: number
+  /** Today's computed expenditure, when there is enough logged to compute it. */
+  energy: DayEnergy | null
 }
 
 /**
- * Only the day's *departure* from normal moves the target.
+ * A day's expenditure, computed rather than assumed — and then anchored.
  *
- * Maintenance is derived from intake measured against the weight trend, and
- * that measurement already contains the usual riding and training — so adding
- * a day's activity on top counts it twice and eats the deficit. What it cannot
- * know is that today was unusual, and that is the only part worth applying.
+ * The parts that can be computed are computed: resting metabolism from body
+ * and age, the cost of digesting what was eaten, and the riding and training
+ * that were logged. What cannot be computed is everything else a body does —
+ * walking about, standing, fidgeting, carrying shopping. That is 200-900 kcal
+ * a day between people, it moves when you diet, and nothing you can log
+ * measures it.
  *
- * Half credit, because MET tables land within about 75-125% of the truth and a
- * whole day's deficit here is 440 kcal: eating the full estimate means eating
- * the full error too. Capped at 300 either way so one mis-typed ride cannot
- * rewrite the day. Departures average to zero over time, so the week still
- * lands where it was aimed without anything needing to be balanced by hand.
+ * So it is not guessed at. It is solved: whatever makes the computed average
+ * equal the maintenance that was actually measured from intake against the
+ * weight trend. The shape of the week comes from the computation, the level
+ * from the measurement, and each part does what it is good at.
+ *
+ * The anchor also absorbs systematic error for free. If every activity
+ * estimate runs 25% high, the residual solves 25% lower and the average still
+ * lands on the measurement — leaving only the day-to-day variation, which is
+ * the part worth acting on.
  */
-export const FLEX_CREDIT = 0.5
-export const FLEX_CAP = 300
+export interface DayEnergy {
+  /** Resting metabolic rate, from body and age. */
+  bmr: number
+  /** Thermic effect of the food eaten. */
+  digestion: number
+  /** Logged riding and training. */
+  activity: number
+  /** Everything else, solved so the average matches the measurement. */
+  rest: number
+  total: number
+  /** True when the residual came from a real maintenance measurement. */
+  anchored: boolean
+}
 
-export function activityFlex(todayKcal: number, usualKcal: number | null): ActivityFlex | null {
-  if (usualKcal == null) return null
-  const raw = FLEX_CREDIT * (todayKcal - usualKcal)
-  return {
-    today: Math.round(todayKcal),
-    usual: Math.round(usualKcal),
-    adjustment: Math.round(Math.max(-FLEX_CAP, Math.min(FLEX_CAP, raw))),
+/** Roughly a tenth of intake goes on digesting it, across a mixed diet. */
+const TEF_FRACTION = 0.1
+
+export function dayEnergy(
+  settings: Settings,
+  kg: number,
+  intakeKcal: number,
+  activityKcal: number,
+  maintenance: number | null,
+  meanActivity: number | null,
+  meanIntake: number | null,
+): DayEnergy {
+  const bmr = bmrMifflin(kg, settings.heightCm, ageFrom(settings.birthDate), settings.sex)
+  const digestion = TEF_FRACTION * intakeKcal
+
+  // The residual is whatever the measurement says is unaccounted for, on an
+  // average day. Without a measurement to anchor to, fall back to the activity
+  // multiplier — a stated assumption rather than a solved one.
+  let rest: number
+  let anchored = false
+  if (maintenance != null && meanActivity != null && meanIntake != null) {
+    rest = maintenance - bmr - TEF_FRACTION * meanIntake - meanActivity
+    anchored = true
+  } else {
+    rest = bmr * (settings.activity - 1) - (meanActivity ?? activityKcal)
   }
+  // A negative residual would mean the body does nothing at all beyond what is
+  // logged, which is never true; it means the activity estimates run high.
+  rest = Math.max(0, rest)
+
+  const total = bmr + digestion + activityKcal + rest
+  return { bmr: Math.round(bmr), digestion: Math.round(digestion), activity: Math.round(activityKcal), rest: Math.round(rest), total: Math.round(total), anchored }
 }
 
 /**
- * The usual day's activity, as a rolling mean of what was logged.
+ * The usual day's activity and intake, as rolling means.
  *
  * Days with nothing logged count as zero rather than being skipped: a day off
  * the bike is a real quiet day, and dropping it would quietly raise the
@@ -255,7 +287,6 @@ export function usualActivity(
     if (w.date <= from || w.date >= today) continue
     byDay.set(w.date, (byDay.get(w.date) ?? 0) + (w.kcal ?? 0))
   }
-  // Not enough history to know what normal looks like yet.
   if (byDay.size < 3) return null
   let total = 0
   for (const v of byDay.values()) total += v
@@ -266,7 +297,7 @@ export function computeTargets(
   settings: Settings,
   currentKg: number | null,
   adaptive: AdaptiveTDEE | null,
-  flex: ActivityFlex | null = null,
+  energy: DayEnergy | null = null,
 ): Targets {
   const kg = currentKg ?? 75
   const age = ageFrom(settings.birthDate)
@@ -287,7 +318,14 @@ export function computeTargets(
   }
 
   const baseKcal = Math.round(kcal)
-  if (flex) kcal += flex.adjustment
+  // With a day's energy worked out, the target is that day's expenditure less
+  // the deficit the goal asks for — rather than an average day's figure.
+  if (energy) {
+    const deficit = settings.kcalTargetOverride
+      ? tdee - settings.kcalTargetOverride
+      : -(settings.goalKgPerWeek * KCAL_PER_KG) / 7
+    kcal = energy.total - deficit
+  }
 
   // Floor the target: aggressive deficits cost muscle and adherence.
   const floor = settings.sex === 'male' ? 1500 : 1200
@@ -300,7 +338,7 @@ export function computeTargets(
   const fat = Math.round((kcal * settings.fatPctKcal) / 9)
   const carbs = Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4))
 
-  return { kcal, protein, carbs, fat, basis, tdee: Math.round(tdee), baseKcal, flex }
+  return { kcal, protein, carbs, fat, basis, tdee: Math.round(tdee), baseKcal, energy }
 }
 
 /** Projected date of reaching a goal weight at the current measured rate. */
