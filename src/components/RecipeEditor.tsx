@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Recipe, type RecipeItem } from '../db/db'
 import { scale, searchLocal } from '../db/ops'
-import { loadFoodDb, searchFoodDb } from '../lib/foodDb'
+import { densityIndex, loadFoodDb, searchFoodDb } from '../lib/foodDb'
 import type { FoodHit } from '../lib/foodApi'
 
 /**
@@ -16,6 +17,7 @@ type Candidate = FoodHit & { foodId?: number; mine: boolean }
 import {
   COOK_STYLES,
   DISH_TYPES,
+  recipeDensity,
   finishedWeight,
   spreadFor,
   per100,
@@ -55,6 +57,15 @@ export default function RecipeEditor({
   const weight = finishedWeight(draft)
   const p100 = per100(draft)
   const loss = waterLossPct(draft)
+
+  // Every ingredient's own measured density where the database has one, its
+  // category otherwise, combined by volume and then reduced for what boiled off.
+  const dbEntries = useLiveQuery(() => loadFoodDb(), [])
+  const index = useMemo(() => (dbEntries ? densityIndex(dbEntries) : null), [dbEntries])
+  const derived = useMemo(
+    () => (index ? recipeDensity(draft, (name) => index.get(name) ?? null) : null),
+    [index, draft],
+  )
   const perServing = servingGrams(draft)
 
   const save = async () => {
@@ -222,11 +233,27 @@ export default function RecipeEditor({
           </div>
         )}
 
-        {/* Density is what turns a share of the lunch box into grams. It is
-            the dish as it sits in a container, packing included, so it is
-            picked from measured whole dishes rather than reasoned about. */}
+        {/* Density is what turns a share of the lunch box into grams, and it
+            is worked out from the ingredients rather than picked from a list:
+            a weighed container showed the category route 50% out on a chunky
+            braise, while the ingredient sum was within a few percent. */}
         <div className="stack tight">
-          <div className="tiny muted">What is it like in the box? Sets how a share becomes grams.</div>
+          {derived && (
+            <div className="row between">
+              <span className="tiny muted num grow">
+                From the ingredients: <strong>{derived.density} g/ml</strong>
+                {derived.measured > 0.3
+                  ? ` · ${Math.round(derived.measured * 100)}% of the batch measured`
+                  : ''}
+              </span>
+              {draft.density !== derived.density && (
+                <button className="btn sm" onClick={() => setDraft({ ...draft, density: derived.density })}>
+                  Use it
+                </button>
+              )}
+            </div>
+          )}
+          <div className="tiny muted">Or say what it is like in the box, if you would rather.</div>
           <div className="scroll-x">
             {DISH_TYPES.map((t) => (
               <button

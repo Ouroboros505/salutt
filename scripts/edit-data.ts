@@ -196,6 +196,20 @@ function change(data: Data): string[] {
     notes.push('added Avocado, small (Hass) — 1 avocado = 93 g = 155 kcal')
   }
 
+  // The braise's density, from the scale rather than a category.
+  //
+  // 540 g Pyrex, 900 g with the food, so 360 g at roughly 70% of a 750 ml box
+  // — an implied 0.69 g/ml. The "stew, chilli, curry" category had said 1.03
+  // and would have put 541 g in the box, 219 kcal a lunch that was never
+  // eaten. Deriving it from the ingredients gives 0.64, which is within 7% of
+  // the weighing; this keeps the weighing, since it is the measurement.
+  const braise = (data.recipes ?? []).find((r) => /braised/i.test(r.name))
+  if (braise && braise.density !== 0.69) {
+    braise.density = 0.69
+    touch(braise)
+    notes.push(`${braise.name}: density 1.03 -> 0.69, measured`)
+  }
+
   // --- example, currently a no-op -------------------------------------------
   // const recipe = data.recipes?.find((r) => r.name.includes('Braised'))
   // if (recipe) {

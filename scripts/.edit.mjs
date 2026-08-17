@@ -255,6 +255,12 @@ function change(data) {
     );
     notes.push("added Avocado, small (Hass) \u2014 1 avocado = 93 g = 155 kcal");
   }
+  const braise = (data.recipes ?? []).find((r) => /braised/i.test(r.name));
+  if (braise && braise.density !== 0.69) {
+    braise.density = 0.69;
+    touch(braise);
+    notes.push(`${braise.name}: density 1.03 -> 0.69, measured`);
+  }
   return notes;
 }
 async function main() {

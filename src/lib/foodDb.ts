@@ -1,5 +1,6 @@
 import type { Portion } from '../db/db'
 import type { FoodHit } from './foodApi'
+import { densityFromPortions } from './recipes'
 
 /**
  * The bundled food database: USDA generic, prepared and restaurant foods, plus
@@ -99,6 +100,22 @@ export async function loadFoodDb(): Promise<Indexed[]> {
   } finally {
     inflight = null
   }
+}
+
+/**
+ * Every food's density, where its own portions can give one.
+ *
+ * Built once over the whole database so a recipe can be costed by volume
+ * without searching for each ingredient in turn.
+ */
+export function densityIndex(entries: Indexed[]): Map<string, number> {
+  const out = new Map<string, number>()
+  for (const e of entries) {
+    const hit = toHit(e.row)
+    const d = densityFromPortions(hit.portions)
+    if (d) out.set(hit.name, d)
+  }
+  return out
 }
 
 function toHit(row: Row): FoodHit {

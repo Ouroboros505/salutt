@@ -260,24 +260,93 @@ export const HAND_SIZES: { label: string; grams: number }[] = [
 ]
 
 /**
- * A starting density from the name, so the common cases need no thought.
- * Everything here is a measured category density, not a guess at the food.
+ * A density from the ingredient's name, for the ones the database cannot
+ * measure. Ordered most specific first, because a name like "beef, chuck for
+ * stew" is meat in chunks, not stew — matching on the loosest word first put
+ * it at 1.03 when it packs nearer 0.6.
+ *
+ * The figures are the measured category densities from USDA cup weights, not
+ * estimates: whole foods in a container carry a lot of air between the pieces,
+ * which is exactly what these capture and what intuition does not.
  */
+const DENSITY_BY_NAME: [RegExp, number][] = [
+  // Fats and liquids first — unambiguous, and nothing else should claim them.
+  [/\boil\b|olive oil|butter|ghee/i, 0.91],
+  [/\bwater\b|stock|broth(?!.*dry)|juice(?! concentrate)/i, 1.0],
+  [/cream|milk|yogh?urt/i, 1.03],
+  // Solid ingredients, before any dish word can catch them.
+  [/pork|beef|chicken|turkey|lamb|fish|salmon|shrimp|bacon|sausage|ham\b/i, 0.58],
+  [/bean|lentil|chickpea|dal|dhal/i, 0.75],
+  [/rice|quinoa|couscous|bulgur|barley|oat|farro|millet|pasta|noodle/i, 0.75],
+  [/onion|pepper|carrot|celery|courgette|zucchini|aubergine|eggplant|mushroom/i, 0.65],
+  [/tomato/i, 0.7],
+  [/lime|lemon|orange|citrus/i, 0.65],
+  [/potato|yam|cassava|plantain/i, 0.62],
+  [/salad|lettuce|spinach|kale|rocket|arugula|herb|cilantro|parsley/i, 0.4],
+  [/spice|cumin|thyme|oregano|paprika|pepper, black|salt/i, 0.45],
+  [/cheese/i, 0.9],
+  // Only then the dish words, for something genuinely prepared.
+  [/soup|conso/i, 1.02],
+  [/stew|chill?i|curry|sauce|ragu|goulash/i, 1.0],
+  [/mince|casserole|mash/i, 0.95],
+]
+
 export function guessDensity(name: string): number {
-  const n = name.toLowerCase()
-  const rules: [RegExp, number][] = [
-    [/pasta|noodle|spaghetti|macaroni|penne|fusilli|lasagn/, 1.05],
-    [/soup|broth|stock|conso/, 1.04],
-    [/stew|chill?i|curry|sauce|braise|ragu|goulash/, 1.03],
-    [/mince|casserole|shepherd|bolognese|meatloaf|mash/, 0.95],
-    [/rice|quinoa|couscous|bulgur|barley|grain|oat|farro|millet/, 0.84],
-    [/bean|lentil|chickpea|pea|legume|dal|dhal/, 0.76],
-    [/salad|lettuce|spinach|greens|rocket|arugula|kale/, 0.38],
-    [/chicken|beef|pork|turkey|fish|salmon|shrimp|meat|veg|broccoli|carrot/, 0.57],
-  ]
-  for (const [re, d] of rules) if (re.test(n)) return d
-  // Cooked mixed dishes cluster here when nothing else matches.
-  return 0.95
+  for (const [re, d] of DENSITY_BY_NAME) if (re.test(name)) return d
+  // Cooked mixed food, which is where anything unrecognised most likely sits.
+  return 0.8
+}
+
+export type DensitySource = 'ingredients' | 'category'
+
+export interface RecipeDensity {
+  density: number
+  /** Share of the batch weight whose density was measured, not inferred. */
+  measured: number
+  source: DensitySource
+}
+
+/**
+ * The density of the finished dish, from what went into it.
+ *
+ * Volumes add where masses do not, so the mixture is combined by volume: each
+ * ingredient contributes mass/density millilitres and the dish is the total
+ * mass over the total volume. Cooking then removes water, which takes both
+ * mass and volume with it at about 1 g per ml.
+ *
+ * This was tried, rejected and reinstated. The argument against it was that
+ * per-ingredient figures are packed densities, so adding their volumes counts
+ * the air gaps twice — true for something soupy, where liquid fills the gaps.
+ * A weighed container settled it: 360 g of braise where the "stew" category
+ * predicted 541, an implied 0.69 g/ml against 0.67 from the ingredients. The
+ * sum was right and the category was 50% out.
+ */
+export function recipeDensity(
+  recipe: Pick<Recipe, 'items' | 'cookedG' | 'cookLossPct'>,
+  lookup: (name: string) => number | null,
+): RecipeDensity | null {
+  let mass = 0
+  let volume = 0
+  let measured = 0
+  for (const item of recipe.items) {
+    if (!(item.grams > 0)) continue
+    const found = lookup(item.name)
+    const d = found ?? guessDensity(item.name)
+    if (found) measured += item.grams
+    mass += item.grams
+    volume += item.grams / d
+  }
+  if (mass <= 0 || volume <= 0) return null
+
+  const cooked = finishedWeight(recipe)
+  // Water leaving takes its own volume with it.
+  const cookedVolume = volume - (mass - cooked)
+  const density = cookedVolume > 0 ? cooked / cookedVolume : mass / volume
+  return {
+    density: Math.round(Math.min(1.4, Math.max(0.3, density)) * 100) / 100,
+    measured: measured / mass,
+    source: 'ingredients',
+  }
 }
 
 export function boxTotals(parts: BoxPart[], boxMl: number): Totals & { grams: number; pct: number } {
