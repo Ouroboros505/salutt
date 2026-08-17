@@ -160,33 +160,33 @@ function touch(row) {
 var summarise = (data) => Object.entries(data).filter(([, rows]) => Array.isArray(rows) && rows.length).map(([t, rows]) => `${t}=${rows.length}`).join(" ");
 function change(data) {
   const notes = [];
-  if (!(data.foods ?? []).some((f) => /popz/i.test(f.name))) {
+  if (!(data.foods ?? []).some((f) => /^banana/i.test(f.name))) {
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1;
     (data.foods ??= []).push(
       touch({
         id: nextId,
-        name: "Popz protein sparkling, peach mango",
-        brand: "Aldi",
-        // 1 can, 12 oz (355 ml): 70 kcal, 0 g fat, 1 g carb, 0 fibre, 15 g protein.
-        kcal: 19.72,
-        protein: 4.225,
-        carbs: 0.282,
-        fat: 0,
-        fiber: 0,
+        name: "Banana",
+        kcal: 89,
+        protein: 1.09,
+        carbs: 22.8,
+        fat: 0.33,
+        fiber: 2.6,
         portions: [
-          { label: "1 can (355 ml)", grams: 355 },
-          { label: "half a can", grams: 178 }
+          { label: "1 banana (126 g peeled)", grams: 126 },
+          { label: "1 large (136 g peeled)", grams: 136 },
+          { label: "1 small (100 g peeled)", grams: 100 },
+          { label: "half", grams: 63 }
         ],
         defaultPortion: 0,
-        liquid: true,
-        source: "manual",
+        liquid: false,
+        source: "usda",
         favorite: false,
         useCount: 0,
         lastUsed: 0,
         createdAt: Date.now()
       })
     );
-    notes.push("added Popz protein sparkling, peach mango (Aldi) \u2014 1 can = 70 kcal, 15 g protein");
+    notes.push("added Banana \u2014 1 banana (126 g peeled) = 112 kcal, 2.9 g fibre");
   }
   return notes;
 }

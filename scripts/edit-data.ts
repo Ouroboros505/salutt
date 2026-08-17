@@ -67,40 +67,45 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // The Popz sparkling whey, from the label. A can is one serving, so the
-  // per-100 figures below are simply the can divided by 3.55 — stored per
-  // 100 ml because it is a drink, which is what `liquid` means here.
+  // Banana, from USDA's plain "Bananas, raw" — the reference row, and the one
+  // to keep using every day of the week.
   //
-  // 15 g of protein for 70 kcal is 21 g per 100 kcal, against 19 for chicken
-  // breast and 25 for protein neat. There is nothing else in the can: one
-  // gram of carbohydrate, no fat, no sugar.
-  if (!(data.foods ?? []).some((f) => /popz/i.test(f.name))) {
+  // The database also carries "ripe and slightly ripe" at 97 and "overripe" at
+  // 85, which look like a ripening curve and are not one: ripening turns
+  // starch into sugar without changing the energy, so those three numbers are
+  // three samples of different water content. Switching row by colour would
+  // add noise to the intake mean, and the maintenance figure is solved from
+  // that mean — a steady small bias cancels there, a wobbling one does not.
+  //
+  // Portions are peeled weight, because the skin is about a third of the
+  // fruit and nobody eats it.
+  if (!(data.foods ?? []).some((f) => /^banana/i.test(f.name))) {
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
     ;(data.foods ??= []).push(
       touch({
         id: nextId,
-        name: 'Popz protein sparkling, peach mango',
-        brand: 'Aldi',
-        // 1 can, 12 oz (355 ml): 70 kcal, 0 g fat, 1 g carb, 0 fibre, 15 g protein.
-        kcal: 19.72,
-        protein: 4.225,
-        carbs: 0.282,
-        fat: 0,
-        fiber: 0,
+        name: 'Banana',
+        kcal: 89,
+        protein: 1.09,
+        carbs: 22.8,
+        fat: 0.33,
+        fiber: 2.6,
         portions: [
-          { label: '1 can (355 ml)', grams: 355 },
-          { label: 'half a can', grams: 178 },
+          { label: '1 banana (126 g peeled)', grams: 126 },
+          { label: '1 large (136 g peeled)', grams: 136 },
+          { label: '1 small (100 g peeled)', grams: 100 },
+          { label: 'half', grams: 63 },
         ],
         defaultPortion: 0,
-        liquid: true,
-        source: 'manual',
+        liquid: false,
+        source: 'usda',
         favorite: false,
         useCount: 0,
         lastUsed: 0,
         createdAt: Date.now(),
       }),
     )
-    notes.push('added Popz protein sparkling, peach mango (Aldi) — 1 can = 70 kcal, 15 g protein')
+    notes.push('added Banana — 1 banana (126 g peeled) = 112 kcal, 2.9 g fibre')
   }
 
   // --- example, currently a no-op -------------------------------------------
