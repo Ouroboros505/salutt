@@ -160,33 +160,35 @@ function touch(row) {
 var summarise = (data) => Object.entries(data).filter(([, rows]) => Array.isArray(rows) && rows.length).map(([t, rows]) => `${t}=${rows.length}`).join(" ");
 function change(data) {
   const notes = [];
-  if (!(data.foods ?? []).some((f) => /^banana/i.test(f.name))) {
+  if (!(data.foods ?? []).some((f) => /flip/i.test(f.name))) {
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1;
     (data.foods ??= []).push(
       touch({
         id: nextId,
-        name: "Banana",
-        kcal: 89,
-        protein: 1.09,
-        carbs: 22.8,
-        fat: 0.33,
-        fiber: 2.6,
+        name: "Chobani Flip, almond coconut chocolate",
+        brand: "Chobani",
+        barcode: "894700001098",
+        // 1 container, 6 oz (170 g): 200 kcal, 8 g fat (3.5 sat), 11 g carb,
+        // 3 g fibre, 6 g sugar of which none added, 20 g protein.
+        kcal: 117.65,
+        protein: 11.765,
+        carbs: 6.471,
+        fat: 4.706,
+        fiber: 1.765,
         portions: [
-          { label: "1 banana (126 g peeled)", grams: 126 },
-          { label: "1 large (136 g peeled)", grams: 136 },
-          { label: "1 small (100 g peeled)", grams: 100 },
-          { label: "half", grams: 63 }
+          { label: "1 container (170 g)", grams: 170 },
+          { label: "half a pot", grams: 85 }
         ],
         defaultPortion: 0,
         liquid: false,
-        source: "usda",
+        source: "manual",
         favorite: false,
         useCount: 0,
         lastUsed: 0,
         createdAt: Date.now()
       })
     );
-    notes.push("added Banana \u2014 1 banana (126 g peeled) = 112 kcal, 2.9 g fibre");
+    notes.push("added Chobani Flip, almond coconut chocolate \u2014 1 pot = 200 kcal, 20 g protein");
   }
   return notes;
 }
