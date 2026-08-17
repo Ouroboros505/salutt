@@ -42,8 +42,10 @@ export default function Train({
   const recent = workouts.filter((w) => w.date > shiftDays(todayISO(), -7))
   const thisWeek = recent.filter((w) => w.kind !== 'ride').length
   const rides = recent.filter((w) => w.kind === 'ride')
-  // A plan is not a record: nothing exists until it is logged.
+  // A plan is not a record: nothing exists until it is logged. A draft sits
+  // between the two and should say so.
   const loggedToday = workouts.find((w) => w.date === date && w.kind !== 'ride')
+  const draftToday = !loggedToday && !!localStorage.getItem(`salutt:session-draft:${date}`)
   const rideMin = rides.reduce((t, w) => t + (w.durationMin ?? 0), 0)
   const rideKm = rides.reduce((t, w) => t + (w.distanceKm ?? 0), 0)
   const unit = settings.liftUnit ?? 'lb'
@@ -135,14 +137,18 @@ export default function Train({
       {planFor(date) && (
         <button className="card tight" style={{ width: '100%', textAlign: 'left' }} onClick={() => setSession(true)}>
           <div className="row between">
-            <span className="stat-label">{loggedToday ? 'Logged today' : 'Planned today — not logged yet'}</span>
+            <span className="stat-label">
+              {loggedToday ? 'Logged today' : draftToday ? 'In progress — not logged yet' : 'Planned today — not logged yet'}
+            </span>
             <span className="muted"><Icon.chevron /></span>
           </div>
           <div className="small">{planFor(date)!.name}</div>
           <div className="tiny muted">
             {loggedToday
               ? `${loggedToday.name} · ${loggedToday.durationMin ?? 0} min · ${loggedToday.kcal ?? 0} kcal recorded`
-              : `${planFor(date)!.exercises.length} exercises suggested · tap to log what you actually did`}
+              : draftToday
+                ? 'Tap to carry on where you left off'
+                : `${planFor(date)!.exercises.length} exercises suggested · tap to log what you actually did`}
           </div>
         </button>
       )}

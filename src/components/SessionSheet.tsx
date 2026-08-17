@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { db, type ISODate, type Settings } from '../db/db'
 import {
   CATALOGUE,
@@ -15,23 +15,55 @@ import {
 } from '../lib/program'
 import { Icon, NumberInput, Sheet } from './ui'
 
-interface Done {
-  key: string
-  ex: Exercise
-  /** Sets for resistance work, minutes for cardio. */
-  count: number
-  reps: string
+interface SetRow {
+  reps: number
   weightKg?: number
 }
 
+interface Done {
+  key: string
+  name: string
+  /** Sets, each with its own reps and load. Empty for the cardio entries. */
+  sets: SetRow[]
+  /** Minutes, for the entries counted that way. */
+  minutes?: number
+}
+
+interface Draft {
+  date: ISODate
+  items: Done[]
+}
+
+const draftKey = (date: ISODate) => `salutt:session-draft:${date}`
+
+function loadDraft(date: ISODate): Done[] | null {
+  try {
+    const raw = localStorage.getItem(draftKey(date))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Draft
+    return parsed.date === date && Array.isArray(parsed.items) ? parsed.items : null
+  } catch {
+    return null
+  }
+}
+
+function startingSets(ex: Exercise): SetRow[] {
+  if (ex.byMinutes) return []
+  return Array.from({ length: ex.sets }, () => ({ reps: parseInt(ex.reps, 10) || 10 }))
+}
+
 /**
- * Logging the session that happened.
+ * Logging the session as it happens.
  *
- * The plan for the day arrives filled in, because most days most of it is what
- * you did. Then every number is editable and anything can be added or dropped,
- * because the cable station is taken, the day is short, or something else
- * looked better. Nothing here objects to a session that went off-plan; it only
- * records which one it was.
+ * A session is filled in between sets, not written up afterwards, so this is a
+ * draft from the moment it opens: every change is kept, and closing it to
+ * answer a message loses nothing. Nothing reaches the log until Finish,
+ * because a half-done session in the record would be treated as a whole one by
+ * everything downstream — the day's energy included.
+ *
+ * Sets are individual. Adding a rep or a plate as you go is the ordinary shape
+ * of a working set, and flattening that into "3 x 12" throws away the only
+ * progression worth watching.
  */
 export default function SessionSheet({
   date,
@@ -46,27 +78,61 @@ export default function SessionSheet({
   onClose: () => void
   toast: (m: string) => void
 }) {
-  // Plates here are marked in pounds; body weight stays metric because the
-  // scale is. Stored in kilograms either way, so the two never diverge.
   const unit = settings.liftUnit ?? 'lb'
   const setUnit = (u: 'kg' | 'lb') => void db.settings.update('settings', { liftUnit: u })
   const plan = planFor(date)
-  const [items, setItems] = useState<Done[]>(() =>
-    (plan?.exercises ?? [])
+
+  const [restored] = useState(() => !!loadDraft(date))
+  const [items, setItems] = useState<Done[]>(() => {
+    const saved = loadDraft(date)
+    if (saved) return saved
+    return (plan?.exercises ?? [])
       .map(byName)
       .filter((e): e is Exercise => !!e)
-      .map((ex, i) => ({ key: `${ex.name}-${i}`, ex, count: ex.sets, reps: ex.reps })),
-  )
+      .map((ex, i) => ({
+        key: `${ex.name}-${i}`,
+        name: ex.name,
+        sets: startingSets(ex),
+        minutes: ex.byMinutes ? ex.sets : undefined,
+      }))
+  })
   const [adding, setAdding] = useState<MuscleGroup | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const kcal = items.reduce((t, i) => t + exerciseKcal(i.ex, i.count, kg), 0)
-  const minutes = items.reduce((t, i) => t + exerciseMinutes(i.ex, i.count), 0)
+  // Written on every change, so closing the sheet mid-session costs nothing.
+  useEffect(() => {
+    try {
+      localStorage.setItem(draftKey(date), JSON.stringify({ date, items } satisfies Draft))
+    } catch {
+      // Storage being full or blocked is not a reason to stop logging.
+    }
+  }, [date, items])
+
+  const detail = (name: string) => byName(name)
+  const countOf = (i: Done) => (i.minutes != null ? i.minutes : i.sets.length)
+  const kcalOf = (i: Done) => {
+    const ex = detail(i.name)
+    return ex ? exerciseKcal(ex, countOf(i), kg) : 0
+  }
+  const minutesOf = (i: Done) => {
+    const ex = detail(i.name)
+    return ex ? exerciseMinutes(ex, countOf(i)) : 0
+  }
+
+  const kcal = items.reduce((t, i) => t + kcalOf(i), 0)
+  const minutes = items.reduce((t, i) => t + minutesOf(i), 0)
   const planned = plan?.exercises.length ?? 0
-  const kept = items.filter((i) => plan?.exercises.includes(i.ex.name)).length
+  const kept = items.filter((i) => plan?.exercises.includes(i.name)).length
 
   const update = (key: string, patch: Partial<Done>) =>
     setItems((xs) => xs.map((x) => (x.key === key ? { ...x, ...patch } : x)))
+
+  const setSet = (key: string, idx: number, patch: Partial<SetRow>) =>
+    setItems((xs) =>
+      xs.map((x) =>
+        x.key === key ? { ...x, sets: x.sets.map((s, j) => (j === idx ? { ...s, ...patch } : s)) } : x,
+      ),
+    )
 
   const catalogue = useMemo(
     () => (adding ? CATALOGUE.filter((e) => e.group === adding) : []),
@@ -91,7 +157,12 @@ export default function SessionSheet({
               onClick={() => {
                 setItems((xs) => [
                   ...xs,
-                  { key: `${ex.name}-${xs.length}-${ex.sets}`, ex, count: ex.sets, reps: ex.reps },
+                  {
+                    key: `${ex.name}-${xs.length}-${ex.sets}`,
+                    name: ex.name,
+                    sets: startingSets(ex),
+                    minutes: ex.byMinutes ? ex.sets : undefined,
+                  },
                 ])
                 setAdding(null)
               }}
@@ -121,9 +192,11 @@ export default function SessionSheet({
     <Sheet title={plan ? plan.name : 'Session'} onClose={onClose}>
       <div className="row between">
         <span className="tiny muted grow">
-          {plan
-            ? 'Today’s plan, filled in. Change anything — fewer sets, more reps, drop what the gym was busy with.'
-            : 'No session planned today. Add whatever you did.'}
+          {restored
+            ? 'Picked up where you left off — nothing is logged until you finish.'
+            : plan
+              ? 'Today’s plan, filled in. Change it as you go; nothing is logged until you finish.'
+              : 'Add what you did. Nothing is logged until you finish.'}
         </span>
         <div className="scroll-x" style={{ flex: 'none' }}>
           {(['lb', 'kg'] as const).map((u) => (
@@ -136,66 +209,91 @@ export default function SessionSheet({
 
       <div className="card tight">
         {items.length === 0 && <div className="empty">Nothing yet — add from below.</div>}
-        {items.map((i) => (
-          <div
-            key={i.key}
-            className="stack tight"
-            style={{ paddingBlock: 8, borderBottom: '1px solid var(--grid)' }}
-          >
-            <div className="row" style={{ gap: 8 }}>
-              <div className="grow" style={{ minWidth: 0 }}>
-                <div className="item-title truncate">{i.ex.name}</div>
-                <div className="tiny muted num">
-                  {exerciseMinutes(i.ex, i.count)} min · {exerciseKcal(i.ex, i.count, kg)} kcal
-                </div>
-              </div>
-              <button
-                className="iconbtn"
-                aria-label={`Remove ${i.ex.name}`}
-                onClick={() => setItems((xs) => xs.filter((x) => x.key !== i.key))}
-              >
-                <Icon.close />
-              </button>
-            </div>
-            <div className="row" style={{ gap: 6 }}>
-              <div style={{ width: 92, flex: 'none' }}>
-                <NumberInput
-                  value={i.count || undefined}
-                  unit={i.ex.byMinutes ? 'min' : '× sets'}
-                  onChange={(v) => update(i.key, { count: v ?? 0 })}
-                />
-              </div>
-              {!i.ex.byMinutes && (
-                <>
-                  <input
-                    className="grow"
-                    value={i.reps}
-                    aria-label="Reps"
-                    onChange={(e) => update(i.key, { reps: e.target.value })}
-                  />
-                  <div style={{ width: 96, flex: 'none' }}>
-                    <NumberInput
-                      value={toDisplayWeight(i.weightKg, unit)}
-                      unit={unit}
-                      placeholder="—"
-                      onChange={(v) => update(i.key, { weightKg: fromDisplayWeight(v, unit) })}
-                    />
+        {items.map((i) => {
+          const ex = detail(i.name)
+          return (
+            <div
+              key={i.key}
+              className="stack tight"
+              style={{ paddingBlock: 8, borderBottom: '1px solid var(--grid)' }}
+            >
+              <div className="row" style={{ gap: 8 }}>
+                <div className="grow" style={{ minWidth: 0 }}>
+                  <div className="item-title truncate">{i.name}</div>
+                  <div className="tiny muted num">
+                    {minutesOf(i)} min · {kcalOf(i)} kcal
+                    {ex?.load && !ex.byMinutes ? ` · weight = ${ex.load.label}` : ''}
                   </div>
+                </div>
+                <button
+                  className="iconbtn"
+                  aria-label={`Remove ${i.name}`}
+                  onClick={() => setItems((xs) => xs.filter((x) => x.key !== i.key))}
+                >
+                  <Icon.close />
+                </button>
+              </div>
+
+              {i.minutes != null ? (
+                <div style={{ width: 104 }}>
+                  <NumberInput
+                    value={i.minutes || undefined}
+                    unit="min"
+                    onChange={(v) => update(i.key, { minutes: v ?? 0 })}
+                  />
+                </div>
+              ) : (
+                <>
+                  {i.sets.map((set, idx) => (
+                    <div className="row" key={idx} style={{ gap: 6, alignItems: 'center' }}>
+                      <span className="tiny muted" style={{ width: 26, flex: 'none' }}>
+                        {idx + 1}
+                      </span>
+                      <div style={{ width: 92, flex: 'none' }}>
+                        <NumberInput
+                          value={set.reps || undefined}
+                          unit="reps"
+                          onChange={(v) => setSet(i.key, idx, { reps: v ?? 0 })}
+                        />
+                      </div>
+                      <div style={{ width: 96, flex: 'none' }}>
+                        <NumberInput
+                          value={toDisplayWeight(set.weightKg, unit)}
+                          unit={unit}
+                          placeholder="—"
+                          onChange={(v) => setSet(i.key, idx, { weightKg: fromDisplayWeight(v, unit) })}
+                        />
+                      </div>
+                      <span className="tiny muted grow num truncate">
+                        {set.weightKg && ex?.load && ex.load.factor > 1
+                          ? `${Math.round(toDisplayWeight(set.weightKg * ex.load.factor, unit) ?? 0)} ${unit} total`
+                          : ''}
+                      </span>
+                      <button
+                        className="iconbtn"
+                        aria-label={`Remove set ${idx + 1}`}
+                        onClick={() => update(i.key, { sets: i.sets.filter((_, j) => j !== idx) })}
+                      >
+                        <Icon.close />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    className="btn sm"
+                    onClick={() => {
+                      // A new set starts where the last one finished, so adding
+                      // a rep or a plate is one tap rather than a re-entry.
+                      const last = i.sets[i.sets.length - 1]
+                      update(i.key, { sets: [...i.sets, { ...(last ?? { reps: 10 }) }] })
+                    }}
+                  >
+                    <Icon.plus /> Set
+                  </button>
                 </>
               )}
             </div>
-            {/* The conventions differ by equipment, so the box says which one
-                it wants rather than leaving it to be guessed at. */}
-            {!i.ex.byMinutes && i.ex.load && (
-              <div className="tiny muted">
-                weight = {i.ex.load.label}
-                {i.ex.load.factor > 1 && i.weightKg
-                  ? ` · ${Math.round((toDisplayWeight(i.weightKg * i.ex.load.factor, unit) ?? 0))} ${unit} moved in total`
-                  : ''}
-              </div>
-            )}
-          </div>
-        ))}
+          )
+        })}
 
         <div className="scroll-x" style={{ paddingTop: 10 }}>
           {GROUPS.map((g) => (
@@ -214,8 +312,7 @@ export default function SessionSheet({
           <span className="stat-value num">{kcal} kcal</span>
         </div>
         <div className="tiny muted">
-          This feeds today's energy figure, so a session you cut short costs less than a full one —
-          and the target follows.
+          Kept as you go. It reaches the day's energy only once you finish.
         </div>
       </div>
 
@@ -225,25 +322,22 @@ export default function SessionSheet({
         onClick={async () => {
           setSaving(true)
           try {
+            const groups = items
+              .map((i) => detail(i.name)?.group)
+              .filter((g): g is MuscleGroup => !!g)
             await db.workouts.add({
               date,
-              kind: items.every((i) => i.ex.group === 'Cardio') ? 'cardio' : 'strength',
-              // What it was, rather than that it happened.
-              name: plan ? plan.name.split(' — ')[0] : describeSession(items.map((i) => i.ex.group)),
+              kind: groups.length > 0 && groups.every((g) => g === 'Cardio') ? 'cardio' : 'strength',
+              name: plan ? plan.name.split(' — ')[0] : describeSession(groups),
               durationMin: minutes,
               kcal,
               sets: items.flatMap((i) =>
-                i.ex.byMinutes
-                  ? []
-                  : Array.from({ length: Math.max(0, Math.round(i.count)) }, () => ({
-                      exercise: i.ex.name,
-                      reps: parseInt(i.reps, 10) || 0,
-                      weightKg: i.weightKg ?? 0,
-                    })),
+                i.sets.map((s) => ({ exercise: i.name, reps: s.reps, weightKg: s.weightKg ?? 0 })),
               ),
               notes: plan && kept < planned ? `${kept} of ${planned} planned exercises` : undefined,
               createdAt: Date.now(),
             })
+            localStorage.removeItem(draftKey(date))
             toast(`${minutes} min logged — ${kcal} kcal`)
             onClose()
           } finally {
@@ -251,7 +345,11 @@ export default function SessionSheet({
           }
         }}
       >
-        Log {minutes} min · {kcal} kcal
+        Finish and log · {minutes} min · {kcal} kcal
+      </button>
+
+      <button className="btn ghost block muted" onClick={onClose}>
+        Keep for later
       </button>
     </Sheet>
   )
