@@ -12,7 +12,11 @@ import type { ScaleReading } from './scale'
  * saving eagerly costs nothing and there is never a pile of near-identical
  * entries to clean up.
  */
-export async function saveReading(r: ScaleReading, settings: Settings): Promise<number> {
+export async function saveReading(
+  r: ScaleReading,
+  settings: Settings,
+  offProtocol = false,
+): Promise<number> {
   const comp = r.impedance
     ? bodyComposition(
         r.kg,
@@ -29,6 +33,7 @@ export async function saveReading(r: ScaleReading, settings: Settings): Promise<
 
   const row: WeighIn = {
     ...(existing?.id ? { id: existing.id } : {}),
+    offProtocol: offProtocol || undefined,
     date,
     kg: r.kg,
     impedance: r.impedance,

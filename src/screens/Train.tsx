@@ -40,6 +40,8 @@ export default function Train({
   const recent = workouts.filter((w) => w.date > shiftDays(todayISO(), -7))
   const thisWeek = recent.filter((w) => w.kind !== 'ride').length
   const rides = recent.filter((w) => w.kind === 'ride')
+  // A plan is not a record: nothing exists until it is logged.
+  const loggedToday = workouts.find((w) => w.date === date && w.kind !== 'ride')
   const rideMin = rides.reduce((t, w) => t + (w.durationMin ?? 0), 0)
   const rideKm = rides.reduce((t, w) => t + (w.distanceKm ?? 0), 0)
   const unit = settings.liftUnit ?? 'lb'
@@ -113,15 +115,21 @@ export default function Train({
         </div>
       ))}
 
-      {/* What the plan asks for today, so it is visible before the gym. */}
+      {/* What the plan asks for, and whether it has happened yet. A plan and
+          a log look alike on a screen, and confusing them is how a session
+          gets logged twice or not at all. */}
       {planFor(date) && (
         <button className="card tight" style={{ width: '100%', textAlign: 'left' }} onClick={() => setSession(true)}>
           <div className="row between">
-            <span className="stat-label">Planned today</span>
+            <span className="stat-label">{loggedToday ? 'Logged today' : 'Planned today — not logged yet'}</span>
             <span className="muted"><Icon.chevron /></span>
           </div>
           <div className="small">{planFor(date)!.name}</div>
-          <div className="tiny muted">{planFor(date)!.exercises.length} exercises · tap to log what you actually did</div>
+          <div className="tiny muted">
+            {loggedToday
+              ? `${loggedToday.name} · ${loggedToday.durationMin ?? 0} min · ${loggedToday.kcal ?? 0} kcal recorded`
+              : `${planFor(date)!.exercises.length} exercises suggested · tap to log what you actually did`}
+          </div>
         </button>
       )}
 

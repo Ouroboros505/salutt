@@ -23,6 +23,7 @@ export default function ScaleResult({
   toast: (m: string) => void
 }) {
   const [saving, setSaving] = useState(false)
+  const [offProtocol, setOffProtocol] = useState(false)
 
   const comp = reading.impedance
     ? bodyComposition(
@@ -38,7 +39,7 @@ export default function ScaleResult({
   const record = async () => {
     setSaving(true)
     try {
-      await saveReading(reading, settings)
+      await saveReading(reading, settings, offProtocol)
       toast('Weigh-in recorded')
       onDone()
     } finally {
@@ -79,6 +80,24 @@ export default function ScaleResult({
           </div>
         </div>
       )}
+
+      {/* Asked here because this is where weighing actually happens — the
+          manual form is the exception, not the rule. */}
+      <label className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
+        <input
+          type="checkbox"
+          checked={offProtocol}
+          onChange={(e) => setOffProtocol(e.target.checked)}
+          style={{ width: 20, height: 20, flex: 'none', marginTop: 2 }}
+        />
+        <span className="small">
+          Before pooping, after eating, or dressed
+          <span className="tiny muted" style={{ display: 'block' }}>
+            Kept and shown, left out of the trend. A full bowel is 100–400 g against the 57–140 g
+            of fat you are looking for.
+          </span>
+        </span>
+      </label>
 
       <button className="btn primary block" disabled={saving} onClick={record}>
         <Icon.check /> Record this weigh-in
