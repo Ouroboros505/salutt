@@ -67,30 +67,35 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Oikos Pro, from the label. One pot is one serving, so the per-100 figures
-  // are the pot divided by 1.5.
+  // The Aldi cold-smoked Atlantic salmon, from the label. One pack is one
+  // serving, so the per-100 figures are the pack divided by 0.85.
   //
-  // The database's three Oikos rows are the ordinary line — 8 g of protein
-  // per 100 g against this one's 13.3, and 12.7 g of carbohydrate against 4.
-  // The Pro is ultra-filtered, which is exactly the difference: the lactose
-  // is taken out and the protein left behind. Not a substitutable row.
-  if (!(data.foods ?? []).some((f) => /oikos/i.test(f.name))) {
+  // The database does carry a "Fish, salmon, smoked" at 117 kcal/100 g, and
+  // it is the wrong fish: wild chinook lox at 4.3 g of fat against farmed
+  // Atlantic's 8.2. Logging a pack against it would read 100 kcal instead of
+  // 140, so the generic row is not close enough to borrow.
+  //
+  // 1330 mg of sodium a pack has nowhere to live either — nothing here tracks
+  // it. It matters mostly because salt holds water and water is what the
+  // scale reads, so a pack the night before a weigh-in can look like a week
+  // of no progress.
+  if (!(data.foods ?? []).some((f) => /smoked salmon/i.test(f.name))) {
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
     ;(data.foods ??= []).push(
       touch({
         id: nextId,
-        name: 'Oikos Pro, vanilla',
-        brand: 'Danone',
-        // 1 container (150 g): 130 kcal, 3 g fat (2.5 sat), 6 g carb, 0 fibre,
-        // 3 g sugars of which none added, 20 g protein.
-        kcal: 86.67,
-        protein: 13.333,
-        carbs: 4,
-        fat: 2,
+        name: 'Cold smoked salmon, Atlantic',
+        brand: 'Aldi',
+        // 1 package (85 g, about 3 slices): 140 kcal, 7 g fat (1 sat),
+        // 0 carb, 18 g protein, 1330 mg sodium, 5 mcg vitamin D.
+        kcal: 164.71,
+        protein: 21.176,
+        carbs: 0,
+        fat: 8.235,
         fiber: 0,
         portions: [
-          { label: '1 container (150 g)', grams: 150 },
-          { label: 'half a pot', grams: 75 },
+          { label: '1 package (85 g, about 3 slices)', grams: 85 },
+          { label: '1 slice', grams: 28 },
         ],
         defaultPortion: 0,
         liquid: false,
@@ -101,7 +106,7 @@ function change(data: Data): string[] {
         createdAt: Date.now(),
       }),
     )
-    notes.push('added Oikos Pro, vanilla (Danone) — 1 pot = 130 kcal, 20 g protein')
+    notes.push('added Cold smoked salmon, Atlantic (Aldi) — 1 pack = 140 kcal, 18 g protein')
   }
 
   // --- example, currently a no-op -------------------------------------------

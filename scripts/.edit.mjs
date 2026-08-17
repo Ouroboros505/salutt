@@ -160,23 +160,23 @@ function touch(row) {
 var summarise = (data) => Object.entries(data).filter(([, rows]) => Array.isArray(rows) && rows.length).map(([t, rows]) => `${t}=${rows.length}`).join(" ");
 function change(data) {
   const notes = [];
-  if (!(data.foods ?? []).some((f) => /oikos/i.test(f.name))) {
+  if (!(data.foods ?? []).some((f) => /smoked salmon/i.test(f.name))) {
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1;
     (data.foods ??= []).push(
       touch({
         id: nextId,
-        name: "Oikos Pro, vanilla",
-        brand: "Danone",
-        // 1 container (150 g): 130 kcal, 3 g fat (2.5 sat), 6 g carb, 0 fibre,
-        // 3 g sugars of which none added, 20 g protein.
-        kcal: 86.67,
-        protein: 13.333,
-        carbs: 4,
-        fat: 2,
+        name: "Cold smoked salmon, Atlantic",
+        brand: "Aldi",
+        // 1 package (85 g, about 3 slices): 140 kcal, 7 g fat (1 sat),
+        // 0 carb, 18 g protein, 1330 mg sodium, 5 mcg vitamin D.
+        kcal: 164.71,
+        protein: 21.176,
+        carbs: 0,
+        fat: 8.235,
         fiber: 0,
         portions: [
-          { label: "1 container (150 g)", grams: 150 },
-          { label: "half a pot", grams: 75 }
+          { label: "1 package (85 g, about 3 slices)", grams: 85 },
+          { label: "1 slice", grams: 28 }
         ],
         defaultPortion: 0,
         liquid: false,
@@ -187,7 +187,7 @@ function change(data) {
         createdAt: Date.now()
       })
     );
-    notes.push("added Oikos Pro, vanilla (Danone) \u2014 1 pot = 130 kcal, 20 g protein");
+    notes.push("added Cold smoked salmon, Atlantic (Aldi) \u2014 1 pack = 140 kcal, 18 g protein");
   }
   return notes;
 }
