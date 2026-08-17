@@ -344,8 +344,21 @@ export function planFor(date: string): DayPlan | null {
   return WEEK.find((p) => p.weekday === new Date(y, m - 1, d).getDay()) ?? null
 }
 
+/**
+ * Names that have changed, pointing at what they became.
+ *
+ * A session already logged holds the name it was written with, so renaming an
+ * exercise orphans it: the lookup fails, and its minutes and energy silently
+ * become zero in anything that recomputes. History is not editable after the
+ * fact, so the old names stay resolvable instead.
+ */
+const RENAMED: Record<string, string> = {
+  'Overhead Triceps Extension': 'Overhead Triceps Extension (cable)',
+}
+
 export function byName(name: string): Exercise | undefined {
-  return CATALOGUE.find((e) => e.name === name)
+  const current = RENAMED[name] ?? name
+  return CATALOGUE.find((e) => e.name === current)
 }
 
 /**
