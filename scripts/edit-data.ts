@@ -67,46 +67,47 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // The Aldi cold-smoked Atlantic salmon, from the label. One pack is one
-  // serving, so the per-100 figures are the pack divided by 0.85.
+  // The three tubs of cut fruit, from USDA.
   //
-  // The database does carry a "Fish, salmon, smoked" at 117 kcal/100 g, and
-  // it is the wrong fish: wild chinook lox at 4.3 g of fat against farmed
-  // Atlantic's 8.2. Logging a pack against it would read 100 kcal instead of
-  // 140, so the generic row is not close enough to borrow.
+  // All three are already in the bundled database, so this is not about the
+  // numbers — it is about the portions. The stock rows offer wedges of melon
+  // and slices off a whole pineapple, and none of that survives contact with
+  // a tub of chunks. What is needed is bowls.
   //
-  // 1330 mg of sodium a pack has nowhere to live either — nothing here tracks
-  // it. It matters mostly because salt holds water and water is what the
-  // scale reads, so a pack the night before a weigh-in can look like a week
-  // of no progress.
-  if (!(data.foods ?? []).some((f) => /smoked salmon/i.test(f.name))) {
+  // Pineapple is worth keeping separate in the mind: at 50 kcal it is nearly
+  // twice the other two, so in a mixed bowl it carries most of the energy.
+  // The "traditional varieties" row is deliberately not the one copied here —
+  // it reports zero fibre, which is a hole in the source rather than the
+  // fruit.
+  const FRUIT = [
+    { name: 'Watermelon, cut', kcal: 30, protein: 0.61, carbs: 7.55, fat: 0.15, fiber: 0.4, cup: 152 },
+    { name: 'Cantaloupe, cut', kcal: 34, protein: 0.82, carbs: 8.16, fat: 0.18, fiber: 0.8, cup: 160 },
+    { name: 'Pineapple, cut', kcal: 50, protein: 0.54, carbs: 13.1, fat: 0.12, fiber: 1.4, cup: 165 },
+  ]
+  for (const fr of FRUIT) {
+    if ((data.foods ?? []).some((f) => f.name === fr.name)) continue
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
+    const { cup, ...macros } = fr
     ;(data.foods ??= []).push(
       touch({
         id: nextId,
-        name: 'Cold smoked salmon, Atlantic',
-        brand: 'Aldi',
-        // 1 package (85 g, about 3 slices): 140 kcal, 7 g fat (1 sat),
-        // 0 carb, 18 g protein, 1330 mg sodium, 5 mcg vitamin D.
-        kcal: 164.71,
-        protein: 21.176,
-        carbs: 0,
-        fat: 8.235,
-        fiber: 0,
+        ...macros,
         portions: [
-          { label: '1 package (85 g, about 3 slices)', grams: 85 },
-          { label: '1 slice', grams: 28 },
+          { label: `1 cup of chunks (${cup} g)`, grams: cup },
+          { label: 'a small bowl (250 g)', grams: 250 },
+          { label: 'a big bowl (400 g)', grams: 400 },
+          { label: 'half a cup', grams: Math.round(cup / 2) },
         ],
         defaultPortion: 0,
         liquid: false,
-        source: 'manual',
+        source: 'usda',
         favorite: false,
         useCount: 0,
         lastUsed: 0,
         createdAt: Date.now(),
       }),
     )
-    notes.push('added Cold smoked salmon, Atlantic (Aldi) — 1 pack = 140 kcal, 18 g protein')
+    notes.push(`added ${fr.name} — 1 cup (${cup} g) = ${Math.round((fr.kcal * cup) / 100)} kcal`)
   }
 
   // --- example, currently a no-op -------------------------------------------
