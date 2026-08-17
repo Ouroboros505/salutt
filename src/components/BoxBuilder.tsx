@@ -108,6 +108,10 @@ export default function BoxBuilder({
           addPart({
             name: r.name,
             density: r.density ?? guessDensity(r.name),
+            // A recipe settled its density when it was written, from its own
+            // ingredients or from a weighing. Asking again here would invite
+            // replacing a worked-out number with a guess.
+            measured: r.density != null,
             per100: per100(r),
             recipeId: r.id,
             mode: 'share',
@@ -182,6 +186,7 @@ export default function BoxBuilder({
                   <div className="tiny muted num">
                     {grams} g{exact ? '' : ` ±${partError(p, boxMl)}`} ·{' '}
                     {Math.round((p.per100.kcal * grams) / 100)} kcal
+                    {p.mode === 'share' ? ` · ${p.density} g/ml${p.measured ? '' : ', a guess'}` : ''}
                   </div>
                 </div>
                 <div style={{ width: 88, flex: 'none' }}>
@@ -235,7 +240,10 @@ export default function BoxBuilder({
                 ))}
               </div>
 
-              {p.mode === 'share' && (
+              {/* Only worth asking when nothing better is known: a recipe
+                  carries its own density and a food with a volume portion has
+                  one measured, so both are left alone. */}
+              {p.mode === 'share' && !p.measured && (
                 <div className="scroll-x">
                   {DISH_TYPES.map((t) => (
                     <button
