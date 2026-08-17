@@ -90,6 +90,14 @@ export interface WeighIn {
    * height ever changes.
    */
   impedance?: number
+  /**
+   * Taken outside the usual conditions — after breakfast, with clothes on,
+   * before the toilet, in the evening. Kept and shown, but left out of the
+   * trend: the confound cannot be subtracted, only excluded. Day-to-day noise
+   * is 300-1500 g against 57-140 g of real change, so one bad reading moves
+   * the line further than a week of dieting does.
+   */
+  offProtocol?: boolean
   bodyFatPct?: number
   fatFreeKg?: number
   muscleKg?: number

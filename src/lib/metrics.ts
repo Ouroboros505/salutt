@@ -71,7 +71,8 @@ export interface TrendPoint {
  * assumed to be one day, so skipping days does not distort the curve.
  */
 export function weightTrend(weighIns: WeighIn[], halfLifeDays: number): TrendPoint[] {
-  const sorted = [...weighIns].sort((a, b) => a.date.localeCompare(b.date))
+  // A reading taken under different conditions measures something else.
+  const sorted = [...weighIns].filter((w) => !w.offProtocol).sort((a, b) => a.date.localeCompare(b.date))
   if (sorted.length === 0) return []
 
   const out: TrendPoint[] = []

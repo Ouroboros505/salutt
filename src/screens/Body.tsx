@@ -301,6 +301,7 @@ function WeighInSheet({ onClose, toast }: { onClose: () => void; toast: (m: stri
   const [date, setDate] = useState(todayISO())
   const [kg, setKg] = useState('')
   const [bfp, setBfp] = useState('')
+  const [offProtocol, setOffProtocol] = useState(false)
 
   const existing = useLiveQuery(() => db.weighIns.where('date').equals(date).first(), [date])
   const value = parseFloat(kg)
@@ -330,6 +331,25 @@ function WeighInSheet({ onClose, toast }: { onClose: () => void; toast: (m: stri
         />
       </Field>
 
+      {/* Conditions cannot be corrected for, only excluded. Day to day the
+          gut, glycogen and hydration move 300-1500 g while real change is
+          57-140 g, so one reading taken differently outweighs a week of it. */}
+      <label className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
+        <input
+          type="checkbox"
+          checked={offProtocol}
+          onChange={(e) => setOffProtocol(e.target.checked)}
+          style={{ width: 20, height: 20, flex: 'none', marginTop: 2 }}
+        />
+        <span className="small">
+          Not the usual conditions
+          <span className="tiny muted" style={{ display: 'block' }}>
+            After eating, before the toilet, dressed, or later in the day. Kept and shown, but left
+            out of the trend — it is measuring something else.
+          </span>
+        </span>
+      </label>
+
       <button
         className="btn primary block"
         disabled={!(value > 20 && value < 400)}
@@ -339,6 +359,7 @@ function WeighInSheet({ onClose, toast }: { onClose: () => void; toast: (m: stri
             date,
             kg: value,
             bodyFatPct: bfp ? parseFloat(bfp) : undefined,
+            offProtocol: offProtocol || undefined,
             source: 'manual',
             createdAt: Date.now(),
           })
