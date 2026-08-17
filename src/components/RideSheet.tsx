@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { db, type ISODate } from '../db/db'
-import { RIDE_EFFORTS, RIDE_PLACES, rideKcal } from '../lib/ride'
+import { RIDE_EFFORTS, RIDE_PLACES, metFromSpeed, rideKcal } from '../lib/ride'
 import { Field, NumberInput, Sheet } from './ui'
 
 /**
@@ -31,7 +31,11 @@ export default function RideSheet({
 
   const legs = returnTrip ? 2 : 1
   const totalMin = (minutes ?? 0) * legs
-  const kcal = rideKcal(effort.met, kg, totalMin)
+  // Distance and time give a speed, and a speed is a measurement where "how
+  // hard did it feel" is a guess. Used in preference when both are there.
+  const fromSpeed = metFromSpeed(km ?? 0, minutes ?? 0)
+  const met = fromSpeed?.met ?? effort.met
+  const kcal = rideKcal(met, kg, totalMin)
 
   return (
     <Sheet title="Log a ride" onClose={onClose}>
@@ -75,22 +79,33 @@ export default function RideSheet({
         </span>
       </label>
 
-      <Field label="How hard">
-        <div className="scroll-x">
-          {RIDE_EFFORTS.map((e) => (
-            <button
-              key={e.label}
-              className="chip"
-              aria-pressed={effort.label === e.label}
-              onClick={() => setEffort(e)}
-              title={e.hint}
-            >
-              {e.label} <span className="muted num">{e.met} MET</span>
-            </button>
-          ))}
+      {fromSpeed ? (
+        <div className="tiny muted num">
+          {fromSpeed.kmh} km/h from the distance and time → {fromSpeed.met} MET, mountain bike.
+          Measured, so the effort guess below is not needed.
         </div>
-      </Field>
-      <div className="tiny muted">{effort.hint}</div>
+      ) : (
+        <>
+          <Field label="How hard">
+            <div className="scroll-x">
+              {RIDE_EFFORTS.map((e) => (
+                <button
+                  key={e.label}
+                  className="chip"
+                  aria-pressed={effort.label === e.label}
+                  onClick={() => setEffort(e)}
+                  title={e.hint}
+                >
+                  {e.label} <span className="muted num">{e.met} MET</span>
+                </button>
+              ))}
+            </div>
+          </Field>
+          <div className="tiny muted">
+            {effort.hint}. Add the distance and this becomes a speed instead of a guess.
+          </div>
+        </>
+      )}
 
       <div className="card tight">
         <div className="row between">

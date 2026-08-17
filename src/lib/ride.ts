@@ -20,6 +20,40 @@ export const RIDE_EFFORTS: { label: string; hint: string; met: number }[] = [
 ]
 
 /**
+ * Speed bands for cycling, which is what the Compendium actually measures.
+ *
+ * Given a distance and a time, the effort stops being a judgement: air
+ * resistance rises with the cube of speed, so how fast you went determines
+ * the cost far more reliably than how hard it felt. "Easy" and "hard" are
+ * guesses about your own exertion; 21 km/h is a fact.
+ */
+const SPEED_BANDS: { maxKmh: number; met: number }[] = [
+  { maxKmh: 16, met: 4 },
+  { maxKmh: 19, met: 6.8 },
+  { maxKmh: 22, met: 8 },
+  { maxKmh: 25, met: 10 },
+  { maxKmh: 30, met: 12 },
+  { maxKmh: Infinity, met: 15.8 },
+]
+
+/**
+ * A knobbly-tyred bike on rough ground costs more than the same speed on a
+ * road bike, and commuting speed is dragged down by junctions and lights
+ * without the effort falling to match. Both push the same way.
+ */
+export const TERRAIN_BUMP = 1.15
+
+export function metFromSpeed(km: number, minutes: number, roughGround = true): { kmh: number; met: number } | null {
+  if (!(km > 0) || !(minutes > 0)) return null
+  const kmh = (km / minutes) * 60
+  // Outside this range it is a typo, not a bike ride.
+  if (kmh < 3 || kmh > 60) return null
+  const band = SPEED_BANDS.find((b) => kmh <= b.maxKmh)!
+  const met = roughGround ? band.met * TERRAIN_BUMP : band.met
+  return { kmh: Math.round(kmh * 10) / 10, met: Math.round(met * 10) / 10 }
+}
+
+/**
  * A MET is a multiple of resting metabolism, and resting is about
  * 3.5 ml of oxygen per kg per minute, which is 5 kcal per litre — so the
  * conversion is met × 3.5 × kg / 200 kcal a minute.

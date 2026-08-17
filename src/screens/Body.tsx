@@ -342,10 +342,11 @@ function WeighInSheet({ onClose, toast }: { onClose: () => void; toast: (m: stri
           style={{ width: 20, height: 20, flex: 'none', marginTop: 2 }}
         />
         <span className="small">
-          Not the usual conditions
+          Before pooping, after eating, or dressed
           <span className="tiny muted" style={{ display: 'block' }}>
-            After eating, before the toilet, dressed, or later in the day. Kept and shown, but left
-            out of the trend — it is measuring something else.
+            Whatever was different from how you normally weigh. A full bowel is 100–400 g and a
+            meal still digesting is up to 800, against the 57–140 g of fat you are looking for.
+            Kept and shown, left out of the trend.
           </span>
         </span>
       </label>
