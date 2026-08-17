@@ -82,10 +82,11 @@ export default function Today({
   const usual = usualActivity(allWorkouts, date)
   const meanIntake = adaptive?.meanIntake ?? null
   const maintenance = adaptive && adaptive.confidence !== 'low' ? adaptive.kcal : null
-  const energy =
-    currentKg && usual
-      ? dayEnergy(settings, currentKg, totals.kcal, todayActivity, maintenance, usual, meanIntake)
-      : null
+  // Computed whenever there is a weight, whether or not it is trusted enough
+  // to move the target — seeing the day's arithmetic is the point of it.
+  const energy = currentKg
+    ? dayEnergy(settings, currentKg, totals.kcal, todayActivity, maintenance, usual, meanIntake)
+    : null
   const targets = computeTargets(settings, currentKg, adaptive, energy)
   const remaining = targets.kcal - totals.kcal
   const isToday = date === todayISO()
@@ -150,19 +151,77 @@ export default function Today({
             <div className="small muted num">of {targets.kcal.toLocaleString()} target</div>
             {targets.energy && targets.energy.trust > 0 && (
               <div className="tiny muted num">
-                {targets.energy.total.toLocaleString()} kcal out today · usual day{' '}
-                {Math.round(targets.energy.rest + targets.energy.bmr + targets.energy.digestion)}
+                {targets.energy.total.toLocaleString()} kcal out today
                 {targets.energy.trust < 1
                   ? ` · counting ${Math.round(targets.energy.trust * 100)}%, ${targets.energy.logged} of ${targets.energy.days} days logged`
-                  : targets.energy.anchored
-                    ? ''
-                    : ' (level still estimated)'}
+                  : ''}
               </div>
             )}
           </div>
         </div>
 
         <Meter value={totals.kcal} max={targets.kcal} color={remaining < 0 ? 'var(--critical)' : undefined} />
+
+      {/* The day's arithmetic, laid out. Visible whether or not it is yet
+          trusted enough to move the target, because "why is my number that"
+          is the question a computed target invites. */}
+      {energy && (
+        <div className="card tight">
+          <div className="card-head">
+            <h3>Where today's energy went</h3>
+            <span className="tiny muted">{energy.anchored ? 'measured' : 'estimated'}</span>
+          </div>
+          <div className="row between small num">
+            <span className="secondary">Resting</span>
+            <span>{energy.bmr.toLocaleString()}</span>
+          </div>
+          <div className="row between small num">
+            <span className="secondary">Digesting what you ate</span>
+            <span>{energy.digestion}</span>
+          </div>
+          <div className="row between small num">
+            <span className="secondary">Riding and training</span>
+            <span>{energy.activity}</span>
+          </div>
+          <div className="row between small num">
+            <span className="secondary">Everything else you did</span>
+            <span>
+              {energy.anchored ? energy.rest : `${energy.restLow}–${energy.restHigh}`}
+            </span>
+          </div>
+          <div className="row between" style={{ borderTop: '1px solid var(--grid)', paddingTop: 6 }}>
+            <span className="stat-label">Burned</span>
+            <span className="stat-value num">
+              {energy.anchored
+                ? energy.total.toLocaleString()
+                : `${(energy.total - energy.rest + energy.restLow).toLocaleString()}–${(
+                    energy.total - energy.rest + energy.restHigh
+                  ).toLocaleString()}`}
+            </span>
+          </div>
+          <div className="row between small num">
+            <span className="secondary">Eaten</span>
+            <span>{Math.round(totals.kcal).toLocaleString()}</span>
+          </div>
+          <div className="row between">
+            <span className="stat-label">Down by</span>
+            <span className="stat-value num" style={{ color: 'var(--success-text)' }}>
+              {energy.anchored
+                ? Math.round(energy.total - totals.kcal).toLocaleString()
+                : `${Math.round(energy.total - energy.rest + energy.restLow - totals.kcal).toLocaleString()}–${Math.round(
+                    energy.total - energy.rest + energy.restHigh - totals.kcal,
+                  ).toLocaleString()}`}{' '}
+              kcal
+            </span>
+          </div>
+          <div className="tiny muted">
+            {energy.anchored
+              ? 'Everything else is solved against the maintenance your weight trend measured.'
+              : 'Everything else — walking about, standing, fidgeting — is the part nothing can log, and there is not yet enough weight history to solve it. Two weeks of weights and it becomes one number instead of a range.'}
+            {energy.trust === 0 && ' Not moving the target yet.'}
+          </div>
+        </div>
+      )}
 
         {macroTotal > 0 && (
           <div className="macrobar" aria-hidden="true">

@@ -233,6 +233,13 @@ export interface DayEnergy {
   anchored: boolean
   /** How completely activity has been logged lately, 0 to 1. */
   trust: number
+  /**
+   * Plausible bounds on the unloggable part, for when there is no measurement
+   * to solve it against. Showing a range is honest where a single number would
+   * be invented — the spread is most of what is uncertain about the day.
+   */
+  restLow: number
+  restHigh: number
   /** Days with something logged, for saying so plainly. */
   logged: number
   days: number
@@ -247,10 +254,10 @@ export function dayEnergy(
   intakeKcal: number,
   activityKcal: number,
   maintenance: number | null,
-  usual: UsualActivity,
+  usual: UsualActivity | null,
   meanIntake: number | null,
 ): DayEnergy {
-  const meanActivity = usual.mean
+  const meanActivity = usual?.mean ?? 0
   const bmr = bmrMifflin(kg, settings.heightCm, ageFrom(settings.birthDate), settings.sex)
   const digestion = TEF_FRACTION * intakeKcal
 
@@ -263,7 +270,9 @@ export function dayEnergy(
     rest = maintenance - bmr - TEF_FRACTION * meanIntake - meanActivity
     anchored = true
   } else {
-    rest = bmr * (settings.activity - 1) - meanActivity
+    // No measurement to solve against, so this is the midpoint of the range
+    // below rather than a figure with any authority.
+    rest = 300
   }
   // A negative residual would mean the body does nothing at all beyond what is
   // logged, which is never true; it means the activity estimates run high.
@@ -277,9 +286,13 @@ export function dayEnergy(
     rest: Math.round(rest),
     total: Math.round(total),
     anchored,
-    trust: usual.trust,
-    logged: usual.logged,
-    days: usual.days,
+    trust: usual?.trust ?? 0,
+    logged: usual?.logged ?? 0,
+    days: usual?.days ?? 14,
+    // Non-exercise movement runs 150-450 for someone who is on their feet a
+    // normal amount; anchoring collapses it to one number.
+    restLow: anchored ? Math.round(rest) : 150,
+    restHigh: anchored ? Math.round(rest) : 450,
   }
 }
 
