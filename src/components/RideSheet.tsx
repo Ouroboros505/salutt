@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type ISODate, type Route } from '../db/db'
-import { RIDE_EFFORTS, RIDE_PLACES, metFromSpeed, rideKcal } from '../lib/ride'
+import { RIDE_EFFORTS, RIDE_PLACES, metFromSpeed, rideKcal, type RideStyle } from '../lib/ride'
 import { Field, Icon, NumberInput, Sheet } from './ui'
 
 /**
@@ -33,6 +33,7 @@ export default function RideSheet({
   // the return leg its own trip, and logging it as one keeps the speed — and
   // so the energy — honest for each direction.
   const [returnTrip, setReturnTrip] = useState(false)
+  const [style, setStyle] = useState<RideStyle>('commute')
 
   // The journeys you actually make, most-used first. A distance looked up
   // once on a map is worth keeping forever.
@@ -53,7 +54,7 @@ export default function RideSheet({
   const totalMin = (minutes ?? 0) * legs
   // Distance and time give a speed, and a speed is a measurement where "how
   // hard did it feel" is a guess. Used in preference when both are there.
-  const fromSpeed = metFromSpeed(km ?? 0, minutes ?? 0)
+  const fromSpeed = metFromSpeed(km ?? 0, minutes ?? 0, style)
   const met = fromSpeed?.met ?? effort.met
   const kcal = rideKcal(met, kg, totalMin)
 
@@ -111,10 +112,22 @@ export default function RideSheet({
       </div>
 
       {fromSpeed ? (
-        <div className="tiny muted num">
-          {fromSpeed.kmh} km/h from the distance and time → {fromSpeed.met} MET, mountain bike.
-          Measured, so the effort guess below is not needed.
-        </div>
+        <>
+          <div className="scroll-x">
+            <button className="chip" aria-pressed={style === 'commute'} onClick={() => setStyle('commute')}>
+              Lights and junctions
+            </button>
+            <button className="chip" aria-pressed={style === 'steady'} onClick={() => setStyle('steady')}>
+              Barely stopped
+            </button>
+          </div>
+          <div className="tiny muted num">
+            {fromSpeed.kmh} km/h overall → {fromSpeed.met} MET, mountain bike.
+            {fromSpeed.fromSpeed
+              ? ' From your speed.'
+              : ' Your average includes standing at lights, so this uses the value for self-paced commuting instead — a town ride costs more than its average speed suggests.'}
+          </div>
+        </>
       ) : (
         <>
           <Field label="How hard">

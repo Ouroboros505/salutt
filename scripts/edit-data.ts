@@ -101,13 +101,23 @@ function change(data: Data): string[] {
   // Ids well clear of 1 so they cannot land on a route created on the phone
   // before this arrives — the merge still matches rows by key.
   const ROUTES = [
-    { id: 101, name: 'Home → campus', km: 4.3, minutes: 17 },
-    { id: 102, name: 'Campus → home', km: 4.3, minutes: 17 },
-    { id: 103, name: 'Home → CoRec', km: 4.9, minutes: 19 },
-    { id: 104, name: 'CoRec → home', km: 4.9, minutes: 19 },
+    { id: 101, name: 'Home → campus', km: 4.3, minutes: 20 },
+    { id: 102, name: 'Campus → home', km: 4.3, minutes: 20 },
+    { id: 103, name: 'Home → CoRec', km: 4.9, minutes: 20 },
+    { id: 104, name: 'CoRec → home', km: 4.9, minutes: 20 },
   ]
   for (const r of ROUTES) {
-    if ((data.routes ?? []).some((x) => x.name === r.name)) continue
+    const have = (data.routes ?? []).find((x) => x.name === r.name)
+    if (have) {
+      // The real time, now that it is known: twenty minutes through the
+      // lights, not the pace I guessed at.
+      if (have.minutes !== r.minutes && have.useCount === 0) {
+        have.minutes = r.minutes
+        touch(have)
+        notes.push(`${r.name}: time set to ${r.minutes} min`)
+      }
+      continue
+    }
     ;(data.routes ??= []).push(
       touch({ ...r, useCount: 0, lastUsed: 0, createdAt: Date.now() }),
     )
