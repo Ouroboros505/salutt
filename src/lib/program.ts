@@ -172,7 +172,8 @@ export const CATALOGUE: Exercise[] = [
 
   // -------------------------------------------------------------- Triceps
   E('Triceps Rope Pushdown', 'Triceps', 3, '15', 4, 90, 'Cable, rope', true),
-  E('Overhead Triceps Extension', 'Triceps', 3, '12', 4, 95, 'Dumbbell or cable', true),
+  E('Overhead Triceps Extension (cable)', 'Triceps', 3, '12', 4, 95, 'Cable, rope', true),
+  E('Overhead Triceps Extension (dumbbell)', 'Triceps', 3, '12', 4, 95, 'One dumbbell, both hands'),
   E('Skull Crushers', 'Triceps', 3, '12', 4.5, 95, 'EZ bar or dumbbells'),
   E('Close-Grip Bench Press', 'Triceps', 3, '10', 5, 105, 'Barbell, flat bench'),
 
@@ -273,7 +274,7 @@ const LOAD_BY_NAME: Record<string, LoadStyle> = {
   'Chest-Supported Row': LOAD_EACH_HAND,
   'Single-Arm DB Row': LOAD_ONE,
   'Goblet Squat': LOAD_ONE,
-  'Overhead Triceps Extension': LOAD_ONE,
+  'Overhead Triceps Extension (dumbbell)': LOAD_ONE,
   'Preacher Curl': LOAD_ONE,
 }
 for (const ex of CATALOGUE) {
@@ -298,7 +299,7 @@ export const WEEK: DayPlan[] = [
     exercises: [
       'Movement Prep (bands, circles, bridges)', 'Barbell Bench Press', 'Incline DB Press',
       'Cable Fly', 'Seated DB Shoulder Press', 'Lateral Raises', 'Triceps Rope Pushdown',
-      'Overhead Triceps Extension', 'Face Pulls', 'Cool-Down Stretch',
+      'Overhead Triceps Extension (cable)', 'Face Pulls', 'Cool-Down Stretch',
     ],
   },
   {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { db, type ISODate, type Settings } from '../db/db'
+import { db, type ISODate, type Settings, type Workout } from '../db/db'
 import {
   CATALOGUE,
   GROUPS,
@@ -14,11 +14,17 @@ import {
   type Exercise,
   type MuscleGroup,
 } from '../lib/program'
-import { Icon, NumberInput, Sheet } from './ui'
+import { Icon, Meter, NumberInput, Sheet } from './ui'
 
 interface SetRow {
   reps: number
   weightKg?: number
+  /**
+   * Ticked off as it is finished. A session is worked through in order and
+   * the useful thing mid-workout is knowing where you are in it, which a page
+   * of identical rows does not tell you.
+   */
+  done?: boolean
 }
 
 interface Done {
@@ -66,16 +72,30 @@ function startingSets(ex: Exercise): SetRow[] {
  * of a working set, and flattening that into "3 x 12" throws away the only
  * progression worth watching.
  */
+/** Rebuilds the editable shape from a session already logged. */
+function fromWorkout(w: Workout): Done[] {
+  const out: Done[] = []
+  for (const s of w.sets) {
+    const last = out[out.length - 1]
+    if (last && last.name === s.exercise) last.sets.push({ reps: s.reps, weightKg: s.weightKg || undefined })
+    else out.push({ key: `${s.exercise}-${out.length}`, name: s.exercise, sets: [{ reps: s.reps, weightKg: s.weightKg || undefined }] })
+  }
+  return out
+}
+
 export default function SessionSheet({
   date,
   kg,
   settings,
+  workout,
   onClose,
   toast,
 }: {
   date: ISODate
   kg: number
   settings: Settings
+  /** An existing session being corrected, rather than a new one. */
+  workout?: Workout
   onClose: () => void
   toast: (m: string) => void
 }) {
@@ -83,8 +103,9 @@ export default function SessionSheet({
   const setUnit = (u: 'kg' | 'lb') => void db.settings.update('settings', { liftUnit: u })
   const plan = planFor(date)
 
-  const [restored] = useState(() => !!loadDraft(date))
+  const [restored] = useState(() => !workout && !!loadDraft(date))
   const [items, setItems] = useState<Done[]>(() => {
+    if (workout) return fromWorkout(workout)
     const saved = loadDraft(date)
     if (saved) return saved
     return (plan?.exercises ?? [])
@@ -101,13 +122,16 @@ export default function SessionSheet({
   const [saving, setSaving] = useState(false)
 
   // Written on every change, so closing the sheet mid-session costs nothing.
+  // An edit of something already logged is not a draft and must not overwrite
+  // one that is in progress.
   useEffect(() => {
+    if (workout) return
     try {
       localStorage.setItem(draftKey(date), JSON.stringify({ date, items } satisfies Draft))
     } catch {
       // Storage being full or blocked is not a reason to stop logging.
     }
-  }, [date, items])
+  }, [date, items, workout])
 
   const detail = (name: string) => byName(name)
   const countOf = (i: Done) => (i.minutes != null ? i.minutes : i.sets.length)
@@ -120,6 +144,8 @@ export default function SessionSheet({
     return ex ? exerciseMinutes(ex, countOf(i)) : 0
   }
 
+  const totalSets = items.reduce((t, i) => t + i.sets.length, 0)
+  const doneSets = items.reduce((t, i) => t + i.sets.filter((x) => x.done).length, 0)
   const kcal = items.reduce((t, i) => t + kcalOf(i), 0)
   const minutes = items.reduce((t, i) => t + minutesOf(i), 0)
   const planned = plan?.exercises.length ?? 0
@@ -247,9 +273,18 @@ export default function SessionSheet({
                 <>
                   {i.sets.map((set, idx) => (
                     <div className="row" key={idx} style={{ gap: 6, alignItems: 'center' }}>
-                      <span className="tiny muted" style={{ width: 26, flex: 'none' }}>
-                        {idx + 1}
-                      </span>
+                      <button
+                        className="iconbtn"
+                        aria-label={`Set ${idx + 1} ${set.done ? 'done' : 'not done'}`}
+                        aria-pressed={!!set.done}
+                        onClick={() => setSet(i.key, idx, { done: !set.done })}
+                        style={{
+                          minWidth: 30,
+                          color: set.done ? 'var(--success-text)' : 'var(--text-muted)',
+                        }}
+                      >
+                        {set.done ? <Icon.check /> : <span className="tiny num">{idx + 1}</span>}
+                      </button>
                       <div style={{ width: 92, flex: 'none' }}>
                         <NumberInput
                           value={set.reps || undefined}
@@ -314,8 +349,21 @@ export default function SessionSheet({
           </span>
           <span className="stat-value num">{kcal} kcal</span>
         </div>
+        {totalSets > 0 && (
+          <>
+            <div className="row between small num">
+              <span className="secondary">Sets ticked off</span>
+              <span>
+                {doneSets} of {totalSets}
+              </span>
+            </div>
+            <Meter value={doneSets} max={totalSets} />
+          </>
+        )}
         <div className="tiny muted">
-          Kept as you go. It reaches the day's energy only once you finish.
+          {workout
+            ? 'Saved over the session already logged.'
+            : 'Saved as you go, every change. It reaches the day’s energy only once you finish.'}
         </div>
       </div>
 
@@ -328,7 +376,7 @@ export default function SessionSheet({
             const groups = items
               .map((i) => detail(i.name)?.group)
               .filter((g): g is MuscleGroup => !!g)
-            await db.workouts.add({
+            const row: Omit<Workout, 'id'> = {
               date,
               kind: groups.length > 0 && groups.every((g) => g === 'Cardio') ? 'cardio' : 'strength',
               name: plan ? plan.name.split(' — ')[0] : describeSession(groups),
@@ -338,21 +386,23 @@ export default function SessionSheet({
                 i.sets.map((s) => ({ exercise: i.name, reps: s.reps, weightKg: s.weightKg ?? 0 })),
               ),
               notes: plan && kept < planned ? `${kept} of ${planned} planned exercises` : undefined,
-              createdAt: Date.now(),
-            })
-            localStorage.removeItem(draftKey(date))
-            toast(`${minutes} min logged — ${kcal} kcal`)
+              createdAt: workout?.createdAt ?? Date.now(),
+            }
+            if (workout?.id) await db.workouts.update(workout.id, row)
+            else await db.workouts.add(row)
+            if (!workout) localStorage.removeItem(draftKey(date))
+            toast(workout ? 'Session updated' : `${minutes} min logged — ${kcal} kcal`)
             onClose()
           } finally {
             setSaving(false)
           }
         }}
       >
-        Finish and log · {minutes} min · {kcal} kcal
+        {workout ? 'Save changes' : 'Finish and log'} · {minutes} min · {kcal} kcal
       </button>
 
       <button className="btn ghost block muted" onClick={onClose}>
-        Keep for later
+        {workout ? 'Cancel' : 'Keep for later'}
       </button>
     </Sheet>
   )

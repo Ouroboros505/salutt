@@ -29,6 +29,9 @@ export default function Train({
   const [editing, setEditing] = useState<Workout | 'new' | null>(null)
   const [riding, setRiding] = useState(false)
   const [session, setSession] = useState(false)
+  // Corrections to a logged session go through the same sheet that wrote it,
+  // so the catalogue and the per-set rows are all there.
+  const [sessionEdit, setSessionEdit] = useState<Workout | null>(null)
   // The energy cost of moving a body scales with the body, so the estimate
   // uses the most recent weigh-in rather than a stored constant.
   const latest = useLiveQuery(() => db.weighIns.orderBy('date').last(), [])
@@ -117,7 +120,11 @@ export default function Train({
         ) : (
           <div>
             {today.map((w) => (
-              <button key={w.id} className="item" onClick={() => setEditing(w)}>
+              <button
+                key={w.id}
+                className="item"
+                onClick={() => (w.kind === 'ride' ? setEditing(w) : setSessionEdit(w))}
+              >
                 <div className="grow">
                   <div className="item-title truncate">{w.name}</div>
                   <div className="tiny muted truncate">{describe(w, unit)}</div>
@@ -151,6 +158,17 @@ export default function Train({
                 : `${planFor(date)!.exercises.length} exercises suggested · tap to log what you actually did`}
           </div>
         </button>
+      )}
+
+      {sessionEdit && (
+        <SessionSheet
+          date={sessionEdit.date}
+          kg={latest?.kg ?? 70}
+          settings={settings}
+          workout={sessionEdit}
+          onClose={() => setSessionEdit(null)}
+          toast={toast}
+        />
       )}
 
       {session && (
