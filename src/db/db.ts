@@ -289,6 +289,12 @@ export interface Route {
   km: number
   /** How long it took last time, so the whole ride fills in from one tap. */
   minutes: number
+  /**
+   * Metres climbed on the way, which for a river-valley crossing is the
+   * largest single term — and asymmetric, since the way back climbs what the
+   * way out descended.
+   */
+  climbM?: number
   useCount: number
   lastUsed: number
   createdAt: number

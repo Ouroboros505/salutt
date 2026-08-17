@@ -44,6 +44,7 @@ export default function RideSheet({
   // so the energy — honest for each direction.
   const [returnTrip, setReturnTrip] = useState(false)
   const [style, setStyle] = useState<RideStyle>('commute')
+  const [climbM, setClimbM] = useState<number | undefined>(undefined)
 
   // The journeys you actually make, most-used first. A distance looked up
   // once on a map is worth keeping forever.
@@ -54,6 +55,7 @@ export default function RideSheet({
     setPlace(r.name)
     setKm(r.km)
     setMinutes(r.minutes)
+    setClimbM(r.climbM)
     setRouteId(r.id ?? null)
   }
 
@@ -65,7 +67,6 @@ export default function RideSheet({
   // With a distance the ride can be worked out from mechanics, which is what
   // cycling actually obeys: the work is a force over a distance. Without one,
   // fall back to an effort guess against the clock.
-  const [climbM, setClimbM] = useState<number | undefined>(undefined)
   const physics = rideEnergy(km ?? 0, minutes ?? 0, kg, {
     stops: style === 'commute' ? Math.round((km ?? 0) * STOPS_PER_KM) : 0,
     climbM,
@@ -226,6 +227,7 @@ export default function RideSheet({
                 lastUsed: Date.now(),
                 minutes: minutes ?? r.minutes,
                 km: km ?? r.km,
+                climbM: climbM ?? r.climbM,
               })
             }
           }

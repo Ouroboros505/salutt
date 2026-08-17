@@ -100,21 +100,25 @@ function change(data: Data): string[] {
   //
   // Ids well clear of 1 so they cannot land on a route created on the phone
   // before this arrives — the merge still matches rows by key.
+  // Ascent sampled from the USGS national map along each line. The route
+  // drops off the east-side bluff into the Wabash valley and climbs back up
+  // into West Lafayette, so the two directions are nothing alike: 30 m of
+  // climbing out, 48 m coming home.
   const ROUTES = [
-    { id: 101, name: 'Home → campus', km: 4.3, minutes: 20 },
-    { id: 102, name: 'Campus → home', km: 4.3, minutes: 20 },
-    { id: 103, name: 'Home → CoRec', km: 4.9, minutes: 20 },
-    { id: 104, name: 'CoRec → home', km: 4.9, minutes: 20 },
+    { id: 101, name: 'Home → campus', km: 4.3, minutes: 20, climbM: 30 },
+    { id: 102, name: 'Campus → home', km: 4.3, minutes: 20, climbM: 48 },
+    { id: 103, name: 'Home → CoRec', km: 4.9, minutes: 20, climbM: 32 },
+    { id: 104, name: 'CoRec → home', km: 4.9, minutes: 20, climbM: 50 },
   ]
   for (const r of ROUTES) {
     const have = (data.routes ?? []).find((x) => x.name === r.name)
     if (have) {
       // The real time, now that it is known: twenty minutes through the
       // lights, not the pace I guessed at.
-      if (have.minutes !== r.minutes && have.useCount === 0) {
-        have.minutes = r.minutes
+      if (have.climbM !== r.climbM) {
+        have.climbM = r.climbM
         touch(have)
-        notes.push(`${r.name}: time set to ${r.minutes} min`)
+        notes.push(`${r.name}: ${r.climbM} m of climbing`)
       }
       continue
     }
