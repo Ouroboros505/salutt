@@ -113,17 +113,24 @@ function change(data: Data): string[] {
     { id: 102, name: 'Campus → home', km: 4.3, minutes: 20, climbM: 55 },
     { id: 103, name: 'Home → CoRec', km: 5.0, minutes: 20, climbM: 41 },
     { id: 104, name: 'CoRec → home', km: 5.0, minutes: 20, climbM: 59 },
+    // Aldi, 957 Sagamore Pkwy S: 1.6 miles and flat, both ways — 207 m at the
+    // house, 202 at the shop. The return carries a 50 L pack of groceries,
+    // which is mass and therefore work: it goes in as a load rather than as a
+    // fudge to the effort.
+    { id: 105, name: 'Home → Aldi', km: 2.6, minutes: 10, climbM: 4 },
+    { id: 106, name: 'Aldi → home', km: 2.6, minutes: 13, climbM: 9, loadKg: 12 },
   ]
   for (const r of ROUTES) {
     const have = (data.routes ?? []).find((x) => x.name === r.name)
     if (have) {
       // The real time, now that it is known: twenty minutes through the
       // lights, not the pace I guessed at.
-      if (have.climbM !== r.climbM || have.km !== r.km) {
+      if (have.climbM !== r.climbM || have.km !== r.km || have.loadKg !== (r as any).loadKg) {
         have.climbM = r.climbM
         have.km = r.km
+        if ((r as any).loadKg != null) have.loadKg = (r as any).loadKg
         touch(have)
-        notes.push(`${r.name}: ${r.km} km, ${r.climbM} m of climbing`)
+        notes.push(`${r.name}: ${r.km} km, ${r.climbM} m` + ((r as any).loadKg ? `, carrying ${(r as any).loadKg} kg` : ''))
       }
       continue
     }

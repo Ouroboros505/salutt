@@ -45,6 +45,9 @@ export default function RideSheet({
   const [returnTrip, setReturnTrip] = useState(false)
   const [style, setStyle] = useState<RideStyle>('commute')
   const [climbM, setClimbM] = useState<number | undefined>(undefined)
+  // Shopping, a laptop, whatever is on your back. It is mass like any other
+  // and the rolling resistance and the climbing both scale with it.
+  const [loadKg, setLoadKg] = useState<number | undefined>(undefined)
 
   // The journeys you actually make, most-used first. A distance looked up
   // once on a map is worth keeping forever.
@@ -56,6 +59,7 @@ export default function RideSheet({
     setKm(r.km)
     setMinutes(r.minutes)
     setClimbM(r.climbM)
+    setLoadKg(r.loadKg)
     setRouteId(r.id ?? null)
   }
 
@@ -67,7 +71,7 @@ export default function RideSheet({
   // With a distance the ride can be worked out from mechanics, which is what
   // cycling actually obeys: the work is a force over a distance. Without one,
   // fall back to an effort guess against the clock.
-  const physics = rideEnergy(km ?? 0, minutes ?? 0, kg, {
+  const physics = rideEnergy(km ?? 0, minutes ?? 0, kg + (loadKg ?? 0), {
     stops: style === 'commute' ? Math.round((km ?? 0) * STOPS_PER_KM) : 0,
     climbM,
     bmrPerMin,
@@ -137,9 +141,14 @@ export default function RideSheet({
               Barely stopped
             </button>
           </div>
-          <Field label="Climbing" hint="metres of ascent, if you know it">
-            <NumberInput value={climbM} unit="m" placeholder="0" onChange={setClimbM} />
-          </Field>
+          <div className="grid-2">
+            <Field label="Climbing" hint="metres of ascent, if you know it">
+              <NumberInput value={climbM} unit="m" placeholder="0" onChange={setClimbM} />
+            </Field>
+            <Field label="Carrying" hint="shopping, a loaded backpack">
+              <NumberInput value={loadKg} unit="kg" placeholder="0" onChange={setLoadKg} />
+            </Field>
+          </div>
           <div className="tiny muted num">
             {physics.kmh} km/h · rolling {physics.rolling} kJ · air {physics.air} kJ
             {physics.restarts ? ` · restarts ${physics.restarts} kJ` : ''}
@@ -177,6 +186,8 @@ export default function RideSheet({
               name: place.trim(),
               km: km!,
               minutes: minutes!,
+              climbM,
+              loadKg,
               useCount: 0,
               lastUsed: Date.now(),
               createdAt: Date.now(),
@@ -228,6 +239,7 @@ export default function RideSheet({
                 minutes: minutes ?? r.minutes,
                 km: km ?? r.km,
                 climbM: climbM ?? r.climbM,
+                loadKg: loadKg ?? r.loadKg,
               })
             }
           }

@@ -300,6 +300,12 @@ export interface Route {
    * way out descended.
    */
   climbM?: number
+  /**
+   * Extra weight usually carried on this trip, in kilograms. A ride home from
+   * the shops moves the shopping too, and every term except air resistance
+   * scales with the mass being moved.
+   */
+  loadKg?: number
   useCount: number
   lastUsed: number
   createdAt: number
