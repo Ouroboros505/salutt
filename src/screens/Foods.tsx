@@ -13,6 +13,7 @@ export default function Foods({ toast }: { toast: (m: string) => void }) {
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState<Food | null>(null)
   const [creating, setCreating] = useState(false)
+  const [template, setTemplate] = useState<MealTemplate | null>(null)
   const [recipe, setRecipe] = useState<Recipe | 'new' | null>(null)
 
   const foods = useLiveQuery(() => db.foods.toArray(), []) ?? []
@@ -111,7 +112,7 @@ export default function Foods({ toast }: { toast: (m: string) => void }) {
           <h3>Quick meals</h3>
           <div>
             {templates.map((t) => (
-              <TemplateRow key={t.id} template={t} toast={toast} />
+              <TemplateRow key={t.id} template={t} onEdit={() => setTemplate(t)} />
             ))}
           </div>
         </div>
@@ -189,6 +190,10 @@ export default function Foods({ toast }: { toast: (m: string) => void }) {
 
       {editing && <EditFood food={editing} onClose={() => setEditing(null)} toast={toast} />}
 
+      {template && (
+        <EditTemplate template={template} onClose={() => setTemplate(null)} toast={toast} />
+      )}
+
       {creating && (
         <Sheet title="New food" onClose={() => setCreating(false)}>
           <CreateFood
@@ -235,26 +240,117 @@ function macroLine(f: {
   return `${Math.round(f.kcal)} kcal · P ${f.protein} C ${f.carbs} F ${f.fat} / 100 g`
 }
 
-function TemplateRow({ template, toast }: { template: MealTemplate; toast: (m: string) => void }) {
+function TemplateRow({
+  template,
+  onEdit,
+}: {
+  template: MealTemplate
+  onEdit: () => void
+}) {
   return (
-    <div className="item">
+    <button className="item" onClick={onEdit}>
       <div className="grow">
         <div className="item-title truncate">{template.name}</div>
         <div className="tiny muted">
           {template.items.length} item{template.items.length === 1 ? '' : 's'} · used {template.useCount}×
         </div>
       </div>
+      <span className="muted">
+        <Icon.edit />
+      </span>
+    </button>
+  )
+}
+
+/**
+ * Editing a saved quick meal.
+ *
+ * A quick meal is a shortcut, and a shortcut with the wrong amounts in it is
+ * worse than none — it puts a wrong number into the log faster. Renaming,
+ * changing what is in it, and deleting are all the same job, so they are in
+ * one place rather than a delete button and nothing else.
+ */
+function EditTemplate({
+  template,
+  onClose,
+  toast,
+}: {
+  template: MealTemplate
+  onClose: () => void
+  toast: (m: string) => void
+}) {
+  const [name, setName] = useState(template.name)
+  const [items, setItems] = useState(template.items)
+  const foods = useLiveQuery(() => db.foods.toArray(), []) ?? []
+  const byId = new Map(foods.map((f) => [f.id, f]))
+  const kcal = items.reduce((t, i) => t + ((byId.get(i.foodId)?.kcal ?? 0) * i.grams) / 100, 0)
+
+  return (
+    <Sheet title="Quick meal" onClose={onClose}>
+      <Field label="Name">
+        <input value={name} onChange={(e) => setName(e.target.value)} />
+      </Field>
+
+      <div className="card tight">
+        <h3>What is in it</h3>
+        {items.length === 0 && <div className="empty">Nothing left in it.</div>}
+        {items.map((i, idx) => {
+          const f = byId.get(i.foodId)
+          return (
+            <div className="row" key={idx} style={{ gap: 8, paddingBlock: 6 }}>
+              <div className="grow" style={{ minWidth: 0 }}>
+                <div className="item-title truncate">{f?.name ?? 'Missing food'}</div>
+                <div className="tiny muted num">
+                  {Math.round(((f?.kcal ?? 0) * i.grams) / 100)} kcal
+                </div>
+              </div>
+              <div style={{ width: 92, flex: 'none' }}>
+                <NumberInput
+                  value={i.grams || undefined}
+                  unit="g"
+                  onChange={(v) =>
+                    setItems(items.map((x, j) => (j === idx ? { ...x, grams: v ?? 0 } : x)))
+                  }
+                />
+              </div>
+              <button
+                className="iconbtn"
+                aria-label={`Remove ${f?.name ?? 'item'}`}
+                onClick={() => setItems(items.filter((_, j) => j !== idx))}
+              >
+                <Icon.close />
+              </button>
+            </div>
+          )
+        })}
+        <div className="row between" style={{ paddingTop: 8 }}>
+          <span className="stat-label">Whole thing</span>
+          <span className="stat-value num">{Math.round(kcal)} kcal</span>
+        </div>
+      </div>
+
       <button
-        className="iconbtn"
-        aria-label={`Delete ${template.name}`}
+        className="btn primary block"
+        disabled={!name.trim()}
+        onClick={async () => {
+          await db.mealTemplates.update(template.id!, { name: name.trim(), items })
+          toast('Quick meal saved')
+          onClose()
+        }}
+      >
+        Save
+      </button>
+      <button
+        className="btn danger block"
         onClick={async () => {
           await db.mealTemplates.delete(template.id!)
           toast('Quick meal deleted')
+          onClose()
         }}
       >
-        <Icon.trash />
+        <Icon.trash /> Delete this quick meal
       </button>
-    </div>
+    </Sheet>
   )
 }
 
