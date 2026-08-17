@@ -228,6 +228,12 @@ export interface Settings {
   trendHalfLifeDays: number
   /** The lunch container you fill, in millilitres. */
   boxMl?: number
+  /**
+   * Units for weights lifted. Body weight stays metric because the scale is,
+   * but American gym plates and machines are marked in pounds, and converting
+   * in your head between sets is how a log stops being kept.
+   */
+  liftUnit?: 'kg' | 'lb'
   /** Athletic body type — shifts the scale's body-fat derivation. */
   athlete?: boolean
   usdaApiKey?: string

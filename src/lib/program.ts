@@ -248,3 +248,31 @@ export function exerciseKcal(ex: Exercise, count: number, kg: number): number {
 export function exerciseMinutes(ex: Exercise, count: number): number {
   return Math.round((count * ex.secPerSet) / 60)
 }
+
+/** Pounds to kilograms, exactly. */
+export const LB_PER_KG = 2.2046226218
+
+export function toDisplayWeight(kg: number | undefined, unit: 'kg' | 'lb'): number | undefined {
+  if (kg == null) return undefined
+  return unit === 'lb' ? Math.round(kg * LB_PER_KG * 10) / 10 : kg
+}
+
+export function fromDisplayWeight(value: number | undefined, unit: 'kg' | 'lb'): number | undefined {
+  if (value == null) return undefined
+  return unit === 'lb' ? Math.round((value / LB_PER_KG) * 100) / 100 : value
+}
+
+/**
+ * A name for the session, from what was actually in it.
+ *
+ * "Session" says nothing a date does not already say. The muscle groups
+ * trained are what distinguishes one day from another, and on a day that went
+ * entirely off-plan they are the only description there is.
+ */
+export function describeSession(groups: MuscleGroup[]): string {
+  const seen = [...new Set(groups)]
+  if (seen.length === 0) return 'Session'
+  if (seen.length === 1) return seen[0]
+  if (seen.length === 2) return `${seen[0]} and ${seen[1]}`
+  return `${seen.slice(0, 2).join(', ')} +${seen.length - 2}`
+}

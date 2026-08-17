@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react'
-import { db, type ISODate } from '../db/db'
+import { db, type ISODate, type Settings } from '../db/db'
 import {
   CATALOGUE,
   GROUPS,
   byName,
+  describeSession,
   exerciseKcal,
   exerciseMinutes,
+  fromDisplayWeight,
   planFor,
+  toDisplayWeight,
   type Exercise,
   type MuscleGroup,
 } from '../lib/program'
@@ -33,14 +36,20 @@ interface Done {
 export default function SessionSheet({
   date,
   kg,
+  settings,
   onClose,
   toast,
 }: {
   date: ISODate
   kg: number
+  settings: Settings
   onClose: () => void
   toast: (m: string) => void
 }) {
+  // Plates here are marked in pounds; body weight stays metric because the
+  // scale is. Stored in kilograms either way, so the two never diverge.
+  const unit = settings.liftUnit ?? 'lb'
+  const setUnit = (u: 'kg' | 'lb') => void db.settings.update('settings', { liftUnit: u })
   const plan = planFor(date)
   const [items, setItems] = useState<Done[]>(() =>
     (plan?.exercises ?? [])
@@ -110,10 +119,19 @@ export default function SessionSheet({
 
   return (
     <Sheet title={plan ? plan.name : 'Session'} onClose={onClose}>
-      <div className="tiny muted">
-        {plan
-          ? 'Today’s plan, filled in. Change anything — fewer sets, more reps, drop what the gym was busy with.'
-          : 'No session planned today. Add whatever you did.'}
+      <div className="row between">
+        <span className="tiny muted grow">
+          {plan
+            ? 'Today’s plan, filled in. Change anything — fewer sets, more reps, drop what the gym was busy with.'
+            : 'No session planned today. Add whatever you did.'}
+        </span>
+        <div className="scroll-x" style={{ flex: 'none' }}>
+          {(['lb', 'kg'] as const).map((u) => (
+            <button key={u} className="chip" aria-pressed={unit === u} onClick={() => setUnit(u)}>
+              {u}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="card tight">
@@ -155,12 +173,12 @@ export default function SessionSheet({
                     aria-label="Reps"
                     onChange={(e) => update(i.key, { reps: e.target.value })}
                   />
-                  <div style={{ width: 88, flex: 'none' }}>
+                  <div style={{ width: 96, flex: 'none' }}>
                     <NumberInput
-                      value={i.weightKg}
-                      unit="kg"
+                      value={toDisplayWeight(i.weightKg, unit)}
+                      unit={unit}
                       placeholder="—"
-                      onChange={(v) => update(i.key, { weightKg: v })}
+                      onChange={(v) => update(i.key, { weightKg: fromDisplayWeight(v, unit) })}
                     />
                   </div>
                 </>
@@ -200,7 +218,8 @@ export default function SessionSheet({
             await db.workouts.add({
               date,
               kind: items.every((i) => i.ex.group === 'Cardio') ? 'cardio' : 'strength',
-              name: plan ? plan.name.split(' — ')[0] : 'Session',
+              // What it was, rather than that it happened.
+              name: plan ? plan.name.split(' — ')[0] : describeSession(items.map((i) => i.ex.group)),
               durationMin: minutes,
               kcal,
               sets: items.flatMap((i) =>

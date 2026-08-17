@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, type ISODate, type SetEntry, type Workout } from '../db/db'
+import { db, type ISODate, type SetEntry, type Settings, type Workout } from '../db/db'
 import { formatDay, todayISO } from '../lib/date'
 import { Field, Icon, NumberInput, Segmented, Sheet } from '../components/ui'
 import RideSheet from '../components/RideSheet'
 import SessionSheet from '../components/SessionSheet'
-import { planFor } from '../lib/program'
+import { planFor, toDisplayWeight, fromDisplayWeight } from '../lib/program'
 
 const KINDS = [
   { value: 'strength' as const, label: 'Strength' },
@@ -14,7 +14,15 @@ const KINDS = [
   { value: 'other' as const, label: 'Other' },
 ]
 
-export default function Train({ date, toast }: { date: ISODate; toast: (m: string) => void }) {
+export default function Train({
+  date,
+  settings,
+  toast,
+}: {
+  date: ISODate
+  settings: Settings
+  toast: (m: string) => void
+}) {
   const [editing, setEditing] = useState<Workout | 'new' | null>(null)
   const [riding, setRiding] = useState(false)
   const [session, setSession] = useState(false)
@@ -34,6 +42,7 @@ export default function Train({ date, toast }: { date: ISODate; toast: (m: strin
   const rides = recent.filter((w) => w.kind === 'ride')
   const rideMin = rides.reduce((t, w) => t + (w.durationMin ?? 0), 0)
   const rideKm = rides.reduce((t, w) => t + (w.distanceKm ?? 0), 0)
+  const unit = settings.liftUnit ?? 'lb'
   const volume = workouts
     .filter((w) => w.date > shiftDays(todayISO(), -7))
     .reduce((t, w) => t + w.sets.reduce((s, x) => s + x.reps * x.weightKg, 0), 0)
@@ -48,7 +57,9 @@ export default function Train({ date, toast }: { date: ISODate; toast: (m: strin
               {thisWeek} <span className="hero-unit">session{thisWeek === 1 ? '' : 's'}</span>
             </div>
             {volume > 0 && (
-              <div className="tiny muted num">{Math.round(volume).toLocaleString()} kg total volume</div>
+              <div className="tiny muted num">
+                {Math.round(toDisplayWeight(volume, unit) ?? volume).toLocaleString()} {unit} total volume
+              </div>
             )}
             {rideMin > 0 && (
               <div className="tiny muted num">
@@ -89,7 +100,7 @@ export default function Train({ date, toast }: { date: ISODate; toast: (m: strin
               <button key={w.id} className="item" onClick={() => setEditing(w)}>
                 <div className="grow">
                   <div className="item-title truncate">{w.name}</div>
-                  <div className="tiny muted truncate">{describe(w)}</div>
+                  <div className="tiny muted truncate">{describe(w, unit)}</div>
                 </div>
                 <span className="muted">
                   <Icon.edit />
@@ -116,6 +127,7 @@ export default function Train({ date, toast }: { date: ISODate; toast: (m: strin
         <SessionSheet
           date={date}
           kg={latest?.kg ?? 70}
+          settings={settings}
           onClose={() => setSession(false)}
           toast={toast}
         />
@@ -133,6 +145,7 @@ export default function Train({ date, toast }: { date: ISODate; toast: (m: strin
       {editing && (
         <WorkoutSheet
           workout={editing === 'new' ? undefined : editing}
+          unit={unit}
           date={date}
           onClose={() => setEditing(null)}
           toast={toast}
@@ -142,12 +155,12 @@ export default function Train({ date, toast }: { date: ISODate; toast: (m: strin
   )
 }
 
-function describe(w: Workout): string {
+function describe(w: Workout, unit: 'kg' | 'lb' = 'kg'): string {
   const bits: string[] = []
   if (w.sets.length) {
     const vol = w.sets.reduce((s, x) => s + x.reps * x.weightKg, 0)
     bits.push(`${w.sets.length} sets`)
-    if (vol > 0) bits.push(`${Math.round(vol).toLocaleString()} kg volume`)
+    if (vol > 0) bits.push(`${Math.round(toDisplayWeight(vol, unit) ?? vol).toLocaleString()} ${unit} volume`)
   }
   if (w.durationMin) bits.push(`${w.durationMin} min`)
   if (w.distanceKm) bits.push(`${w.distanceKm} km`)
@@ -163,11 +176,13 @@ function shiftDays(d: ISODate, n: number): ISODate {
 
 function WorkoutSheet({
   workout,
+  unit,
   date,
   onClose,
   toast,
 }: {
   workout?: Workout
+  unit: 'kg' | 'lb'
   date: ISODate
   onClose: () => void
   toast: (m: string) => void
@@ -239,11 +254,11 @@ function WorkoutSheet({
                   onChange={(v) => setSet(i, { reps: v ?? 0 })}
                 />
               </div>
-              <div style={{ width: 86, flex: 'none' }}>
+              <div style={{ width: 92, flex: 'none' }}>
                 <NumberInput
-                  value={s.weightKg || undefined}
-                  unit="kg"
-                  onChange={(v) => setSet(i, { weightKg: v ?? 0 })}
+                  value={toDisplayWeight(s.weightKg, unit) || undefined}
+                  unit={unit}
+                  onChange={(v) => setSet(i, { weightKg: fromDisplayWeight(v, unit) ?? 0 })}
                 />
               </div>
               <button
@@ -255,7 +270,7 @@ function WorkoutSheet({
               </button>
             </div>
           ))}
-          {w.sets.length > 0 && <div className="tiny muted">exercise · reps · kg</div>}
+          {w.sets.length > 0 && <div className="tiny muted">exercise · reps · {unit}</div>}
         </div>
       )}
 
