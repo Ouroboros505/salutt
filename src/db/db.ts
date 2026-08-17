@@ -195,6 +195,11 @@ export interface Recipe {
    * tables for the meat alone suggest.
    */
   cookLossPct?: number
+  /**
+   * Where the density came from, so a weighing is not silently replaced by a
+   * calculation about the same dish.
+   */
+  densityFrom?: 'ingredients' | 'category' | 'weighed'
   notes?: string
   useCount: number
   lastUsed: number

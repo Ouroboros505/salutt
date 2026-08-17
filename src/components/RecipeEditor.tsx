@@ -60,6 +60,18 @@ export default function RecipeEditor({
 
   // Every ingredient's own measured density where the database has one, its
   // category otherwise, combined by volume and then reduced for what boiled off.
+  // Calibration from a weighed container, which is what a density really is.
+  const [emptyG, setEmptyG] = useState<number | undefined>(undefined)
+  const [fullG, setFullG] = useState<number | undefined>(undefined)
+  const [fillPct, setFillPct] = useState<number | undefined>(70)
+  const weighed = useMemo(() => {
+    const food = (fullG ?? 0) - (emptyG ?? 0)
+    const ml = ((fillPct ?? 0) / 100) * (draft.containerMl ?? 750)
+    if (!(food > 0) || !(ml > 0)) return null
+    const d = Math.round((food / ml) * 100) / 100
+    return d > 0.2 && d < 1.6 ? d : null
+  }, [emptyG, fullG, fillPct, draft.containerMl])
+
   const dbEntries = useLiveQuery(() => loadFoodDb(), [])
   const index = useMemo(() => (dbEntries ? densityIndex(dbEntries) : null), [dbEntries])
   const derived = useMemo(
@@ -238,29 +250,83 @@ export default function RecipeEditor({
             a weighed container showed the category route 50% out on a chunky
             braise, while the ingredient sum was within a few percent. */}
         <div className="stack tight">
-          {derived && (
+          {/* What is in use, and where it came from — a weighing should not be
+              quietly replaced by a calculation about the same dish. */}
+          <div className="row between">
+            <span className="small num">
+              {draft.density ? (
+                <>
+                  <strong>{draft.density} g/ml</strong>{' '}
+                  <span className="muted tiny">
+                    {draft.densityFrom === 'weighed'
+                      ? '— you weighed it'
+                      : draft.densityFrom === 'category'
+                        ? '— from the kind of dish'
+                        : '— from the ingredients'}
+                  </span>
+                </>
+              ) : (
+                <span className="muted">No density set yet</span>
+              )}
+            </span>
+          </div>
+
+          {derived && draft.density !== derived.density && (
             <div className="row between">
               <span className="tiny muted num grow">
-                From the ingredients: <strong>{derived.density} g/ml</strong>
-                {derived.measured > 0.3
-                  ? ` · ${Math.round(derived.measured * 100)}% of the batch measured`
-                  : ''}
+                The ingredients suggest {derived.density} g/ml
+                {derived.measured > 0.3 ? ` · ${Math.round(derived.measured * 100)}% measured` : ''}
               </span>
-              {draft.density !== derived.density && (
-                <button className="btn sm" onClick={() => setDraft({ ...draft, density: derived.density })}>
-                  Use it
-                </button>
-              )}
+              <button
+                className="btn sm"
+                onClick={() => setDraft({ ...draft, density: derived.density, densityFrom: 'ingredients' })}
+              >
+                Use it
+              </button>
             </div>
           )}
-          <div className="tiny muted">Or say what it is like in the box, if you would rather.</div>
+
+          {/* The best answer available, and the one that settled it here:
+              weigh the container once. Nothing else needs to be right. */}
+          <div className="card tight">
+            <div className="tiny muted">
+              Weighed a box? Empty and full, and roughly how full it was — that beats every
+              estimate.
+            </div>
+            <div className="row" style={{ gap: 6 }}>
+              <div style={{ width: 88, flex: 'none' }}>
+                <NumberInput value={emptyG} unit="g" placeholder="empty" onChange={setEmptyG} />
+              </div>
+              <div style={{ width: 88, flex: 'none' }}>
+                <NumberInput value={fullG} unit="g" placeholder="full" onChange={setFullG} />
+              </div>
+              <div style={{ width: 76, flex: 'none' }}>
+                <NumberInput value={fillPct} unit="%" placeholder="70" onChange={setFillPct} />
+              </div>
+            </div>
+            {weighed && (
+              <div className="row between">
+                <span className="tiny num grow" style={{ color: 'var(--success-text)' }}>
+                  {(fullG ?? 0) - (emptyG ?? 0)} g of food = <strong>{weighed} g/ml</strong>
+                </span>
+                <button
+                  className="btn sm"
+                  onClick={() => setDraft({ ...draft, density: weighed, densityFrom: 'weighed' })}
+                >
+                  Use {weighed}
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="tiny muted">Or say what it is like in the box.</div>
           <div className="scroll-x">
             {DISH_TYPES.map((t) => (
               <button
                 key={t.label}
                 className="chip"
                 aria-pressed={draft.density === t.density}
-                onClick={() => setDraft({ ...draft, density: t.density })}
+                onClick={() => setDraft({ ...draft, density: t.density, densityFrom: 'category' })}
               >
                 {t.label} <span className="muted num">{t.density}</span>
               </button>
