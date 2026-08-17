@@ -1,7 +1,14 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type ISODate, type Route } from '../db/db'
-import { RIDE_EFFORTS, RIDE_PLACES, metFromSpeed, rideKcal, type RideStyle } from '../lib/ride'
+import {
+  RIDE_EFFORTS,
+  RIDE_PLACES,
+  STOPS_PER_KM,
+  rideEnergy,
+  rideKcal,
+  type RideStyle,
+} from '../lib/ride'
 import { Field, Icon, NumberInput, Sheet } from './ui'
 
 /**
@@ -15,12 +22,15 @@ import { Field, Icon, NumberInput, Sheet } from './ui'
 export default function RideSheet({
   date,
   kg,
+  bmrPerMin,
   onClose,
   toast,
 }: {
   date: ISODate
   /** Body weight, since the energy cost scales with what is being moved. */
   kg: number
+  /** Resting cost per minute, which runs whether you pedal or not. */
+  bmrPerMin: number
   onClose: () => void
   toast: (m: string) => void
 }) {
@@ -52,11 +62,16 @@ export default function RideSheet({
 
   const legs = returnTrip ? 2 : 1
   const totalMin = (minutes ?? 0) * legs
-  // Distance and time give a speed, and a speed is a measurement where "how
-  // hard did it feel" is a guess. Used in preference when both are there.
-  const fromSpeed = metFromSpeed(km ?? 0, minutes ?? 0, style)
-  const met = fromSpeed?.met ?? effort.met
-  const kcal = rideKcal(met, kg, totalMin)
+  // With a distance the ride can be worked out from mechanics, which is what
+  // cycling actually obeys: the work is a force over a distance. Without one,
+  // fall back to an effort guess against the clock.
+  const [climbM, setClimbM] = useState<number | undefined>(undefined)
+  const physics = rideEnergy(km ?? 0, minutes ?? 0, kg, {
+    stops: style === 'commute' ? Math.round((km ?? 0) * STOPS_PER_KM) : 0,
+    climbM,
+    bmrPerMin,
+  })
+  const kcal = physics ? physics.kcal * legs : rideKcal(effort.met, kg, totalMin)
 
   return (
     <Sheet title="Log a ride" onClose={onClose}>
@@ -111,7 +126,7 @@ export default function RideSheet({
           : 'log the way back separately if it was different — heavier, slower, another route'}
       </div>
 
-      {fromSpeed ? (
+      {physics ? (
         <>
           <div className="scroll-x">
             <button className="chip" aria-pressed={style === 'commute'} onClick={() => setStyle('commute')}>
@@ -121,11 +136,13 @@ export default function RideSheet({
               Barely stopped
             </button>
           </div>
+          <Field label="Climbing" hint="metres of ascent, if you know it">
+            <NumberInput value={climbM} unit="m" placeholder="0" onChange={setClimbM} />
+          </Field>
           <div className="tiny muted num">
-            {fromSpeed.kmh} km/h overall → {fromSpeed.met} MET, mountain bike.
-            {fromSpeed.fromSpeed
-              ? ' From your speed.'
-              : ' Your average includes standing at lights, so this uses the value for self-paced commuting instead — a town ride costs more than its average speed suggests.'}
+            {physics.kmh} km/h · rolling {physics.rolling} kJ · air {physics.air} kJ
+            {physics.restarts ? ` · restarts ${physics.restarts} kJ` : ''}
+            {physics.climb ? ` · climb ${physics.climb} kJ` : ''}
           </div>
         </>
       ) : (

@@ -89,3 +89,76 @@ export function rideKcal(met: number, kg: number, minutes: number): number {
 
 /** Places worth a button, because they are where the riding actually goes. */
 export const RIDE_PLACES = ['Campus', 'Work', 'Groceries', 'Gym', "Friend's", 'Errands']
+
+
+/* --------------------------------------------------- what a ride really costs */
+
+/**
+ * Cycling energy from mechanics rather than a lookup table.
+ *
+ * A MET value is metabolic cost per unit time, which suits activities whose
+ * intensity is roughly steady. Cycling is not one of those: the work done is
+ * a force applied over a distance, so nearly every term scales with how far
+ * you went, not how long you took. Rolling resistance is distance times a
+ * constant; air resistance is distance times speed squared; the climb is
+ * height alone. Only the resting baseline ticks along with the clock.
+ *
+ * The MET table gave 179 kcal for twenty minutes whether that covered 3 km or
+ * 8 km, which is the tell — the two are 90 and 248 by mechanics, and the
+ * table cannot see the difference because it never looks at distance.
+ *
+ * The constants are honest approximations for an upright rider on a mountain
+ * bike, and the whole thing is stated to the nearest few kcal at best. It is
+ * still a better instrument than a bucket.
+ */
+export const RIDER_EXTRA_KG = 14 // the bike, and whatever is in the bag
+const CRR = 0.012 // knobbly tyres on tarmac
+const CDA = 0.5 // frontal area x drag, upright and unhurried
+const AIR_DENSITY = 1.225
+const GRAVITY = 9.81
+/** Gross mechanical efficiency of pedalling, including the cost of being alive. */
+const EFFICIENCY = 0.23
+const RESTART_SPEED = 5 // m/s regained after each stop
+
+export interface RideEnergy {
+  kcal: number
+  kmh: number
+  /** Where it went, in kilojoules, for showing the working. */
+  rolling: number
+  air: number
+  restarts: number
+  climb: number
+}
+
+export function rideEnergy(
+  km: number,
+  minutes: number,
+  bodyKg: number,
+  opts: { stops?: number; climbM?: number; bmrPerMin?: number } = {},
+): RideEnergy | null {
+  if (!(km > 0) || !(minutes > 0) || !(bodyKg > 0)) return null
+  const mass = bodyKg + RIDER_EXTRA_KG
+  const metres = km * 1000
+  const speed = metres / (minutes * 60)
+  if (speed < 0.8 || speed > 17) return null
+
+  const rolling = CRR * mass * GRAVITY * metres
+  const air = 0.5 * AIR_DENSITY * CDA * speed * speed * metres
+  // Every stop throws away the kinetic energy you had and buys it back.
+  const restarts = (opts.stops ?? 0) * 0.5 * mass * RESTART_SPEED * RESTART_SPEED
+  const climb = mass * GRAVITY * (opts.climbM ?? 0)
+
+  const mechanical = rolling + air + restarts + climb
+  const resting = (opts.bmrPerMin ?? 1) * minutes
+  return {
+    kcal: Math.round(mechanical / EFFICIENCY / 4184 + resting),
+    kmh: Math.round(speed * 3.6 * 10) / 10,
+    rolling: Math.round(rolling / 1000),
+    air: Math.round(air / 1000),
+    restarts: Math.round(restarts / 1000),
+    climb: Math.round(climb / 1000),
+  }
+}
+
+/** Junctions per kilometre on a town ride, which is what stops you. */
+export const STOPS_PER_KM = 2.5

@@ -6,6 +6,7 @@ import { Field, Icon, NumberInput, Segmented, Sheet } from '../components/ui'
 import RideSheet from '../components/RideSheet'
 import SessionSheet from '../components/SessionSheet'
 import { planFor, toDisplayWeight, fromDisplayWeight } from '../lib/program'
+import { ageFrom, bmrMifflin } from '../lib/metrics'
 
 const KINDS = [
   { value: 'strength' as const, label: 'Strength' },
@@ -147,6 +148,9 @@ export default function Train({
         <RideSheet
           date={date}
           kg={latest?.kg ?? 70}
+          bmrPerMin={
+            bmrMifflin(latest?.kg ?? 70, settings.heightCm, ageFrom(settings.birthDate), settings.sex) / 1440
+          }
           onClose={() => setRiding(false)}
           toast={toast}
         />
