@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type ISODate, type Settings, type Workout } from '../db/db'
 import {
   CATALOGUE,
@@ -15,6 +16,7 @@ import {
   type MuscleGroup,
 } from '../lib/program'
 import { Icon, Meter, NumberInput, Sheet } from './ui'
+import { formatShort } from '../lib/date'
 
 interface SetRow {
   reps: number
@@ -120,6 +122,31 @@ export default function SessionSheet({
   })
   const [adding, setAdding] = useState<MuscleGroup | null>(null)
   const [saving, setSaving] = useState(false)
+
+  /**
+   * What you did last time, per exercise.
+   *
+   * The weight is only worth writing down if it can be compared with the last
+   * one, and nobody remembers what they pressed a week ago. Shown as a single
+   * quiet line under each exercise rather than pre-filled: a reference to beat,
+   * not a number to accept without thinking.
+   */
+  const history = useLiveQuery(
+    () => db.workouts.where('date').below(date).reverse().sortBy('date'),
+    [date],
+  )
+  const lastTime = useMemo(() => {
+    const out = new Map<string, { date: ISODate; sets: { reps: number; weightKg: number }[] }>()
+    for (const w of history ?? []) {
+      for (const s of w.sets) {
+        if (!out.has(s.exercise)) out.set(s.exercise, { date: w.date, sets: [] })
+        const entry = out.get(s.exercise)!
+        // Only the most recent session for each, not every session it appears in.
+        if (entry.date === w.date) entry.sets.push({ reps: s.reps, weightKg: s.weightKg })
+      }
+    }
+    return out
+  }, [history])
 
   // Written on every change, so closing the sheet mid-session costs nothing.
   // An edit of something already logged is not a draft and must not overwrite
@@ -251,6 +278,22 @@ export default function SessionSheet({
                     {minutesOf(i)} min · {kcalOf(i)} kcal
                     {ex?.load && !ex.byMinutes ? ` · weight = ${ex.load.label}` : ''}
                   </div>
+                  {(() => {
+                    const prev = lastTime.get(i.name)
+                    if (!prev || prev.sets.length === 0 || i.minutes != null) return null
+                    return (
+                      <div className="tiny num" style={{ color: 'var(--text-muted)', opacity: 0.75 }}>
+                        {formatShort(prev.date)}:{' '}
+                        {prev.sets
+                          .map((s2) =>
+                            s2.weightKg
+                              ? `${s2.reps}×${Math.round(toDisplayWeight(s2.weightKg, unit) ?? 0)}`
+                              : `${s2.reps}`,
+                          )
+                          .join(' · ')}
+                      </div>
+                    )
+                  })()}
                 </div>
                 <button
                   className="iconbtn"
