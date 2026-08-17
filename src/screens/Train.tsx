@@ -17,10 +17,12 @@ const KINDS = [
 
 export default function Train({
   date,
+  setDate,
   settings,
   toast,
 }: {
   date: ISODate
+  setDate: (d: ISODate) => void
   settings: Settings
   toast: (m: string) => void
 }) {
@@ -33,10 +35,9 @@ export default function Train({
 
   const workouts = useLiveQuery(() => db.workouts.orderBy('date').reverse().limit(60).toArray(), []) ?? []
 
-  const byDate = workouts.reduce<Record<string, Workout[]>>((acc, w) => {
-    ;(acc[w.date] ??= []).push(w)
-    return acc
-  }, {})
+  // Only the day being looked at. The week's totals are above; a wall of
+  // history underneath makes it hard to see whether today has happened.
+  const today = workouts.filter((w) => w.date === date)
 
   const recent = workouts.filter((w) => w.date > shiftDays(todayISO(), -7))
   const thisWeek = recent.filter((w) => w.kind !== 'ride').length
@@ -52,6 +53,25 @@ export default function Train({
 
   return (
     <div className="screen">
+      {/* The same day navigation as Today, and the same direction of travel. */}
+      <div className="row between">
+        <button
+          className="iconbtn"
+          onClick={() => setDate(shiftDays(date, 1))}
+          disabled={date >= todayISO()}
+          style={{ opacity: date >= todayISO() ? 0.3 : 1 }}
+          aria-label="Next day"
+        >
+          <Icon.left />
+        </button>
+        <button className="btn ghost sm" onClick={() => setDate(todayISO())}>
+          <strong>{formatDay(date)}</strong>
+        </button>
+        <button className="iconbtn" onClick={() => setDate(shiftDays(date, -1))} aria-label="Previous day">
+          <Icon.chevron />
+        </button>
+      </div>
+
       <div className="card">
         <div className="row between">
           <div>
@@ -88,20 +108,13 @@ export default function Train({
         </div>
       </div>
 
-      {Object.keys(byDate).length === 0 && (
-        <div className="card">
-          <div className="empty">
-            No sessions logged yet. Strength work is what keeps the weight you lose from coming off
-            muscle.
-          </div>
-        </div>
-      )}
-
-      {Object.entries(byDate).map(([d, list]) => (
-        <div className="card tight" key={d}>
-          <h3>{formatDay(d)}</h3>
+      <div className="card tight">
+        <h3>{formatDay(date)}</h3>
+        {today.length === 0 ? (
+          <div className="empty">Nothing logged for this day yet.</div>
+        ) : (
           <div>
-            {list.map((w) => (
+            {today.map((w) => (
               <button key={w.id} className="item" onClick={() => setEditing(w)}>
                 <div className="grow">
                   <div className="item-title truncate">{w.name}</div>
@@ -113,8 +126,8 @@ export default function Train({
               </button>
             ))}
           </div>
-        </div>
-      ))}
+        )}
+      </div>
 
       {/* What the plan asks for, and whether it has happened yet. A plan and
           a log look alike on a screen, and confusing them is how a session

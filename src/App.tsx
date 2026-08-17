@@ -188,7 +188,7 @@ export default function App() {
           scaleLive={scale.live}
         />
       )}
-      {tab === 'train' && <Train date={date} settings={settings} toast={show} />}
+      {tab === 'train' && <Train date={date} setDate={setDate} settings={settings} toast={show} />}
       {tab === 'insights' && <Insights settings={settings} />}
 
       <nav className="tabbar">

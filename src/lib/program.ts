@@ -72,7 +72,9 @@ const C = (name: string, met: number, minutes: number, equipment?: string, plann
 
 export const CATALOGUE: Exercise[] = [
   // ---------------------------------------------------------------- Chest
+  E('Barbell Bench Press', 'Chest', 3, '12', 5, 105, 'Barbell, flat bench', true),
   E('Flat DB Bench Press', 'Chest', 3, '12', 5, 105, 'Dumbbells, flat bench', true),
+  E('Incline Barbell Press', 'Chest', 3, '12', 5, 105, 'Barbell, incline bench'),
   E('Incline DB Press', 'Chest', 3, '12', 5, 105, 'Dumbbells, incline bench', true),
   E('Cable Fly', 'Chest', 3, '15', 4.5, 95, 'Cable crossover', true),
   E('Machine Chest Press', 'Chest', 3, '12', 5, 100, 'Chest press machine'),
@@ -182,7 +184,7 @@ export const WEEK: DayPlan[] = [
     weekday: 1,
     name: 'Push — chest, shoulders, triceps',
     exercises: [
-      'Movement Prep (bands, circles, bridges)', 'Flat DB Bench Press', 'Incline DB Press',
+      'Movement Prep (bands, circles, bridges)', 'Barbell Bench Press', 'Incline DB Press',
       'Cable Fly', 'Seated DB Shoulder Press', 'Lateral Raises', 'Triceps Rope Pushdown',
       'Overhead Triceps Extension', 'Face Pulls', 'Cool-Down Stretch',
     ],
