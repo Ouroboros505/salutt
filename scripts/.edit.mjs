@@ -181,18 +181,19 @@ function change(data) {
     notes.push(`removed ${strays.length} stray "Session" workouts and buried them`);
   }
   const ROUTES = [
-    { id: 101, name: "Home \u2192 campus", km: 4.3, minutes: 20, climbM: 30 },
-    { id: 102, name: "Campus \u2192 home", km: 4.3, minutes: 20, climbM: 48 },
-    { id: 103, name: "Home \u2192 CoRec", km: 4.9, minutes: 20, climbM: 32 },
-    { id: 104, name: "CoRec \u2192 home", km: 4.9, minutes: 20, climbM: 50 }
+    { id: 101, name: "Home \u2192 campus", km: 4.3, minutes: 20, climbM: 38 },
+    { id: 102, name: "Campus \u2192 home", km: 4.3, minutes: 20, climbM: 55 },
+    { id: 103, name: "Home \u2192 CoRec", km: 5, minutes: 20, climbM: 41 },
+    { id: 104, name: "CoRec \u2192 home", km: 5, minutes: 20, climbM: 59 }
   ];
   for (const r of ROUTES) {
     const have = (data.routes ?? []).find((x) => x.name === r.name);
     if (have) {
-      if (have.climbM !== r.climbM) {
+      if (have.climbM !== r.climbM || have.km !== r.km) {
         have.climbM = r.climbM;
+        have.km = r.km;
         touch(have);
-        notes.push(`${r.name}: ${r.climbM} m of climbing`);
+        notes.push(`${r.name}: ${r.km} km, ${r.climbM} m of climbing`);
       }
       continue;
     }

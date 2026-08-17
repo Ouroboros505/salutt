@@ -100,25 +100,30 @@ function change(data: Data): string[] {
   //
   // Ids well clear of 1 so they cannot land on a route created on the phone
   // before this arrives — the merge still matches rows by key.
-  // Ascent sampled from the USGS national map along each line. The route
-  // drops off the east-side bluff into the Wabash valley and climbs back up
-  // into West Lafayette, so the two directions are nothing alike: 30 m of
-  // climbing out, 48 m coming home.
+  // Ascent from the route actually ridden, adding up the per-segment inclines
+  // Google gives: Congress +1, Digby to S 10th +4, Columbia +7, and +29 coming
+  // out of the roundabout onto State — 41 m to the CoRec over 4.99 km.
+  //
+  // The way home is not the same climb reversed. Home is 207 m and campus 189,
+  // so the outbound net drop of 18 m has to be repaid: 59 m of climbing back,
+  // against 41 going out. The campus routes are the same line stopping short,
+  // so they carry the same valley climb over a shorter distance.
   const ROUTES = [
-    { id: 101, name: 'Home → campus', km: 4.3, minutes: 20, climbM: 30 },
-    { id: 102, name: 'Campus → home', km: 4.3, minutes: 20, climbM: 48 },
-    { id: 103, name: 'Home → CoRec', km: 4.9, minutes: 20, climbM: 32 },
-    { id: 104, name: 'CoRec → home', km: 4.9, minutes: 20, climbM: 50 },
+    { id: 101, name: 'Home → campus', km: 4.3, minutes: 20, climbM: 38 },
+    { id: 102, name: 'Campus → home', km: 4.3, minutes: 20, climbM: 55 },
+    { id: 103, name: 'Home → CoRec', km: 5.0, minutes: 20, climbM: 41 },
+    { id: 104, name: 'CoRec → home', km: 5.0, minutes: 20, climbM: 59 },
   ]
   for (const r of ROUTES) {
     const have = (data.routes ?? []).find((x) => x.name === r.name)
     if (have) {
       // The real time, now that it is known: twenty minutes through the
       // lights, not the pace I guessed at.
-      if (have.climbM !== r.climbM) {
+      if (have.climbM !== r.climbM || have.km !== r.km) {
         have.climbM = r.climbM
+        have.km = r.km
         touch(have)
-        notes.push(`${r.name}: ${r.climbM} m of climbing`)
+        notes.push(`${r.name}: ${r.km} km, ${r.climbM} m of climbing`)
       }
       continue
     }
