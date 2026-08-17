@@ -184,6 +184,16 @@ export default function SessionSheet({
                 </>
               )}
             </div>
+            {/* The conventions differ by equipment, so the box says which one
+                it wants rather than leaving it to be guessed at. */}
+            {!i.ex.byMinutes && i.ex.load && (
+              <div className="tiny muted">
+                weight = {i.ex.load.label}
+                {i.ex.load.factor > 1 && i.weightKg
+                  ? ` · ${Math.round((toDisplayWeight(i.weightKg * i.ex.load.factor, unit) ?? 0))} ${unit} moved in total`
+                  : ''}
+              </div>
+            )}
           </div>
         ))}
 

@@ -47,7 +47,31 @@ export interface Exercise {
    * of a stair climber would be a translation nobody should have to do.
    */
   byMinutes?: boolean
+  /**
+   * What to type in the weight box, and how it becomes load moved.
+   *
+   * The lifting convention is not uniform and pretending otherwise makes a
+   * log incomparable with itself: a barbell is written as the whole thing,
+   * bar included, while dumbbells are written as one of them even though two
+   * are being held. Both conventions are kept, because they are what gyms and
+   * training logs actually use — but the multiplier says how to turn the
+   * number into total load, so the volume figures mean something.
+   */
+  load?: LoadStyle
 }
+
+export interface LoadStyle {
+  /** What the number you type refers to. */
+  label: string
+  /** Multiply the typed weight by this for total load moved per rep. */
+  factor: number
+}
+
+export const LOAD_BAR: LoadStyle = { label: 'the bar and plates together', factor: 1 }
+export const LOAD_EACH_HAND: LoadStyle = { label: 'one dumbbell', factor: 2 }
+export const LOAD_ONE: LoadStyle = { label: 'the one dumbbell', factor: 1 }
+export const LOAD_STACK: LoadStyle = { label: 'the number on the stack', factor: 1 }
+export const LOAD_BODY: LoadStyle = { label: 'added weight only, if any', factor: 1 }
 
 const E = (
   name: string,
@@ -167,6 +191,36 @@ export const CATALOGUE: Exercise[] = [
   E('Pigeon Pose', 'Mobility', 2, '45s/side', 2.3, 100, 'Mat', true),
   E('Legs-Up-The-Wall', 'Mobility', 1, '3 min', 1.5, 180, 'Wall', true),
 ]
+
+/**
+ * Which convention each exercise follows. Anything not listed is a machine or
+ * bodyweight movement, where the number on the stack is the number.
+ */
+const LOAD_BY_NAME: Record<string, LoadStyle> = {
+  'Barbell Bench Press': LOAD_BAR,
+  'Incline Barbell Press': LOAD_BAR,
+  'Close-Grip Bench Press': LOAD_BAR,
+  'Romanian Deadlift': LOAD_BAR,
+  'Hip Thrust': LOAD_BAR,
+  'Skull Crushers': LOAD_BAR,
+  'Flat DB Bench Press': LOAD_EACH_HAND,
+  'Incline DB Press': LOAD_EACH_HAND,
+  'Seated DB Shoulder Press': LOAD_EACH_HAND,
+  'Arnold Press': LOAD_EACH_HAND,
+  'Lateral Raises': LOAD_EACH_HAND,
+  'Rear Delt Fly': LOAD_EACH_HAND,
+  'DB Bicep Curl': LOAD_EACH_HAND,
+  'Hammer Curl': LOAD_EACH_HAND,
+  'Walking Lunges': LOAD_EACH_HAND,
+  'Bulgarian Split Squat': LOAD_EACH_HAND,
+  'Step-Ups': LOAD_EACH_HAND,
+  'Chest-Supported Row': LOAD_EACH_HAND,
+  'Single-Arm DB Row': LOAD_ONE,
+  'Goblet Squat': LOAD_ONE,
+  'Overhead Triceps Extension': LOAD_ONE,
+  'Preacher Curl': LOAD_ONE,
+}
+for (const ex of CATALOGUE) ex.load = LOAD_BY_NAME[ex.name] ?? LOAD_STACK
 
 export const GROUPS: MuscleGroup[] = [
   'Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Legs', 'Core', 'Cardio', 'Mobility',
