@@ -160,23 +160,23 @@ function touch(row) {
 var summarise = (data) => Object.entries(data).filter(([, rows]) => Array.isArray(rows) && rows.length).map(([t, rows]) => `${t}=${rows.length}`).join(" ");
 function change(data) {
   const notes = [];
-  if (!(data.foods ?? []).some((f) => /advance bar/i.test(f.name))) {
+  if (!(data.foods ?? []).some((f) => /oikos/i.test(f.name))) {
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1;
     (data.foods ??= []).push(
       touch({
         id: nextId,
-        name: "Elevation Advance bar, blueberry Greek yogurt",
-        brand: "Aldi",
-        // 1 bar (48 g): 170 kcal, 6 g fat (3 sat), 21 g carb, 10 g fibre,
-        // 3 g sugars of which 1 added, 6 g sugar alcohol, 15 g protein.
-        kcal: 354.17,
-        protein: 31.25,
-        carbs: 43.75,
-        fat: 12.5,
-        fiber: 20.833,
+        name: "Oikos Pro, vanilla",
+        brand: "Danone",
+        // 1 container (150 g): 130 kcal, 3 g fat (2.5 sat), 6 g carb, 0 fibre,
+        // 3 g sugars of which none added, 20 g protein.
+        kcal: 86.67,
+        protein: 13.333,
+        carbs: 4,
+        fat: 2,
+        fiber: 0,
         portions: [
-          { label: "1 bar (48 g)", grams: 48 },
-          { label: "half a bar", grams: 24 }
+          { label: "1 container (150 g)", grams: 150 },
+          { label: "half a pot", grams: 75 }
         ],
         defaultPortion: 0,
         liquid: false,
@@ -187,7 +187,7 @@ function change(data) {
         createdAt: Date.now()
       })
     );
-    notes.push("added Elevation Advance bar, blueberry Greek yogurt \u2014 1 bar = 170 kcal, 15 g protein, 10 g fibre");
+    notes.push("added Oikos Pro, vanilla (Danone) \u2014 1 pot = 130 kcal, 20 g protein");
   }
   return notes;
 }

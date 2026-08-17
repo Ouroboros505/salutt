@@ -67,36 +67,30 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // The Elevation Advance bar, from the label. One bar is one serving, so the
-  // per-100 figures are the bar divided by 0.48.
+  // Oikos Pro, from the label. One pot is one serving, so the per-100 figures
+  // are the pot divided by 1.5.
   //
-  // The bundled database has forty-one Elevation rows and none is this bar;
-  // the nearest, a plain "Advance Bar", is 386 kcal/100 g against this one's
-  // 354, so it is a different recipe rather than a near-enough match.
-  //
-  // Carbohydrate goes in at the label's 21 g, not the 5 g "net" on the front.
-  // Everything else here counts carbohydrate the way USDA does, fibre
-  // included, and fibre has its own column to be subtracted from — switching
-  // convention for one row would make the day's total mean two things at once.
-  // The label's 170 kcal already prices the fibre and the erythritol properly,
-  // which is the number that actually drives the deficit.
-  if (!(data.foods ?? []).some((f) => /advance bar/i.test(f.name))) {
+  // The database's three Oikos rows are the ordinary line — 8 g of protein
+  // per 100 g against this one's 13.3, and 12.7 g of carbohydrate against 4.
+  // The Pro is ultra-filtered, which is exactly the difference: the lactose
+  // is taken out and the protein left behind. Not a substitutable row.
+  if (!(data.foods ?? []).some((f) => /oikos/i.test(f.name))) {
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
     ;(data.foods ??= []).push(
       touch({
         id: nextId,
-        name: 'Elevation Advance bar, blueberry Greek yogurt',
-        brand: 'Aldi',
-        // 1 bar (48 g): 170 kcal, 6 g fat (3 sat), 21 g carb, 10 g fibre,
-        // 3 g sugars of which 1 added, 6 g sugar alcohol, 15 g protein.
-        kcal: 354.17,
-        protein: 31.25,
-        carbs: 43.75,
-        fat: 12.5,
-        fiber: 20.833,
+        name: 'Oikos Pro, vanilla',
+        brand: 'Danone',
+        // 1 container (150 g): 130 kcal, 3 g fat (2.5 sat), 6 g carb, 0 fibre,
+        // 3 g sugars of which none added, 20 g protein.
+        kcal: 86.67,
+        protein: 13.333,
+        carbs: 4,
+        fat: 2,
+        fiber: 0,
         portions: [
-          { label: '1 bar (48 g)', grams: 48 },
-          { label: 'half a bar', grams: 24 },
+          { label: '1 container (150 g)', grams: 150 },
+          { label: 'half a pot', grams: 75 },
         ],
         defaultPortion: 0,
         liquid: false,
@@ -107,7 +101,7 @@ function change(data: Data): string[] {
         createdAt: Date.now(),
       }),
     )
-    notes.push('added Elevation Advance bar, blueberry Greek yogurt — 1 bar = 170 kcal, 15 g protein, 10 g fibre')
+    notes.push('added Oikos Pro, vanilla (Danone) — 1 pot = 130 kcal, 20 g protein')
   }
 
   // --- example, currently a no-op -------------------------------------------
