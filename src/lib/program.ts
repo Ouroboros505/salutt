@@ -65,9 +65,27 @@ export interface LoadStyle {
   label: string
   /** Multiply the typed weight by this for total load moved per rep. */
   factor: number
+  /**
+   * Added after the multiplication, for equipment that weighs something before
+   * anything is loaded onto it. An Olympic bar is 20.41 kg (45 lb) and nobody
+   * can weigh one at the gym, so it is not asked for.
+   */
+  barKg?: number
 }
 
-export const LOAD_BAR: LoadStyle = { label: 'the bar and plates together', factor: 1 }
+/** Total load for a set, from what was typed. */
+export function totalLoadKg(typedKg: number, load?: LoadStyle): number {
+  if (!load) return typedKg
+  return typedKg * load.factor + (load.barKg ?? 0)
+}
+
+/**
+ * Barbell work is entered as the plates on one side, which is what you can
+ * see without doing arithmetic at the rack. The bar is added behind it.
+ */
+export const LOAD_BAR: LoadStyle = { label: 'plates on ONE side', factor: 2, barKg: 20.41 }
+/** A Smith machine bar is counterbalanced, so it weighs far less than it looks. */
+export const LOAD_SMITH: LoadStyle = { label: 'plates on ONE side', factor: 2, barKg: 9 }
 
 /**
  * Bars weigh something, and forgetting that is the commonest way a lifting
@@ -87,6 +105,15 @@ export function barTotalKg(perSideKg: number, barKg: number): number {
 }
 export const LOAD_EACH_HAND: LoadStyle = { label: 'one dumbbell', factor: 2 }
 export const LOAD_ONE: LoadStyle = { label: 'the one dumbbell', factor: 1 }
+/**
+ * Cable and machine stacks are left exactly as marked.
+ *
+ * The temptation is to correct for pulley ratio and friction, and it should be
+ * resisted: a station may be 1:1 or 2:1, the plates are often nominal, and
+ * there is no way to tell from the outside. A made-up factor would be wrong by
+ * up to a half. The number is arbitrary but consistent, which is all that
+ * progression needs — it just cannot be compared with a dumbbell.
+ */
 export const LOAD_STACK: LoadStyle = { label: 'the number on the stack', factor: 1 }
 export const LOAD_BODY: LoadStyle = { label: 'added weight only, if any', factor: 1 }
 
@@ -219,7 +246,7 @@ const LOAD_BY_NAME: Record<string, LoadStyle> = {
   'Close-Grip Bench Press': LOAD_BAR,
   'Romanian Deadlift': LOAD_BAR,
   'Hip Thrust': LOAD_BAR,
-  'Skull Crushers': LOAD_BAR,
+  'Skull Crushers': { label: 'plates on ONE side', factor: 2, barKg: 11.34 },
   'Flat DB Bench Press': LOAD_EACH_HAND,
   'Incline DB Press': LOAD_EACH_HAND,
   'Seated DB Shoulder Press': LOAD_EACH_HAND,
