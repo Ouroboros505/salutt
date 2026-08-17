@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { db, type ISODate, type Settings } from '../db/db'
 import {
+  BARS,
   CATALOGUE,
   GROUPS,
+  barTotalKg,
   byName,
   describeSession,
   exerciseKcal,
@@ -278,6 +280,39 @@ export default function SessionSheet({
                       </button>
                     </div>
                   ))}
+                  {/* A weight below the bar almost certainly means the plates
+                      were counted and the bar forgotten. Offered rather than
+                      corrected, since short bars and machines exist. */}
+                  {ex?.load === undefined || ex.load.label !== 'the bar and plates together'
+                    ? null
+                    : i.sets.some((s2) => s2.weightKg && s2.weightKg < BARS[0].kg) && (
+                        <div className="stack tight">
+                          <div className="tiny" style={{ color: 'var(--serious)' }}>
+                            Some of those are lighter than the bar itself. If you typed the plates,
+                            add the bar:
+                          </div>
+                          <div className="scroll-x">
+                            {BARS.map((bar) => (
+                              <button
+                                key={bar.label}
+                                className="chip"
+                                onClick={() =>
+                                  update(i.key, {
+                                    sets: i.sets.map((s2) =>
+                                      s2.weightKg && s2.weightKg < BARS[0].kg
+                                        ? { ...s2, weightKg: barTotalKg(s2.weightKg / 2, bar.kg) }
+                                        : s2,
+                                    ),
+                                  })
+                                }
+                              >
+                                + {bar.label} ({Math.round(toDisplayWeight(bar.kg, unit) ?? 0)} {unit})
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                   <button
                     className="btn sm"
                     onClick={() => {

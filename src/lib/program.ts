@@ -68,6 +68,23 @@ export interface LoadStyle {
 }
 
 export const LOAD_BAR: LoadStyle = { label: 'the bar and plates together', factor: 1 }
+
+/**
+ * Bars weigh something, and forgetting that is the commonest way a lifting
+ * log goes wrong: one 10 lb plate a side is 20 lb of plates and 65 lb on the
+ * bar, so leaving the bar out records under a third of the real load — and
+ * hides the progression, which is the reason for writing any of it down.
+ */
+export const BARS: { label: string; kg: number }[] = [
+  { label: 'Olympic bar', kg: 20.41 }, // 45 lb, the usual one
+  { label: 'Lighter bar', kg: 15.88 }, // 35 lb
+  { label: 'EZ curl bar', kg: 11.34 }, // 25 lb
+]
+
+/** Total on the bar, from what is loaded on ONE side. */
+export function barTotalKg(perSideKg: number, barKg: number): number {
+  return barKg + perSideKg * 2
+}
 export const LOAD_EACH_HAND: LoadStyle = { label: 'one dumbbell', factor: 2 }
 export const LOAD_ONE: LoadStyle = { label: 'the one dumbbell', factor: 1 }
 export const LOAD_STACK: LoadStyle = { label: 'the number on the stack', factor: 1 }
