@@ -67,34 +67,36 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // The Chobani Flip, from the label. One pot is one serving, so the per-100
-  // figures are the pot divided by 1.7.
+  // The Elevation Advance bar, from the label. One bar is one serving, so the
+  // per-100 figures are the bar divided by 0.48.
   //
-  // Not in the bundled database — it carries seventeen Chobani rows and none
-  // of them is a Flip, which is a different product: the plain cup with a
-  // compartment of almonds, cocoa and coconut tipped in. That compartment is
-  // most of the energy, 108 kcal of the 200, so no plain-yoghurt row is a
-  // usable stand-in.
+  // The bundled database has forty-one Elevation rows and none is this bar;
+  // the nearest, a plain "Advance Bar", is 386 kcal/100 g against this one's
+  // 354, so it is a different recipe rather than a near-enough match.
   //
-  // The 3.5 g of saturated fat has nowhere to go; nothing here tracks it.
-  if (!(data.foods ?? []).some((f) => /flip/i.test(f.name))) {
+  // Carbohydrate goes in at the label's 21 g, not the 5 g "net" on the front.
+  // Everything else here counts carbohydrate the way USDA does, fibre
+  // included, and fibre has its own column to be subtracted from — switching
+  // convention for one row would make the day's total mean two things at once.
+  // The label's 170 kcal already prices the fibre and the erythritol properly,
+  // which is the number that actually drives the deficit.
+  if (!(data.foods ?? []).some((f) => /advance bar/i.test(f.name))) {
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
     ;(data.foods ??= []).push(
       touch({
         id: nextId,
-        name: 'Chobani Flip, almond coconut chocolate',
-        brand: 'Chobani',
-        barcode: '894700001098',
-        // 1 container, 6 oz (170 g): 200 kcal, 8 g fat (3.5 sat), 11 g carb,
-        // 3 g fibre, 6 g sugar of which none added, 20 g protein.
-        kcal: 117.65,
-        protein: 11.765,
-        carbs: 6.471,
-        fat: 4.706,
-        fiber: 1.765,
+        name: 'Elevation Advance bar, blueberry Greek yogurt',
+        brand: 'Aldi',
+        // 1 bar (48 g): 170 kcal, 6 g fat (3 sat), 21 g carb, 10 g fibre,
+        // 3 g sugars of which 1 added, 6 g sugar alcohol, 15 g protein.
+        kcal: 354.17,
+        protein: 31.25,
+        carbs: 43.75,
+        fat: 12.5,
+        fiber: 20.833,
         portions: [
-          { label: '1 container (170 g)', grams: 170 },
-          { label: 'half a pot', grams: 85 },
+          { label: '1 bar (48 g)', grams: 48 },
+          { label: 'half a bar', grams: 24 },
         ],
         defaultPortion: 0,
         liquid: false,
@@ -105,7 +107,7 @@ function change(data: Data): string[] {
         createdAt: Date.now(),
       }),
     )
-    notes.push('added Chobani Flip, almond coconut chocolate — 1 pot = 200 kcal, 20 g protein')
+    notes.push('added Elevation Advance bar, blueberry Greek yogurt — 1 bar = 170 kcal, 15 g protein, 10 g fibre')
   }
 
   // --- example, currently a no-op -------------------------------------------
