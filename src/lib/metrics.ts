@@ -193,12 +193,80 @@ export interface Targets {
   /** Where the calorie number came from, so the UI can be honest about it. */
   basis: 'manual' | 'adaptive' | 'formula'
   tdee: number
+  /** The unflexed figure, before today's activity was taken into account. */
+  baseKcal: number
+  /** How far today moved from the baseline, and why. */
+  flex: ActivityFlex | null
+}
+
+export interface ActivityFlex {
+  /** Estimated kcal of logged activity today. */
+  today: number
+  /** The rolling mean this is compared against. */
+  usual: number
+  /** Applied change to the target, already capped. */
+  adjustment: number
+}
+
+/**
+ * Only the day's *departure* from normal moves the target.
+ *
+ * Maintenance is derived from intake measured against the weight trend, and
+ * that measurement already contains the usual riding and training — so adding
+ * a day's activity on top counts it twice and eats the deficit. What it cannot
+ * know is that today was unusual, and that is the only part worth applying.
+ *
+ * Half credit, because MET tables land within about 75-125% of the truth and a
+ * whole day's deficit here is 440 kcal: eating the full estimate means eating
+ * the full error too. Capped at 300 either way so one mis-typed ride cannot
+ * rewrite the day. Departures average to zero over time, so the week still
+ * lands where it was aimed without anything needing to be balanced by hand.
+ */
+export const FLEX_CREDIT = 0.5
+export const FLEX_CAP = 300
+
+export function activityFlex(todayKcal: number, usualKcal: number | null): ActivityFlex | null {
+  if (usualKcal == null) return null
+  const raw = FLEX_CREDIT * (todayKcal - usualKcal)
+  return {
+    today: Math.round(todayKcal),
+    usual: Math.round(usualKcal),
+    adjustment: Math.round(Math.max(-FLEX_CAP, Math.min(FLEX_CAP, raw))),
+  }
+}
+
+/**
+ * The usual day's activity, as a rolling mean of what was logged.
+ *
+ * Days with nothing logged count as zero rather than being skipped: a day off
+ * the bike is a real quiet day, and dropping it would quietly raise the
+ * baseline every time you rested.
+ */
+export function usualActivity(
+  workouts: { date: ISODate; kcal?: number }[],
+  today: ISODate,
+  days = 14,
+): number | null {
+  const start = new Date(today)
+  start.setDate(start.getDate() - days)
+  const from = start.toISOString().slice(0, 10)
+  const byDay = new Map<string, number>()
+  for (const w of workouts) {
+    if (w.date <= from || w.date >= today) continue
+    byDay.set(w.date, (byDay.get(w.date) ?? 0) + (w.kcal ?? 0))
+  }
+  // Not enough history to know what normal looks like yet.
+  if (byDay.size < 3) return null
+  let total = 0
+  for (const v of byDay.values()) total += v
+  return total / days
 }
 
 export function computeTargets(
   settings: Settings,
   currentKg: number | null,
   adaptive: AdaptiveTDEE | null,
+  flex: ActivityFlex | null = null,
 ): Targets {
   const kg = currentKg ?? 75
   const age = ageFrom(settings.birthDate)
@@ -218,6 +286,9 @@ export function computeTargets(
     basis = useAdaptive ? 'adaptive' : 'formula'
   }
 
+  const baseKcal = Math.round(kcal)
+  if (flex) kcal += flex.adjustment
+
   // Floor the target: aggressive deficits cost muscle and adherence.
   const floor = settings.sex === 'male' ? 1500 : 1200
   kcal = Math.max(floor, Math.round(kcal))
@@ -229,7 +300,7 @@ export function computeTargets(
   const fat = Math.round((kcal * settings.fatPctKcal) / 9)
   const carbs = Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4))
 
-  return { kcal, protein, carbs, fat, basis, tdee: Math.round(tdee) }
+  return { kcal, protein, carbs, fat, basis, tdee: Math.round(tdee), baseKcal, flex }
 }
 
 /** Projected date of reaching a goal weight at the current measured rate. */

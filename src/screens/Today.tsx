@@ -16,7 +16,7 @@ import {
   type PastMeal,
 } from '../db/ops'
 import { addDays, formatDay, todayISO } from '../lib/date'
-import { adaptiveTDEE, computeTargets, weightTrend } from '../lib/metrics'
+import { activityFlex, adaptiveTDEE, computeTargets, usualActivity, weightTrend } from '../lib/metrics'
 import { Icon, Meter, Sheet } from '../components/ui'
 import AddFood from '../components/AddFood'
 
@@ -71,7 +71,12 @@ export default function Today({
 
   const trend = weightTrend(weighIns, settings.trendHalfLifeDays)
   const currentKg = trend.length ? trend[trend.length - 1].trend : null
-  const targets = computeTargets(settings, currentKg, adaptiveTDEE(allEntries, trend))
+  // Only how far today departs from your own normal moves the target; the
+  // normal itself is already inside the maintenance figure.
+  const allWorkouts = useLiveQuery(() => db.workouts.toArray(), []) ?? []
+  const todayActivity = workouts.reduce((t, w) => t + (w.kcal ?? 0), 0)
+  const flex = activityFlex(todayActivity, usualActivity(allWorkouts, date))
+  const targets = computeTargets(settings, currentKg, adaptiveTDEE(allEntries, trend), flex)
 
   const totals = entries.length ? sum(entries) : { ...ZERO }
   const remaining = targets.kcal - totals.kcal
@@ -135,6 +140,12 @@ export default function Today({
           <div style={{ textAlign: 'right' }}>
             <div className="small secondary num">{Math.round(totals.kcal).toLocaleString()} eaten</div>
             <div className="small muted num">of {targets.kcal.toLocaleString()} target</div>
+            {targets.flex && targets.flex.adjustment !== 0 && (
+              <div className="tiny muted num">
+                {targets.flex.adjustment > 0 ? '+' : ''}
+                {targets.flex.adjustment} vs your usual day
+              </div>
+            )}
           </div>
         </div>
 
