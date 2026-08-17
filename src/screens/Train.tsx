@@ -62,10 +62,12 @@ export default function Train({
               </div>
             )}
             {rideMin > 0 && (
+              {/* Time and distance are the ride; how many times you got on
+                  and off is not. */}
               <div className="tiny muted num">
                 {Math.floor(rideMin / 60)} h {rideMin % 60} m riding
-                {rideKm > 0 ? ` · ${Math.round(rideKm)} km` : ''} · {rides.length} trip
-                {rides.length === 1 ? '' : 's'}
+                {rideKm > 0 ? ` · ${Math.round(rideKm)} km` : ''}
+                {rideKm > 0 && rideMin > 0 ? ` · ${((rideKm / rideMin) * 60).toFixed(1)} km/h` : ''}
               </div>
             )}
           </div>
