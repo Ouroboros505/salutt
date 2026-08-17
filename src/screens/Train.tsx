@@ -61,9 +61,9 @@ export default function Train({
                 {Math.round(toDisplayWeight(volume, unit) ?? volume).toLocaleString()} {unit} total volume
               </div>
             )}
+            {/* Time and distance are the ride; how many times you got on and
+                off is not. */}
             {rideMin > 0 && (
-              {/* Time and distance are the ride; how many times you got on
-                  and off is not. */}
               <div className="tiny muted num">
                 {Math.floor(rideMin / 60)} h {rideMin % 60} m riding
                 {rideKm > 0 ? ` · ${Math.round(rideKm)} km` : ''}
