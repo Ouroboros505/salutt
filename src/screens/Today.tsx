@@ -128,13 +128,9 @@ export default function Today({
   return (
     <div className="screen">
       {/* ------------------------------------------------------ date nav */}
+      {/* Time runs leftwards here: the right-hand tap goes back a day, which
+          is the direction the days themselves are arriving from. */}
       <div className="row between">
-        <button className="iconbtn" onClick={() => setDate(addDays(date, -1))} aria-label="Previous day">
-          <Icon.left />
-        </button>
-        <button className="btn ghost sm" onClick={() => setDate(todayISO())}>
-          <strong>{formatDay(date)}</strong>
-        </button>
         <button
           className="iconbtn"
           onClick={() => setDate(addDays(date, 1))}
@@ -142,6 +138,12 @@ export default function Today({
           style={{ opacity: date >= todayISO() ? 0.3 : 1 }}
           aria-label="Next day"
         >
+          <Icon.left />
+        </button>
+        <button className="btn ghost sm" onClick={() => setDate(todayISO())}>
+          <strong>{formatDay(date)}</strong>
+        </button>
+        <button className="iconbtn" onClick={() => setDate(addDays(date, -1))} aria-label="Previous day">
           <Icon.chevron />
         </button>
       </div>
