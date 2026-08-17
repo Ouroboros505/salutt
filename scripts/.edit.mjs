@@ -160,72 +160,25 @@ function touch(row) {
 var summarise = (data) => Object.entries(data).filter(([, rows]) => Array.isArray(rows) && rows.length).map(([t, rows]) => `${t}=${rows.length}`).join(" ");
 function change(data) {
   const notes = [];
-  let stamped = 0;
-  for (const [table, rows] of Object.entries(data)) {
-    if (table === "settings" || table === "tombstones" || !Array.isArray(rows)) continue;
-    for (const row of rows) {
-      if (!row.uid && row.id != null) {
-        row.uid = legacyUid(table, row.id, row.createdAt);
-        stamped++;
-      }
-    }
-  }
-  if (stamped) notes.push(`gave ${stamped} rows their stable identity`);
-  const strays = (data.workouts ?? []).filter((w) => w.name === "Session");
-  if (strays.length) {
-    data.workouts = (data.workouts ?? []).filter((w) => w.name !== "Session");
-    for (const w of strays) {
-      ;
-      (data.tombstones ??= []).push({ table: "workouts", key: w.id, at: Date.now() });
-    }
-    notes.push(`removed ${strays.length} stray "Session" workouts and buried them`);
-  }
-  const ROUTES = [
-    { id: 101, name: "Home \u2192 campus", km: 4.3, minutes: 20, climbM: 38 },
-    { id: 102, name: "Campus \u2192 home", km: 4.3, minutes: 20, climbM: 55 },
-    { id: 103, name: "Home \u2192 CoRec", km: 5, minutes: 20, climbM: 41 },
-    { id: 104, name: "CoRec \u2192 home", km: 5, minutes: 20, climbM: 59 },
-    // Aldi, 957 Sagamore Pkwy S: 1.6 miles and flat, both ways — 207 m at the
-    // house, 202 at the shop. The return carries a 50 L pack of groceries,
-    // which is mass and therefore work: it goes in as a load rather than as a
-    // fudge to the effort.
-    { id: 105, name: "Home \u2192 Aldi", km: 2.6, minutes: 10, climbM: 4 },
-    { id: 106, name: "Aldi \u2192 home", km: 2.6, minutes: 13, climbM: 9, loadKg: 12 }
-  ];
-  for (const r of ROUTES) {
-    const have = (data.routes ?? []).find((x) => x.name === r.name);
-    if (have) {
-      if (have.climbM !== r.climbM || have.km !== r.km || have.loadKg !== r.loadKg) {
-        have.climbM = r.climbM;
-        have.km = r.km;
-        if (r.loadKg != null) have.loadKg = r.loadKg;
-        touch(have);
-        notes.push(`${r.name}: ${r.km} km, ${r.climbM} m` + (r.loadKg ? `, carrying ${r.loadKg} kg` : ""));
-      }
-      continue;
-    }
-    ;
-    (data.routes ??= []).push(
-      touch({ ...r, useCount: 0, lastUsed: 0, createdAt: Date.now() })
-    );
-    notes.push(`saved route ${r.name} \u2014 ${r.km} km`);
-  }
-  if (!(data.foods ?? []).some((f) => /cheese tray/i.test(f.name))) {
+  if (!(data.foods ?? []).some((f) => /popz/i.test(f.name))) {
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1;
     (data.foods ??= []).push(
       touch({
         id: nextId,
-        name: "Cheese tray, mixed",
+        name: "Popz protein sparkling, peach mango",
         brand: "Aldi",
-        // 32 g serving: 120 kcal, 10 g fat, 1 g carb, 8 g protein.
-        kcal: 375,
-        protein: 25,
-        carbs: 3.1,
-        fat: 31.2,
+        // 1 can, 12 oz (355 ml): 70 kcal, 0 g fat, 1 g carb, 0 fibre, 15 g protein.
+        kcal: 19.72,
+        protein: 4.225,
+        carbs: 0.282,
+        fat: 0,
         fiber: 0,
-        portions: [{ label: "1 serving (32 g)", grams: 32 }, { label: "half a serving", grams: 16 }],
+        portions: [
+          { label: "1 can (355 ml)", grams: 355 },
+          { label: "half a can", grams: 178 }
+        ],
         defaultPortion: 0,
-        liquid: false,
+        liquid: true,
         source: "manual",
         favorite: false,
         useCount: 0,
@@ -233,40 +186,7 @@ function change(data) {
         createdAt: Date.now()
       })
     );
-    notes.push("added Cheese tray, mixed (Aldi) \u2014 1 serving (32 g) = 120 kcal, 8 g protein");
-  }
-  if (!(data.foods ?? []).some((f) => /avocado/i.test(f.name))) {
-    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1;
-    (data.foods ??= []).push(
-      touch({
-        id: nextId,
-        name: "Avocado, small (Hass)",
-        kcal: 167,
-        protein: 1.96,
-        carbs: 8.64,
-        fat: 15.4,
-        fiber: 6.8,
-        portions: [
-          { label: "1 avocado (133 g whole)", grams: 93 },
-          { label: "half", grams: 47 },
-          { label: "1 medium (194 g whole)", grams: 136 }
-        ],
-        defaultPortion: 0,
-        liquid: false,
-        source: "usda",
-        favorite: false,
-        useCount: 0,
-        lastUsed: 0,
-        createdAt: Date.now()
-      })
-    );
-    notes.push("added Avocado, small (Hass) \u2014 1 avocado = 93 g = 155 kcal");
-  }
-  const braise = (data.recipes ?? []).find((r) => /braised/i.test(r.name));
-  if (braise && braise.density !== 0.69) {
-    braise.density = 0.69;
-    touch(braise);
-    notes.push(`${braise.name}: density 1.03 -> 0.69, measured`);
+    notes.push("added Popz protein sparkling, peach mango (Aldi) \u2014 1 can = 70 kcal, 15 g protein");
   }
   return notes;
 }

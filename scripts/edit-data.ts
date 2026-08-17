@@ -67,97 +67,32 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Give the stored copy the same identities the app will derive on upgrade,
-  // so the two sides recognise each other's rows instead of doubling them.
-  let stamped = 0
-  for (const [table, rows] of Object.entries(data)) {
-    if (table === 'settings' || table === 'tombstones' || !Array.isArray(rows)) continue
-    for (const row of rows) {
-      if (!row.uid && row.id != null) {
-        row.uid = legacyUid(table, row.id, row.createdAt)
-        stamped++
-      }
-    }
-  }
-  if (stamped) notes.push(`gave ${stamped} rows their stable identity`)
-
-  // The three stray "Session" rows logged by mistake. Deleted on the phone,
-  // but the deletion never left it — the tombstone hook was writing into a
-  // transaction that had no scope for it. Buried here so the merge agrees.
-  const strays = (data.workouts ?? []).filter((w) => w.name === 'Session')
-  if (strays.length) {
-    data.workouts = (data.workouts ?? []).filter((w) => w.name !== 'Session')
-    for (const w of strays) {
-      ;(data.tombstones ??= []).push({ table: 'workouts', key: w.id, at: Date.now() })
-    }
-    notes.push(`removed ${strays.length} stray "Session" workouts and buried them`)
-  }
-
-  // The regular journeys, both directions each, because the ride home is its
-  // own trip: a full backpack, a headwind, or simply being tired. Distances
-  // from Google Maps. The times are a starting estimate at a commuting pace
-  // and are replaced by the real one the first time each is logged.
+  // The Popz sparkling whey, from the label. A can is one serving, so the
+  // per-100 figures below are simply the can divided by 3.55 — stored per
+  // 100 ml because it is a drink, which is what `liquid` means here.
   //
-  // Ids well clear of 1 so they cannot land on a route created on the phone
-  // before this arrives — the merge still matches rows by key.
-  // Ascent from the route actually ridden, adding up the per-segment inclines
-  // Google gives: Congress +1, Digby to S 10th +4, Columbia +7, and +29 coming
-  // out of the roundabout onto State — 41 m to the CoRec over 4.99 km.
-  //
-  // The way home is not the same climb reversed. Home is 207 m and campus 189,
-  // so the outbound net drop of 18 m has to be repaid: 59 m of climbing back,
-  // against 41 going out. The campus routes are the same line stopping short,
-  // so they carry the same valley climb over a shorter distance.
-  const ROUTES = [
-    { id: 101, name: 'Home → campus', km: 4.3, minutes: 20, climbM: 38 },
-    { id: 102, name: 'Campus → home', km: 4.3, minutes: 20, climbM: 55 },
-    { id: 103, name: 'Home → CoRec', km: 5.0, minutes: 20, climbM: 41 },
-    { id: 104, name: 'CoRec → home', km: 5.0, minutes: 20, climbM: 59 },
-    // Aldi, 957 Sagamore Pkwy S: 1.6 miles and flat, both ways — 207 m at the
-    // house, 202 at the shop. The return carries a 50 L pack of groceries,
-    // which is mass and therefore work: it goes in as a load rather than as a
-    // fudge to the effort.
-    { id: 105, name: 'Home → Aldi', km: 2.6, minutes: 10, climbM: 4 },
-    { id: 106, name: 'Aldi → home', km: 2.6, minutes: 13, climbM: 9, loadKg: 12 },
-  ]
-  for (const r of ROUTES) {
-    const have = (data.routes ?? []).find((x) => x.name === r.name)
-    if (have) {
-      // The real time, now that it is known: twenty minutes through the
-      // lights, not the pace I guessed at.
-      if (have.climbM !== r.climbM || have.km !== r.km || have.loadKg !== (r as any).loadKg) {
-        have.climbM = r.climbM
-        have.km = r.km
-        if ((r as any).loadKg != null) have.loadKg = (r as any).loadKg
-        touch(have)
-        notes.push(`${r.name}: ${r.km} km, ${r.climbM} m` + ((r as any).loadKg ? `, carrying ${(r as any).loadKg} kg` : ''))
-      }
-      continue
-    }
-    ;(data.routes ??= []).push(
-      touch({ ...r, useCount: 0, lastUsed: 0, createdAt: Date.now() }),
-    )
-    notes.push(`saved route ${r.name} — ${r.km} km`)
-  }
-
-  // The Aldi cheese tray, from the label. A mixed tray is a blend, so no
-  // generic entry comes close: 375 kcal/100 g against cheddar's 408.
-  if (!(data.foods ?? []).some((f) => /cheese tray/i.test(f.name))) {
+  // 15 g of protein for 70 kcal is 21 g per 100 kcal, against 19 for chicken
+  // breast and 25 for protein neat. There is nothing else in the can: one
+  // gram of carbohydrate, no fat, no sugar.
+  if (!(data.foods ?? []).some((f) => /popz/i.test(f.name))) {
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
     ;(data.foods ??= []).push(
       touch({
         id: nextId,
-        name: 'Cheese tray, mixed',
+        name: 'Popz protein sparkling, peach mango',
         brand: 'Aldi',
-        // 32 g serving: 120 kcal, 10 g fat, 1 g carb, 8 g protein.
-        kcal: 375,
-        protein: 25,
-        carbs: 3.1,
-        fat: 31.2,
+        // 1 can, 12 oz (355 ml): 70 kcal, 0 g fat, 1 g carb, 0 fibre, 15 g protein.
+        kcal: 19.72,
+        protein: 4.225,
+        carbs: 0.282,
+        fat: 0,
         fiber: 0,
-        portions: [{ label: '1 serving (32 g)', grams: 32 }, { label: 'half a serving', grams: 16 }],
+        portions: [
+          { label: '1 can (355 ml)', grams: 355 },
+          { label: 'half a can', grams: 178 },
+        ],
         defaultPortion: 0,
-        liquid: false,
+        liquid: true,
         source: 'manual',
         favorite: false,
         useCount: 0,
@@ -165,56 +100,7 @@ function change(data: Data): string[] {
         createdAt: Date.now(),
       }),
     )
-    notes.push('added Cheese tray, mixed (Aldi) — 1 serving (32 g) = 120 kcal, 8 g protein')
-  }
-
-  // Avocado, with a portion that means the ones actually bought.
-  //
-  // The USDA entry's "fruit, without skin and seed" is 136 g, which is a
-  // medium Hass from a 194 g whole fruit. His weigh 133 g whole — about 93 g
-  // of flesh at the 30% USDA refuse for skin and stone — so logging "1 fruit"
-  // would add 70 kcal that were never eaten. A portion is only useful if "1"
-  // means one of yours.
-  if (!(data.foods ?? []).some((f) => /avocado/i.test(f.name))) {
-    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
-    ;(data.foods ??= []).push(
-      touch({
-        id: nextId,
-        name: 'Avocado, small (Hass)',
-        kcal: 167,
-        protein: 1.96,
-        carbs: 8.64,
-        fat: 15.4,
-        fiber: 6.8,
-        portions: [
-          { label: '1 avocado (133 g whole)', grams: 93 },
-          { label: 'half', grams: 47 },
-          { label: '1 medium (194 g whole)', grams: 136 },
-        ],
-        defaultPortion: 0,
-        liquid: false,
-        source: 'usda',
-        favorite: false,
-        useCount: 0,
-        lastUsed: 0,
-        createdAt: Date.now(),
-      }),
-    )
-    notes.push('added Avocado, small (Hass) — 1 avocado = 93 g = 155 kcal')
-  }
-
-  // The braise's density, from the scale rather than a category.
-  //
-  // 540 g Pyrex, 900 g with the food, so 360 g at roughly 70% of a 750 ml box
-  // — an implied 0.69 g/ml. The "stew, chilli, curry" category had said 1.03
-  // and would have put 541 g in the box, 219 kcal a lunch that was never
-  // eaten. Deriving it from the ingredients gives 0.64, which is within 7% of
-  // the weighing; this keeps the weighing, since it is the measurement.
-  const braise = (data.recipes ?? []).find((r) => /braised/i.test(r.name))
-  if (braise && braise.density !== 0.69) {
-    braise.density = 0.69
-    touch(braise)
-    notes.push(`${braise.name}: density 1.03 -> 0.69, measured`)
+    notes.push('added Popz protein sparkling, peach mango (Aldi) — 1 can = 70 kcal, 15 g protein')
   }
 
   // --- example, currently a no-op -------------------------------------------
