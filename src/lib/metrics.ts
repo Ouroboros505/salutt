@@ -231,6 +231,11 @@ export interface DayEnergy {
   total: number
   /** True when the residual came from a real maintenance measurement. */
   anchored: boolean
+  /** How completely activity has been logged lately, 0 to 1. */
+  trust: number
+  /** Days with something logged, for saying so plainly. */
+  logged: number
+  days: number
 }
 
 /** Roughly a tenth of intake goes on digesting it, across a mixed diet. */
@@ -242,9 +247,10 @@ export function dayEnergy(
   intakeKcal: number,
   activityKcal: number,
   maintenance: number | null,
-  meanActivity: number | null,
+  usual: UsualActivity,
   meanIntake: number | null,
 ): DayEnergy {
+  const meanActivity = usual.mean
   const bmr = bmrMifflin(kg, settings.heightCm, ageFrom(settings.birthDate), settings.sex)
   const digestion = TEF_FRACTION * intakeKcal
 
@@ -257,28 +263,59 @@ export function dayEnergy(
     rest = maintenance - bmr - TEF_FRACTION * meanIntake - meanActivity
     anchored = true
   } else {
-    rest = bmr * (settings.activity - 1) - (meanActivity ?? activityKcal)
+    rest = bmr * (settings.activity - 1) - meanActivity
   }
   // A negative residual would mean the body does nothing at all beyond what is
   // logged, which is never true; it means the activity estimates run high.
   rest = Math.max(0, rest)
 
   const total = bmr + digestion + activityKcal + rest
-  return { bmr: Math.round(bmr), digestion: Math.round(digestion), activity: Math.round(activityKcal), rest: Math.round(rest), total: Math.round(total), anchored }
+  return {
+    bmr: Math.round(bmr),
+    digestion: Math.round(digestion),
+    activity: Math.round(activityKcal),
+    rest: Math.round(rest),
+    total: Math.round(total),
+    anchored,
+    trust: usual.trust,
+    logged: usual.logged,
+    days: usual.days,
+  }
+}
+
+export interface UsualActivity {
+  /** Mean kcal per day across the window, unlogged days counted as zero. */
+  mean: number
+  /** Days with something logged, out of the window. */
+  logged: number
+  days: number
+  /**
+   * How far to trust it, 0 to 1.
+   *
+   * A day with nothing logged is ambiguous — nothing done, or nothing
+   * recorded — and the app cannot tell which. Counting it as zero is right
+   * when you log consistently and badly wrong when you do not: log two rides
+   * in a fortnight and the "average day" collapses to 57 kcal, every ordinary
+   * day then looks exceptional, and the target inflates by 350. So the
+   * computed figure is blended in as coverage improves rather than switched
+   * on at some arbitrary threshold.
+   */
+  trust: number
 }
 
 /**
- * The usual day's activity and intake, as rolling means.
+ * The usual day's activity, as a rolling mean.
  *
  * Days with nothing logged count as zero rather than being skipped: a day off
  * the bike is a real quiet day, and dropping it would quietly raise the
- * baseline every time you rested.
+ * baseline every time you rested. What guards against under-logging is `trust`,
+ * not exclusion.
  */
 export function usualActivity(
   workouts: { date: ISODate; kcal?: number }[],
   today: ISODate,
   days = 14,
-): number | null {
+): UsualActivity | null {
   const start = new Date(today)
   start.setDate(start.getDate() - days)
   const from = start.toISOString().slice(0, 10)
@@ -290,7 +327,10 @@ export function usualActivity(
   if (byDay.size < 3) return null
   let total = 0
   for (const v of byDay.values()) total += v
-  return total / days
+  const coverage = byDay.size / days
+  // Nothing below a third of days; full weight from four days in five.
+  const trust = Math.max(0, Math.min(1, (coverage - 0.33) / (0.8 - 0.33)))
+  return { mean: total / days, logged: byDay.size, days, trust }
 }
 
 export function computeTargets(
@@ -319,12 +359,15 @@ export function computeTargets(
 
   const baseKcal = Math.round(kcal)
   // With a day's energy worked out, the target is that day's expenditure less
-  // the deficit the goal asks for — rather than an average day's figure.
+  // the deficit the goal asks for — rather than an average day's figure. It is
+  // blended in by how completely the activity has been logged, since a sparse
+  // log makes every ordinary day look exceptional.
   if (energy) {
     const deficit = settings.kcalTargetOverride
       ? tdee - settings.kcalTargetOverride
       : -(settings.goalKgPerWeek * KCAL_PER_KG) / 7
-    kcal = energy.total - deficit
+    const computed = energy.total - deficit
+    kcal = baseKcal + energy.trust * (computed - baseKcal)
   }
 
   // Floor the target: aggressive deficits cost muscle and adherence.

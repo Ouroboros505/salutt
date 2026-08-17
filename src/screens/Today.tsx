@@ -79,12 +79,12 @@ export default function Today({
   const allWorkouts = useLiveQuery(() => db.workouts.toArray(), []) ?? []
   const adaptive = adaptiveTDEE(allEntries, trend)
   const todayActivity = workouts.reduce((t, w) => t + (w.kcal ?? 0), 0)
-  const meanActivity = usualActivity(allWorkouts, date)
+  const usual = usualActivity(allWorkouts, date)
   const meanIntake = adaptive?.meanIntake ?? null
   const maintenance = adaptive && adaptive.confidence !== 'low' ? adaptive.kcal : null
   const energy =
-    currentKg && meanActivity != null
-      ? dayEnergy(settings, currentKg, totals.kcal, todayActivity, maintenance, meanActivity, meanIntake)
+    currentKg && usual
+      ? dayEnergy(settings, currentKg, totals.kcal, todayActivity, maintenance, usual, meanIntake)
       : null
   const targets = computeTargets(settings, currentKg, adaptive, energy)
   const remaining = targets.kcal - totals.kcal
@@ -148,10 +148,15 @@ export default function Today({
           <div style={{ textAlign: 'right' }}>
             <div className="small secondary num">{Math.round(totals.kcal).toLocaleString()} eaten</div>
             <div className="small muted num">of {targets.kcal.toLocaleString()} target</div>
-            {targets.energy && (
+            {targets.energy && targets.energy.trust > 0 && (
               <div className="tiny muted num">
-                {targets.energy.total.toLocaleString()} kcal out today
-                {targets.energy.anchored ? '' : ' (estimated)'}
+                {targets.energy.total.toLocaleString()} kcal out today · usual day{' '}
+                {Math.round(targets.energy.rest + targets.energy.bmr + targets.energy.digestion)}
+                {targets.energy.trust < 1
+                  ? ` · counting ${Math.round(targets.energy.trust * 100)}%, ${targets.energy.logged} of ${targets.energy.days} days logged`
+                  : targets.energy.anchored
+                    ? ''
+                    : ' (level still estimated)'}
               </div>
             )}
           </div>
