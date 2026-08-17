@@ -133,6 +133,34 @@ function change(data: Data): string[] {
     notes.push(`saved route ${r.name} — ${r.km} km`)
   }
 
+  // The Aldi cheese tray, from the label. A mixed tray is a blend, so no
+  // generic entry comes close: 375 kcal/100 g against cheddar's 408.
+  if (!(data.foods ?? []).some((f) => /cheese tray/i.test(f.name))) {
+    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
+    ;(data.foods ??= []).push(
+      touch({
+        id: nextId,
+        name: 'Cheese tray, mixed',
+        brand: 'Aldi',
+        // 32 g serving: 120 kcal, 10 g fat, 1 g carb, 8 g protein.
+        kcal: 375,
+        protein: 25,
+        carbs: 3.1,
+        fat: 31.2,
+        fiber: 0,
+        portions: [{ label: '1 serving (32 g)', grams: 32 }, { label: 'half a serving', grams: 16 }],
+        defaultPortion: 0,
+        liquid: false,
+        source: 'manual',
+        favorite: false,
+        useCount: 0,
+        lastUsed: 0,
+        createdAt: Date.now(),
+      }),
+    )
+    notes.push('added Cheese tray, mixed (Aldi) — 1 serving (32 g) = 120 kcal, 8 g protein')
+  }
+
   // --- example, currently a no-op -------------------------------------------
   // const recipe = data.recipes?.find((r) => r.name.includes('Braised'))
   // if (recipe) {

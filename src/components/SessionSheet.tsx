@@ -132,17 +132,20 @@ export default function SessionSheet({
    * not a number to accept without thinking.
    */
   const history = useLiveQuery(
-    () => db.workouts.where('date').below(date).reverse().sortBy('date'),
+    () => db.workouts.where('date').below(date).sortBy('date'),
     [date],
   )
   const lastTime = useMemo(() => {
     const out = new Map<string, { date: ISODate; sets: { reps: number; weightKg: number }[] }>()
-    for (const w of history ?? []) {
+    // Newest first. `sortBy` always ascends whatever the collection's order, so
+    // reversing it here is what makes "last time" the latest rather than the
+    // first time the exercise was ever done.
+    for (const w of [...(history ?? [])].reverse()) {
       for (const s of w.sets) {
-        if (!out.has(s.exercise)) out.set(s.exercise, { date: w.date, sets: [] })
-        const entry = out.get(s.exercise)!
-        // Only the most recent session for each, not every session it appears in.
-        if (entry.date === w.date) entry.sets.push({ reps: s.reps, weightKg: s.weightKg })
+        const entry = out.get(s.exercise)
+        if (!entry) out.set(s.exercise, { date: w.date, sets: [{ reps: s.reps, weightKg: s.weightKg }] })
+        // Only the one session, not every session it has ever appeared in.
+        else if (entry.date === w.date) entry.sets.push({ reps: s.reps, weightKg: s.weightKg })
       }
     }
     return out
