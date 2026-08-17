@@ -34,6 +34,7 @@ export const Icon = {
   check: () => svg(<path d="m5 12.5 4.5 4.5L19 7" />),
   bluetooth: () => svg(<><path d="M7 8.5 17 15.5 12 19V5l5 3.5L7 15.5" /></>),
   edit: () => svg(<><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="m14.5 5.5 4 4" /></>),
+  bike: () => svg(<><circle cx="5.5" cy="17" r="3.5" /><circle cx="18.5" cy="17" r="3.5" /><path d="M5.5 17 9 8h5l3.5 9M9 8h6.5" /></>),
   plate: () => svg(<><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="4" /></>),
   box: () => svg(<><path d="M4.5 7.5h15v11a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1z" /><path d="M3.5 7.5 6 4.5h12l2.5 3" /><path d="M4.5 13.5h15" /></>),
 }

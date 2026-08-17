@@ -126,7 +126,7 @@ export interface SetEntry {
 export interface Workout {
   id?: number
   date: ISODate
-  kind: 'strength' | 'cardio' | 'other'
+  kind: 'strength' | 'cardio' | 'ride' | 'other'
   name: string
   durationMin?: number
   kcal?: number

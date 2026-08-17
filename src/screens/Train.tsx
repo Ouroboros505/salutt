@@ -3,15 +3,21 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type ISODate, type SetEntry, type Workout } from '../db/db'
 import { formatDay, todayISO } from '../lib/date'
 import { Field, Icon, NumberInput, Segmented, Sheet } from '../components/ui'
+import RideSheet from '../components/RideSheet'
 
 const KINDS = [
   { value: 'strength' as const, label: 'Strength' },
   { value: 'cardio' as const, label: 'Cardio' },
+  { value: 'ride' as const, label: 'Bike' },
   { value: 'other' as const, label: 'Other' },
 ]
 
 export default function Train({ date, toast }: { date: ISODate; toast: (m: string) => void }) {
   const [editing, setEditing] = useState<Workout | 'new' | null>(null)
+  const [riding, setRiding] = useState(false)
+  // The energy cost of moving a body scales with the body, so the estimate
+  // uses the most recent weigh-in rather than a stored constant.
+  const latest = useLiveQuery(() => db.weighIns.orderBy('date').last(), [])
 
   const workouts = useLiveQuery(() => db.workouts.orderBy('date').reverse().limit(60).toArray(), []) ?? []
 
@@ -20,7 +26,11 @@ export default function Train({ date, toast }: { date: ISODate; toast: (m: strin
     return acc
   }, {})
 
-  const thisWeek = workouts.filter((w) => w.date > shiftDays(todayISO(), -7)).length
+  const recent = workouts.filter((w) => w.date > shiftDays(todayISO(), -7))
+  const thisWeek = recent.filter((w) => w.kind !== 'ride').length
+  const rides = recent.filter((w) => w.kind === 'ride')
+  const rideMin = rides.reduce((t, w) => t + (w.durationMin ?? 0), 0)
+  const rideKm = rides.reduce((t, w) => t + (w.distanceKm ?? 0), 0)
   const volume = workouts
     .filter((w) => w.date > shiftDays(todayISO(), -7))
     .reduce((t, w) => t + w.sets.reduce((s, x) => s + x.reps * x.weightKg, 0), 0)
@@ -37,10 +47,22 @@ export default function Train({ date, toast }: { date: ISODate; toast: (m: strin
             {volume > 0 && (
               <div className="tiny muted num">{Math.round(volume).toLocaleString()} kg total volume</div>
             )}
+            {rideMin > 0 && (
+              <div className="tiny muted num">
+                {Math.floor(rideMin / 60)} h {rideMin % 60} m riding
+                {rideKm > 0 ? ` · ${Math.round(rideKm)} km` : ''} · {rides.length} trip
+                {rides.length === 1 ? '' : 's'}
+              </div>
+            )}
           </div>
-          <button className="btn primary" onClick={() => setEditing('new')}>
-            <Icon.plus /> Log
-          </button>
+          <div className="stack tight" style={{ alignItems: 'flex-end' }}>
+            <button className="btn primary" onClick={() => setEditing('new')}>
+              <Icon.plus /> Log
+            </button>
+            <button className="btn sm" onClick={() => setRiding(true)}>
+              <Icon.bike /> Ride
+            </button>
+          </div>
         </div>
       </div>
 
@@ -71,6 +93,15 @@ export default function Train({ date, toast }: { date: ISODate; toast: (m: strin
           </div>
         </div>
       ))}
+
+      {riding && (
+        <RideSheet
+          date={date}
+          kg={latest?.kg ?? 70}
+          onClose={() => setRiding(false)}
+          toast={toast}
+        />
+      )}
 
       {editing && (
         <WorkoutSheet
