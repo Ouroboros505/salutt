@@ -81,6 +81,18 @@ function change(data: Data): string[] {
   }
   if (stamped) notes.push(`gave ${stamped} rows their stable identity`)
 
+  // The three stray "Session" rows logged by mistake. Deleted on the phone,
+  // but the deletion never left it — the tombstone hook was writing into a
+  // transaction that had no scope for it. Buried here so the merge agrees.
+  const strays = (data.workouts ?? []).filter((w) => w.name === 'Session')
+  if (strays.length) {
+    data.workouts = (data.workouts ?? []).filter((w) => w.name !== 'Session')
+    for (const w of strays) {
+      ;(data.tombstones ??= []).push({ table: 'workouts', key: w.id, at: Date.now() })
+    }
+    notes.push(`removed ${strays.length} stray "Session" workouts and buried them`)
+  }
+
   // --- example, currently a no-op -------------------------------------------
   // const recipe = data.recipes?.find((r) => r.name.includes('Braised'))
   // if (recipe) {

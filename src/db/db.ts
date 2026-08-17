@@ -341,9 +341,23 @@ class SaluttDB extends Dexie {
       hooks('updating', ((mods: Record<string, unknown>) =>
         'updatedAt' in mods ? undefined : { updatedAt: Date.now() }) as never)
       hooks('deleting', ((key: number) => {
-        // Runs inside the transaction Dexie gives the hook, so the tombstone
-        // lands with the deletion or not at all.
-        void this.tombstones.put({ table: name, key, at: Date.now() })
+        /**
+         * The hook runs inside the transaction that is doing the deleting, and
+         * that transaction is scoped to the table being deleted from — writing
+         * to `tombstones` from inside it throws, and the throw was swallowed.
+         * So no tombstone was ever recorded, the deletion existed only on this
+         * device, and the next sync dutifully restored the row from the server.
+         *
+         * Recorded after the transaction commits instead: it needs its own
+         * scope, and a deletion that rolled back should leave no headstone.
+         */
+        const at = Date.now()
+        const write = () => {
+          void this.tombstones.put({ table: name, key, at }).catch(() => {})
+        }
+        const tx = Dexie.currentTransaction
+        if (tx) tx.on('complete', write)
+        else write()
       }) as never)
     }
   }

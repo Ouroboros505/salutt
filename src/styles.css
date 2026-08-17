@@ -608,3 +608,16 @@ input[type='number'] {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ------------------------------------------------- collapsible detail cards */
+details.card > summary {
+  list-style: none;
+}
+details.card > summary::-webkit-details-marker {
+  display: none;
+}
+/* Point the chevron down once open, so the control reads as a disclosure. */
+details.card[open] > summary svg {
+  transform: rotate(90deg);
+  transition: transform 120ms ease;
+}

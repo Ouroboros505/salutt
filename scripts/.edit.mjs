@@ -171,6 +171,15 @@ function change(data) {
     }
   }
   if (stamped) notes.push(`gave ${stamped} rows their stable identity`);
+  const strays = (data.workouts ?? []).filter((w) => w.name === "Session");
+  if (strays.length) {
+    data.workouts = (data.workouts ?? []).filter((w) => w.name !== "Session");
+    for (const w of strays) {
+      ;
+      (data.tombstones ??= []).push({ table: "workouts", key: w.id, at: Date.now() });
+    }
+    notes.push(`removed ${strays.length} stray "Session" workouts and buried them`);
+  }
   return notes;
 }
 async function main() {

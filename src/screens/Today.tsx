@@ -199,77 +199,68 @@ export default function Today({
         </div>
       )}
 
-      {/* The day's arithmetic, laid out. Visible whether or not it is yet
-          trusted enough to move the target, because "why is my number that"
-          is the question a computed target invites. */}
+      {/* The day's arithmetic. Folded away by default: it answers a question
+          worth answering, but not one worth a screenful before breakfast. */}
       {energy && (
-        <div className="card tight">
-          <div className="card-head">
-            <h3>Where today's energy went</h3>
-            <span className="tiny muted">{energy.anchored ? 'measured' : 'estimated'}</span>
-          </div>
-          <div className="row between small num">
-            <span className="secondary">Resting</span>
-            <span>{energy.bmr.toLocaleString()}</span>
-          </div>
-          <div className="row between small num">
-            <span className="secondary">Digesting what you ate</span>
-            <span>{energy.digestion}</span>
-          </div>
-          <div className="row between small num">
-            <span className="secondary">Riding and training</span>
-            <span>{energy.activity}</span>
-          </div>
-          <div className="row between small num">
-            <span className="secondary">Everything else you did</span>
-            <span>
-              {energy.anchored ? energy.rest : `${energy.restLow}–${energy.restHigh}`}
-            </span>
-          </div>
-          <div className="row between" style={{ borderTop: '1px solid var(--grid)', paddingTop: 6 }}>
-            <span className="stat-label">Burned</span>
-            <span className="stat-value num">
-              {energy.anchored
-                ? energy.total.toLocaleString()
-                : `${(energy.total - energy.rest + energy.restLow).toLocaleString()}–${(
-                    energy.total - energy.rest + energy.restHigh
-                  ).toLocaleString()}`}
-            </span>
-          </div>
-          <div className="row between small num">
-            <span className="secondary">Eaten</span>
-            <span>{Math.round(totals.kcal).toLocaleString()}</span>
-          </div>
-          <div className="row between">
+        <details className="card tight">
+          <summary className="row between" style={{ cursor: 'pointer', listStyle: 'none' }}>
             <span className="stat-label">Down by</span>
-            <span className="stat-value num" style={{ color: 'var(--success-text)' }}>
-              {energy.anchored
-                ? Math.round(energy.total - totals.kcal).toLocaleString()
-                : `${Math.round(energy.total - energy.rest + energy.restLow - totals.kcal).toLocaleString()}–${Math.round(
-                    energy.total - energy.rest + energy.restHigh - totals.kcal,
-                  ).toLocaleString()}`}{' '}
-              kcal
+            <span className="row" style={{ gap: 8, alignItems: 'baseline' }}>
+              <span className="stat-value num" style={{ color: 'var(--success-text)' }}>
+                {energy.anchored
+                  ? `${gramsFromKcal(energy.total - totals.kcal)} g`
+                  : `${gramsFromKcal(energy.total - energy.rest + energy.restLow - totals.kcal)}–${gramsFromKcal(
+                      energy.total - energy.rest + energy.restHigh - totals.kcal,
+                    )} g`}
+              </span>
+              <span className="tiny muted num">
+                of {gramsFromKcal((-settings.goalKgPerWeek * 7700) / 7)} g planned
+              </span>
+              <span className="muted"><Icon.chevron /></span>
             </span>
-          </div>
-          {/* The number the deficit is actually for. */}
-          <div className="row between small num">
-            <span className="secondary">which is</span>
-            <span style={{ color: 'var(--success-text)' }}>
+          </summary>
+
+          <div className="stack tight" style={{ paddingTop: 8 }}>
+            <div className="row between small num">
+              <span className="secondary">Resting (BMR)</span>
+              <span>{energy.bmr.toLocaleString()}</span>
+            </div>
+            <div className="row between small num">
+              <span className="secondary">Digesting what you ate</span>
+              <span>{energy.digestion}</span>
+            </div>
+            <div className="row between small num">
+              <span className="secondary">Riding and training</span>
+              <span>{energy.activity}</span>
+            </div>
+            <div className="row between small num">
+              <span className="secondary" title="Walking about, standing, fidgeting, carrying things — the part nothing can log.">
+                Everything else you did
+              </span>
+              <span>{energy.anchored ? energy.rest : `${energy.restLow}–${energy.restHigh}`}</span>
+            </div>
+            <div className="row between small num" style={{ borderTop: '1px solid var(--grid)', paddingTop: 6 }}>
+              <span className="secondary">Burned</span>
+              <span>
+                {energy.anchored
+                  ? energy.total.toLocaleString()
+                  : `${(energy.total - energy.rest + energy.restLow).toLocaleString()}–${(
+                      energy.total - energy.rest + energy.restHigh
+                    ).toLocaleString()}`}
+              </span>
+            </div>
+            <div className="row between small num">
+              <span className="secondary">Eaten</span>
+              <span>{Math.round(totals.kcal).toLocaleString()}</span>
+            </div>
+            <div className="tiny muted">
               {energy.anchored
-                ? `${gramsFromKcal(energy.total - totals.kcal)} g`
-                : `${gramsFromKcal(energy.total - energy.rest + energy.restLow - totals.kcal)}–${gramsFromKcal(
-                    energy.total - energy.rest + energy.restHigh - totals.kcal,
-                  )} g`}{' '}
-              of fat, against {gramsFromKcal((-settings.goalKgPerWeek * 7700) / 7)} g planned
-            </span>
+                ? 'Everything else is solved against the maintenance your weight trend measured.'
+                : 'Everything else is the part nothing can log, and there is not yet enough weight history to solve it — hence a range. Two weeks of weights turns it into one number.'}
+              {energy.trust === 0 && ' Not moving the target yet.'}
+            </div>
           </div>
-          <div className="tiny muted">
-            {energy.anchored
-              ? 'Everything else is solved against the maintenance your weight trend measured.'
-              : 'Everything else — walking about, standing, fidgeting — is the part nothing can log, and there is not yet enough weight history to solve it. Two weeks of weights and it becomes one number instead of a range.'}
-            {energy.trust === 0 && ' Not moving the target yet.'}
-          </div>
-        </div>
+        </details>
       )}
 
         {macroTotal > 0 && (
