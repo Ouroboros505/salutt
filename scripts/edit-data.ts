@@ -161,6 +161,41 @@ function change(data: Data): string[] {
     notes.push('added Cheese tray, mixed (Aldi) — 1 serving (32 g) = 120 kcal, 8 g protein')
   }
 
+  // Avocado, with a portion that means the ones actually bought.
+  //
+  // The USDA entry's "fruit, without skin and seed" is 136 g, which is a
+  // medium Hass from a 194 g whole fruit. His weigh 133 g whole — about 93 g
+  // of flesh at the 30% USDA refuse for skin and stone — so logging "1 fruit"
+  // would add 70 kcal that were never eaten. A portion is only useful if "1"
+  // means one of yours.
+  if (!(data.foods ?? []).some((f) => /avocado/i.test(f.name))) {
+    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
+    ;(data.foods ??= []).push(
+      touch({
+        id: nextId,
+        name: 'Avocado, small (Hass)',
+        kcal: 167,
+        protein: 1.96,
+        carbs: 8.64,
+        fat: 15.4,
+        fiber: 6.8,
+        portions: [
+          { label: '1 avocado (133 g whole)', grams: 93 },
+          { label: 'half', grams: 47 },
+          { label: '1 medium (194 g whole)', grams: 136 },
+        ],
+        defaultPortion: 0,
+        liquid: false,
+        source: 'usda',
+        favorite: false,
+        useCount: 0,
+        lastUsed: 0,
+        createdAt: Date.now(),
+      }),
+    )
+    notes.push('added Avocado, small (Hass) — 1 avocado = 93 g = 155 kcal')
+  }
+
   // --- example, currently a no-op -------------------------------------------
   // const recipe = data.recipes?.find((r) => r.name.includes('Braised'))
   // if (recipe) {

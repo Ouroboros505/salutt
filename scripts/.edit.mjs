@@ -228,6 +228,33 @@ function change(data) {
     );
     notes.push("added Cheese tray, mixed (Aldi) \u2014 1 serving (32 g) = 120 kcal, 8 g protein");
   }
+  if (!(data.foods ?? []).some((f) => /avocado/i.test(f.name))) {
+    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1;
+    (data.foods ??= []).push(
+      touch({
+        id: nextId,
+        name: "Avocado, small (Hass)",
+        kcal: 167,
+        protein: 1.96,
+        carbs: 8.64,
+        fat: 15.4,
+        fiber: 6.8,
+        portions: [
+          { label: "1 avocado (133 g whole)", grams: 93 },
+          { label: "half", grams: 47 },
+          { label: "1 medium (194 g whole)", grams: 136 }
+        ],
+        defaultPortion: 0,
+        liquid: false,
+        source: "usda",
+        favorite: false,
+        useCount: 0,
+        lastUsed: 0,
+        createdAt: Date.now()
+      })
+    );
+    notes.push("added Avocado, small (Hass) \u2014 1 avocado = 93 g = 155 kcal");
+  }
   return notes;
 }
 async function main() {
