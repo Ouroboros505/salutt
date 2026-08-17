@@ -277,8 +277,37 @@ export interface Tombstone {
   at: number
 }
 
+/**
+ * A journey ridden often enough to be worth a button.
+ *
+ * The distance is the thing worth keeping: it is looked up once, and from then
+ * on every trip to campus has a real distance instead of an estimate of effort.
+ */
+export interface Route {
+  id?: number
+  name: string
+  km: number
+  /** How long it usually takes, so the whole ride fills in from one tap. */
+  minutes: number
+  useCount: number
+  lastUsed: number
+  createdAt: number
+}
+
 /** Tables that sync, and are therefore stamped and merged row by row. */
 export const SYNCED_TABLES = [
+  'foods',
+  'entries',
+  'weighIns',
+  'measurements',
+  'workouts',
+  'mealTemplates',
+  'recipes',
+  'routes',
+] as const
+
+/** The synced tables as they stood at version 3, for that version's upgrade. */
+const SYNCED_AT_V3 = [
   'foods',
   'entries',
   'weighIns',
@@ -296,6 +325,7 @@ class SaluttDB extends Dexie {
   workouts!: Table<Workout, number>
   mealTemplates!: Table<MealTemplate, number>
   recipes!: Table<Recipe, number>
+  routes!: Table<Route, number>
   settings!: Table<Settings, string>
   tombstones!: Table<Tombstone, number>
 
@@ -324,7 +354,7 @@ class SaluttDB extends Dexie {
         // Existing rows predate stamping. Their creation time is the best
         // evidence available, and it keeps them older than anything edited
         // since, which is the ordering a merge wants.
-        for (const name of SYNCED_TABLES) {
+        for (const name of SYNCED_AT_V3) {
           await tx
             .table(name)
             .toCollection()
@@ -335,6 +365,9 @@ class SaluttDB extends Dexie {
             })
         }
       })
+
+    // Routes arrived later; existing data is carried across untouched.
+    this.version(4).stores({ routes: '++id, name, lastUsed' })
 
     // Stamp every write, so no call site has to remember to. Dexie types the
     // three hooks as separate overloads, which a loop cannot satisfy.

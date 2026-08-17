@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { db, type ISODate } from '../db/db'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { db, type ISODate, type Route } from '../db/db'
 import { RIDE_EFFORTS, RIDE_PLACES, metFromSpeed, rideKcal } from '../lib/ride'
-import { Field, NumberInput, Sheet } from './ui'
+import { Field, Icon, NumberInput, Sheet } from './ui'
 
 /**
  * Logging one trip.
@@ -29,6 +30,21 @@ export default function RideSheet({
   const [effort, setEffort] = useState(RIDE_EFFORTS[1])
   const [returnTrip, setReturnTrip] = useState(true)
 
+  // The journeys you actually make, most-used first. A distance looked up
+  // once on a map is worth keeping forever.
+  const routes = useLiveQuery(() => db.routes.orderBy('lastUsed').reverse().toArray(), []) ?? []
+  const [routeId, setRouteId] = useState<number | null>(null)
+
+  const pick = (r: Route) => {
+    setPlace(r.name)
+    setKm(r.km)
+    setMinutes(r.minutes)
+    setRouteId(r.id ?? null)
+  }
+
+  const known = routes.find((r) => r.name.toLowerCase() === place.trim().toLowerCase())
+  const worthSaving = place.trim() !== '' && !!km && !!minutes && !known
+
   const legs = returnTrip ? 2 : 1
   const totalMin = (minutes ?? 0) * legs
   // Distance and time give a speed, and a speed is a measurement where "how
@@ -39,6 +55,16 @@ export default function RideSheet({
 
   return (
     <Sheet title="Log a ride" onClose={onClose}>
+      {routes.length > 0 && (
+        <div className="scroll-x">
+          {routes.map((r) => (
+            <button key={r.id} className="chip" aria-pressed={routeId === r.id} onClick={() => pick(r)}>
+              {r.name} <span className="muted num">{r.km} km</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       <Field label="Where to">
         <input
           autoFocus
@@ -47,13 +73,15 @@ export default function RideSheet({
           placeholder="Campus, the shops, a friend's…"
         />
       </Field>
-      <div className="scroll-x">
-        {RIDE_PLACES.map((p) => (
-          <button key={p} className="chip" aria-pressed={place === p} onClick={() => setPlace(p)}>
-            {p}
-          </button>
-        ))}
-      </div>
+      {routes.length === 0 && (
+        <div className="scroll-x">
+          {RIDE_PLACES.map((p) => (
+            <button key={p} className="chip" aria-pressed={place === p} onClick={() => setPlace(p)}>
+              {p}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="grid-2">
         <Field label="One way" hint="minutes in the saddle">
@@ -107,6 +135,26 @@ export default function RideSheet({
         </>
       )}
 
+      {worthSaving && (
+        <button
+          className="btn block"
+          onClick={async () => {
+            const id = await db.routes.add({
+              name: place.trim(),
+              km: km!,
+              minutes: minutes!,
+              useCount: 0,
+              lastUsed: Date.now(),
+              createdAt: Date.now(),
+            })
+            setRouteId(id as number)
+            toast(`${place.trim()} saved — ${km} km`)
+          }}
+        >
+          <Icon.plus /> Save “{place.trim()}” as a route, {km} km
+        </button>
+      )}
+
       <div className="card tight">
         <div className="row between">
           <span className="stat-label">
@@ -135,6 +183,11 @@ export default function RideSheet({
             sets: [],
             createdAt: Date.now(),
           })
+          // Keep the route ordered by what you actually ride.
+          if (routeId) {
+            const r = await db.routes.get(routeId)
+            if (r) await db.routes.update(routeId, { useCount: r.useCount + 1, lastUsed: Date.now() })
+          }
           toast(`${totalMin} min logged`)
           onClose()
         }}
