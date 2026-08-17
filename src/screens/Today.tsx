@@ -16,7 +16,15 @@ import {
   type PastMeal,
 } from '../db/ops'
 import { addDays, formatDay, todayISO } from '../lib/date'
-import { adaptiveTDEE, computeTargets, dayEnergy, usualActivity, weightTrend } from '../lib/metrics'
+import {
+  adaptiveTDEE,
+  computeTargets,
+  dayEnergy,
+  gramsFromKcal,
+  progressSoFar,
+  usualActivity,
+  weightTrend,
+} from '../lib/metrics'
 import { Icon, Meter, Sheet } from '../components/ui'
 import AddFood from '../components/AddFood'
 
@@ -88,6 +96,7 @@ export default function Today({
     ? dayEnergy(settings, currentKg, totals.kcal, todayActivity, maintenance, usual, meanIntake)
     : null
   const targets = computeTargets(settings, currentKg, adaptive, energy)
+  const progress = progressSoFar(trend)
   const remaining = targets.kcal - totals.kcal
   const isToday = date === todayISO()
   const todayWeight = weighIns.find((w) => w.date === date)
@@ -162,6 +171,34 @@ export default function Today({
 
         <Meter value={totals.kcal} max={targets.kcal} color={remaining < 0 ? 'var(--critical)' : undefined} />
 
+      {/* What the scale says, which is the only measurement here. Paper
+          deficits and the trend line disagree early on and converge later. */}
+      {progress && (
+        <div className="card tight">
+          <div className="row between">
+            <span className="stat-label">Since you started, {progress.days} days ago</span>
+            <span
+              className="stat-value num"
+              style={{ color: progress.changeKg <= 0 ? 'var(--success-text)' : 'var(--serious)' }}
+            >
+              {progress.changeKg <= 0 ? '' : '+'}
+              {(progress.changeKg * 1000).toFixed(0)} g
+            </span>
+          </div>
+          <div className="tiny muted num">
+            {progress.fromKg.toFixed(2)} → {progress.toKg.toFixed(2)} kg on the trend line ·{' '}
+            {((progress.changeKg / progress.days) * 7).toFixed(2)} kg/week against{' '}
+            {settings.goalKgPerWeek} planned
+          </div>
+          {!progress.settled && (
+            <div className="tiny muted">
+              Under a fortnight, so some of this is water and glycogen rather than fat. It
+              separates out as the weeks go on.
+            </div>
+          )}
+        </div>
+      )}
+
       {/* The day's arithmetic, laid out. Visible whether or not it is yet
           trusted enough to move the target, because "why is my number that"
           is the question a computed target invites. */}
@@ -212,6 +249,18 @@ export default function Today({
                     energy.total - energy.rest + energy.restHigh - totals.kcal,
                   ).toLocaleString()}`}{' '}
               kcal
+            </span>
+          </div>
+          {/* The number the deficit is actually for. */}
+          <div className="row between small num">
+            <span className="secondary">which is</span>
+            <span style={{ color: 'var(--success-text)' }}>
+              {energy.anchored
+                ? `${gramsFromKcal(energy.total - totals.kcal)} g`
+                : `${gramsFromKcal(energy.total - energy.rest + energy.restLow - totals.kcal)}–${gramsFromKcal(
+                    energy.total - energy.rest + energy.restHigh - totals.kcal,
+                  )} g`}{' '}
+              of fat, against {gramsFromKcal((-settings.goalKgPerWeek * 7700) / 7)} g planned
             </span>
           </div>
           <div className="tiny muted">

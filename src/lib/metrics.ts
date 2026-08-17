@@ -410,3 +410,44 @@ export function projectGoal(
   if (!isFinite(weeks) || weeks <= 0 || weeks > 520) return null
   return { weeks, date: addDays(todayISO(), Math.round(weeks * 7)) }
 }
+
+
+/**
+ * Progress so far, from the scale rather than from arithmetic.
+ *
+ * A deficit adds up on paper; the trend line is what actually happened. They
+ * disagree at first — the early kilo is largely water and glycogen leaving
+ * with the carbohydrate, not fat — and they converge over weeks. Reporting the
+ * measured one keeps the answer honest when they differ.
+ */
+export interface Progress {
+  /** Kilograms between the first trend point and the latest. */
+  changeKg: number
+  days: number
+  fromKg: number
+  toKg: number
+  /** Fewer than a fortnight of weights cannot separate fat from water. */
+  settled: boolean
+}
+
+export function progressSoFar(trend: TrendPoint[]): Progress | null {
+  if (trend.length < 2) return null
+  const first = trend[0]
+  const last = trend[trend.length - 1]
+  const days = Math.round(
+    (new Date(last.date).getTime() - new Date(first.date).getTime()) / 86_400_000,
+  )
+  if (days < 1) return null
+  return {
+    changeKg: last.trend - first.trend,
+    days,
+    fromKg: first.trend,
+    toKg: last.trend,
+    settled: days >= 14,
+  }
+}
+
+/** Grams of body tissue a calorie balance accounts for. */
+export function gramsFromKcal(kcal: number): number {
+  return Math.round((kcal / KCAL_PER_KG) * 1000)
+}
