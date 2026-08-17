@@ -64,13 +64,16 @@ export default function RecipeEditor({
   const [emptyG, setEmptyG] = useState<number | undefined>(undefined)
   const [fullG, setFullG] = useState<number | undefined>(undefined)
   const [fillPct, setFillPct] = useState<number | undefined>(70)
+  // The container weighed need not be the one carried: a density is a property
+  // of the food, so any box that can be measured will do.
+  const [calibMl, setCalibMl] = useState<number | undefined>(draft.containerMl ?? 750)
   const weighed = useMemo(() => {
     const food = (fullG ?? 0) - (emptyG ?? 0)
-    const ml = ((fillPct ?? 0) / 100) * (draft.containerMl ?? 750)
+    const ml = ((fillPct ?? 0) / 100) * (calibMl ?? 0)
     if (!(food > 0) || !(ml > 0)) return null
     const d = Math.round((food / ml) * 100) / 100
     return d > 0.2 && d < 1.6 ? d : null
-  }, [emptyG, fullG, fillPct, draft.containerMl])
+  }, [emptyG, fullG, fillPct, calibMl])
 
   const dbEntries = useLiveQuery(() => loadFoodDb(), [])
   const index = useMemo(() => (dbEntries ? densityIndex(dbEntries) : null), [dbEntries])
@@ -293,16 +296,19 @@ export default function RecipeEditor({
               Weighed a box? Empty and full, and roughly how full it was — that beats every
               estimate.
             </div>
-            <div className="row" style={{ gap: 6 }}>
-              <div style={{ width: 88, flex: 'none' }}>
-                <NumberInput value={emptyG} unit="g" placeholder="empty" onChange={setEmptyG} />
-              </div>
-              <div style={{ width: 88, flex: 'none' }}>
-                <NumberInput value={fullG} unit="g" placeholder="full" onChange={setFullG} />
-              </div>
-              <div style={{ width: 76, flex: 'none' }}>
+            <div className="grid-2">
+              <Field label="Container empty">
+                <NumberInput value={emptyG} unit="g" placeholder="540" onChange={setEmptyG} />
+              </Field>
+              <Field label="With the food">
+                <NumberInput value={fullG} unit="g" placeholder="900" onChange={setFullG} />
+              </Field>
+              <Field label="How full">
                 <NumberInput value={fillPct} unit="%" placeholder="70" onChange={setFillPct} />
-              </div>
+              </Field>
+              <Field label="That container" hint="any box, not just the lunch one">
+                <NumberInput value={calibMl} unit="ml" placeholder="750" onChange={setCalibMl} />
+              </Field>
             </div>
             {weighed && (
               <div className="row between">
