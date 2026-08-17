@@ -31,6 +31,23 @@ function secret(): string {
   return m[1]
 }
 
+/**
+ * The uid a row gets when it predates uids. Must match the app's derivation
+ * exactly, or the same row on each side becomes two rows on the first merge.
+ */
+export function legacyUid(table: string, key: number | string, createdAt?: number): string {
+  const seed = `${table}:${key}:${createdAt ?? 0}`
+  const fnv = (start: number) => {
+    let h = start
+    for (let i = 0; i < seed.length; i++) {
+      h ^= seed.charCodeAt(i)
+      h = Math.imul(h, 0x01000193) >>> 0
+    }
+    return h.toString(16).padStart(8, '0')
+  }
+  return `L${fnv(0x811c9dc5)}${fnv(0x7ee3c821)}`
+}
+
 /** Marks a row as written now, so the merge prefers it over the older copy. */
 export function touch<T extends Row>(row: T): T {
   row.updatedAt = Date.now()
@@ -50,18 +67,19 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Jasmine, which is what actually gets bought. Cooked jasmine is
-  // nutritionally the same as any cooked long-grain white rice, but it packs
-  // a little denser in a container because the grains are softer and stickier.
-  // USDA has no jasmine entry, so the density sits between the long-grain it
-  // is (0.67) and short-grain (0.79) — an interpolation, not a measurement.
-  const rice = (data.foods ?? []).find((f) => /rice/i.test(f.name))
-  if (rice && !/jasmine/i.test(rice.name)) {
-    rice.name = 'Rice, jasmine, cooked (Aldi)'
-    rice.portions = [{ label: '1 cup', grams: 170 }]
-    touch(rice)
-    notes.push('rice switched to jasmine, 0.72 g/ml')
+  // Give the stored copy the same identities the app will derive on upgrade,
+  // so the two sides recognise each other's rows instead of doubling them.
+  let stamped = 0
+  for (const [table, rows] of Object.entries(data)) {
+    if (table === 'settings' || table === 'tombstones' || !Array.isArray(rows)) continue
+    for (const row of rows) {
+      if (!row.uid && row.id != null) {
+        row.uid = legacyUid(table, row.id, row.createdAt)
+        stamped++
+      }
+    }
   }
+  if (stamped) notes.push(`gave ${stamped} rows their stable identity`)
 
   // --- example, currently a no-op -------------------------------------------
   // const recipe = data.recipes?.find((r) => r.name.includes('Braised'))

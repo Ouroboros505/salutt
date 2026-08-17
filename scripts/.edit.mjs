@@ -141,6 +141,18 @@ function secret() {
   if (!m) throw new Error("no recovery phrase in SECRETS.local.md");
   return m[1];
 }
+function legacyUid(table, key, createdAt) {
+  const seed = `${table}:${key}:${createdAt ?? 0}`;
+  const fnv = (start) => {
+    let h = start;
+    for (let i = 0; i < seed.length; i++) {
+      h ^= seed.charCodeAt(i);
+      h = Math.imul(h, 16777619) >>> 0;
+    }
+    return h.toString(16).padStart(8, "0");
+  };
+  return `L${fnv(2166136261)}${fnv(2128857121)}`;
+}
 function touch(row) {
   row.updatedAt = Date.now();
   return row;
@@ -148,13 +160,17 @@ function touch(row) {
 var summarise = (data) => Object.entries(data).filter(([, rows]) => Array.isArray(rows) && rows.length).map(([t, rows]) => `${t}=${rows.length}`).join(" ");
 function change(data) {
   const notes = [];
-  const rice = (data.foods ?? []).find((f) => /rice/i.test(f.name));
-  if (rice && !/jasmine/i.test(rice.name)) {
-    rice.name = "Rice, jasmine, cooked (Aldi)";
-    rice.portions = [{ label: "1 cup", grams: 170 }];
-    touch(rice);
-    notes.push("rice switched to jasmine, 0.72 g/ml");
+  let stamped = 0;
+  for (const [table, rows] of Object.entries(data)) {
+    if (table === "settings" || table === "tombstones" || !Array.isArray(rows)) continue;
+    for (const row of rows) {
+      if (!row.uid && row.id != null) {
+        row.uid = legacyUid(table, row.id, row.createdAt);
+        stamped++;
+      }
+    }
   }
+  if (stamped) notes.push(`gave ${stamped} rows their stable identity`);
   return notes;
 }
 async function main() {
@@ -182,5 +198,6 @@ pushed ${res.bytes} bytes; the phone will merge it on its next sync`);
 }
 void main();
 export {
+  legacyUid,
   touch
 };

@@ -207,57 +207,33 @@ export type BoxPart = {
   /** True when the density came from a measurement, not a family average. */
   measured?: boolean
   /**
-   * How this share was arrived at. A percentage of the container is the one
-   * that needs no equipment; weighing it is exact and also tells you whether
-   * the density behind the percentage was any good; a hand is for food from
-   * somewhere else that went in the same box.
+   * Volume × density is a real estimate with real error. When a batch was
+   * weighed and you know how many lunches it was split into, division gives
+   * the exact weight instead — no density, no guessing at how full the box is.
    */
-  mode: 'share' | 'weighed' | 'hand'
-  /** Set when weighed or estimated by hand, in place of the percentage. */
-  grams?: number
+  batchGrams?: number
+  lunches?: number
 }
 
-/** Grams of one component, however its share was arrived at. */
-export function partGrams(part: Pick<BoxPart, 'pct' | 'density' | 'mode' | 'grams'>, boxMl: number): number {
-  if (part.mode !== 'share') return Math.round(part.grams ?? 0)
+/** Grams of one component, from its share of the box. */
+export function partGrams(part: Pick<BoxPart, 'pct' | 'density' | 'batchGrams' | 'lunches'>, boxMl: number): number {
+  if (part.batchGrams && part.lunches && part.lunches > 0) {
+    return Math.round(part.batchGrams / part.lunches)
+  }
   if (!(boxMl > 0) || !(part.density > 0)) return 0
   return Math.round((part.pct / 100) * boxMl * part.density)
 }
 
-/** A weighed part has no error worth reporting; the other two do. */
-export function partIsExact(part: Pick<BoxPart, 'mode'>): boolean {
-  return part.mode === 'weighed'
-}
-
-/**
- * What weighing a part actually told you.
- *
- * The percentage route turns volume into grams through a category density, and
- * the only way to know whether that density fits your cooking is to weigh a
- * portion once and compare. This reports the density that the weighing implies,
- * so it can replace the estimate rather than just contradicting it.
- */
-export function impliedDensity(part: BoxPart, boxMl: number): number | null {
-  if (part.mode !== 'weighed' || !part.grams || !(part.pct > 0) || !(boxMl > 0)) return null
-  const d = part.grams / ((part.pct / 100) * boxMl)
-  return d > 0.2 && d < 1.6 ? Math.round(d * 1000) / 1000 : null
+/** Whether a part's weight is divided from a weighed batch or estimated. */
+export function partIsExact(part: Pick<BoxPart, 'batchGrams' | 'lunches'>): boolean {
+  return !!(part.batchGrams && part.lunches && part.lunches > 0)
 }
 
 /** The grams either side of a part's estimate, from its category spread. */
 export function partError(part: BoxPart, boxMl: number): number {
-  if (part.mode === 'weighed') return 0
-  // A hand is a rougher instrument than a category density.
-  const spread = part.mode === 'hand' ? 0.3 : spreadFor(part.density)
-  return Math.round(partGrams(part, boxMl) * spread)
+  if (partIsExact(part)) return 0
+  return Math.round(partGrams(part, boxMl) * spreadFor(part.density))
 }
-
-/** Rough measures for food from elsewhere that ended up in the same box. */
-export const HAND_SIZES: { label: string; grams: number }[] = [
-  { label: 'A serving spoon', grams: 70 },
-  { label: 'A cupped hand', grams: 100 },
-  { label: 'A closed fist', grams: 150 },
-  { label: 'Two palms', grams: 200 },
-]
 
 /**
  * A starting density from the name, so the common cases need no thought.

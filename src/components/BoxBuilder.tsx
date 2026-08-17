@@ -6,13 +6,14 @@ import { loadFoodDb, searchFoodDb } from '../lib/foodDb'
 import { saveFood } from '../db/ops'
 import {
   DISH_TYPES,
-  HAND_SIZES,
   boxTotals,
+  calibratedDensity,
   densityFromPortions,
+  finishedWeight,
   guessDensity,
-  impliedDensity,
   partError,
   partGrams,
+  partIsExact,
   per100,
   type BoxPart,
 } from '../lib/recipes'
@@ -50,11 +51,7 @@ export default function BoxBuilder({
   // How wrong the whole box could be, from the parts still being estimated.
   const error = parts.reduce((t, p) => t + (partError(p, boxMl) * p.per100.kcal) / 100, 0)
   const drinkKcal = drink ? Math.round((drink.per100.kcal * drink.ml) / 100) : 0
-  // Only shares describe how full the box is. A weighed or eyeballed part
-  // says nothing about volume, so counting it would make the reading a lie.
-  const shares = parts.filter((p) => p.mode === 'share')
-  const filled = Math.round(shares.reduce((t, p) => t + p.pct, 0))
-  const allShares = shares.length === parts.length
+  const filled = Math.round(totals.pct)
 
   const update = (key: string, patch: Partial<BoxPart>) =>
     setParts((ps) => ps.map((p) => (p.key === key ? { ...p, ...patch } : p)))
@@ -74,12 +71,9 @@ export default function BoxBuilder({
       for (const p of parts) {
         const grams = partGrams(p, boxMl)
         if (grams <= 0) continue
-        const label =
-          p.mode === 'share'
-            ? `${p.pct}% of the box (${grams} g)`
-            : p.mode === 'weighed'
-              ? `${grams} g, weighed`
-              : `${grams} g, by eye`
+        const label = partIsExact(p)
+          ? `1 of ${p.lunches} from the batch (${grams} g)`
+          : `${p.pct}% of the box (${grams} g)`
         if (p.recipeId) {
           const recipe = await db.recipes.get(p.recipeId)
           if (recipe) {
@@ -110,7 +104,9 @@ export default function BoxBuilder({
             density: r.density ?? guessDensity(r.name),
             per100: per100(r),
             recipeId: r.id,
-            mode: 'share',
+            // Offered, not assumed — the batch weight is only exact once you
+            // say how many lunches it was split into.
+            batchGrams: Math.round(finishedWeight(r)) || undefined,
           })
         }
         onPickFood={async (f) => {
@@ -133,7 +129,6 @@ export default function BoxBuilder({
             measured: !!densityFromPortions(f.portions ?? []),
             per100: { kcal: f.kcal, protein: f.protein, carbs: f.carbs, fat: f.fat, fiber: f.fiber },
             foodId: id,
-            mode: 'share',
           })
         }}
       />
@@ -149,10 +144,7 @@ export default function BoxBuilder({
       <div className="card tight">
         <div className="card-head">
           <h3>What is in it</h3>
-          <span className="tiny muted num">
-            {shares.length > 0 ? `${filled}% by volume` : ''}
-            {shares.length > 0 && shares.length !== parts.length ? ' + weighed' : ''}
-          </span>
+          <span className="tiny muted num">{filled}% filled</span>
         </div>
 
         {parts.length === 0 && (
@@ -163,13 +155,7 @@ export default function BoxBuilder({
 
         {parts.map((p) => {
           const grams = partGrams(p, boxMl)
-          const exact = p.mode === 'weighed'
-          const actual = impliedDensity(p, boxMl)
-          const estimated = Math.round((p.pct / 100) * boxMl * p.density)
-          const check =
-            actual && estimated > 0
-              ? { actual, estimated, pctOff: Math.round((100 * Math.abs(estimated - (p.grams ?? 0))) / (p.grams || 1)) }
-              : null
+          const exact = partIsExact(p)
           return (
             <div
               key={p.key}
@@ -180,25 +166,20 @@ export default function BoxBuilder({
                 <div className="grow" style={{ minWidth: 0 }}>
                   <div className="item-title truncate">{p.name}</div>
                   <div className="tiny muted num">
-                    {grams} g{exact ? '' : ` ±${partError(p, boxMl)}`} ·{' '}
-                    {Math.round((p.per100.kcal * grams) / 100)} kcal
+                    {exact
+                      ? `1 of ${p.lunches} of the batch · ${Math.round((p.per100.kcal * grams) / 100)} kcal · exact`
+                      : `${grams} g ±${partError(p, boxMl)} · ${Math.round((p.per100.kcal * grams) / 100)} kcal`}
                   </div>
                 </div>
-                <div style={{ width: 88, flex: 'none' }}>
-                  {p.mode === 'share' ? (
+                {!exact && (
+                  <div style={{ width: 84, flex: 'none' }}>
                     <NumberInput
                       value={p.pct || undefined}
                       unit="%"
                       onChange={(v) => update(p.key, { pct: v ?? 0 })}
                     />
-                  ) : (
-                    <NumberInput
-                      value={p.grams || undefined}
-                      unit="g"
-                      onChange={(v) => update(p.key, { grams: v ?? 0 })}
-                    />
-                  )}
-                </div>
+                  </div>
+                )}
                 <button
                   className="iconbtn"
                   aria-label={`Remove ${p.name}`}
@@ -208,34 +189,51 @@ export default function BoxBuilder({
                 </button>
               </div>
 
-              {/* Three ways to say how much, because the right one depends on
-                  what happened: the box for a normal day, the scale when you
-                  want to know, a hand for anything that came from elsewhere. */}
-              <div className="scroll-x">
-                {(
-                  [
-                    ['share', 'Share of the box'],
-                    ['weighed', 'Weighed'],
-                    ['hand', 'By eye'],
-                  ] as const
-                ).map(([mode, label]) => (
-                  <button
-                    key={mode}
-                    className="chip"
-                    aria-pressed={p.mode === mode}
-                    onClick={() =>
-                      update(p.key, {
-                        mode,
-                        grams: p.grams ?? (partGrams(p, boxMl) || undefined),
-                      })
-                    }
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+              {!exact && (
+                <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+                  <span className="tiny muted grow">
+                    {p.measured ? 'measured density' : 'estimated density'} {p.density} g/ml · a full
+                    box of just this weighs
+                  </span>
+                  <div style={{ width: 96, flex: 'none' }}>
+                    <NumberInput
+                      value={Math.round(p.density * boxMl)}
+                      unit="g"
+                      onChange={(v) => {
+                        const d = calibratedDensity(v ?? 0, boxMl)
+                        if (d) update(p.key, { density: d, measured: true })
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
 
-              {p.mode === 'share' && (
+              {p.batchGrams ? (
+                <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+                  <span className="tiny muted grow">the batch filled</span>
+                  <div style={{ width: 96, flex: 'none' }}>
+                    <NumberInput
+                      value={p.lunches}
+                      unit="boxes"
+                      placeholder="7"
+                      onChange={(v) => update(p.key, { lunches: v })}
+                    />
+                  </div>
+                </div>
+              ) : null}
+              {p.batchGrams && !exact && (
+                <div className="tiny muted">
+                  {/* The density cancels out of kcal/lunch once the batch is
+                      divided by the number of boxes, so this needs no scale
+                      and no weighing — only a count you can see. */}
+                  Counting the boxes it filled makes this exact — no weighing, and the density
+                  stops mattering.
+                </div>
+              )}
+
+              {/* Density is what turns a share of the box into grams, and it
+                  differs enough between rice and stew to matter. */}
+              {!exact && (
                 <div className="scroll-x">
                   {DISH_TYPES.map((t) => (
                     <button
@@ -247,52 +245,6 @@ export default function BoxBuilder({
                       {t.label}
                     </button>
                   ))}
-                </div>
-              )}
-
-              {p.mode === 'hand' && (
-                <div className="scroll-x">
-                  {HAND_SIZES.map((h) => (
-                    <button
-                      key={h.label}
-                      className="chip"
-                      aria-pressed={p.grams === h.grams}
-                      onClick={() => update(p.key, { grams: h.grams })}
-                    >
-                      {h.label} <span className="muted num">{h.grams} g</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Weighing a share is the only way to find out whether the
-                  density behind the estimate fits your cooking. */}
-              {p.mode === 'weighed' && p.grams ? (
-                <div className="row" style={{ gap: 8, alignItems: 'center' }}>
-                  <span className="tiny muted grow">
-                    it filled roughly this much of the box — fill it in and the density estimate
-                    gets checked against the scale
-                  </span>
-                  <div style={{ width: 80, flex: 'none' }}>
-                    <NumberInput
-                      value={p.pct || undefined}
-                      unit="%"
-                      onChange={(v) => update(p.key, { pct: v ?? 0 })}
-                    />
-                  </div>
-                </div>
-              ) : null}
-              {check && (
-                <div className="tiny" style={{ color: 'var(--serious)' }}>
-                  {check.pctOff <= 8
-                    ? `The ${p.density} g/ml estimate was right — ${p.pct}% would have been ${check.estimated} g, you measured ${p.grams}.`
-                    : `${p.pct}% at ${p.density} g/ml predicted ${check.estimated} g, but it weighs ${p.grams} — ${check.pctOff}% out. The real density is ${check.actual} g/ml.`}{' '}
-                  <button
-                    className="btn sm"
-                    onClick={() => update(p.key, { density: check.actual, measured: true })}
-                  >
-                    Use {check.actual}
-                  </button>
                 </div>
               )}
             </div>
@@ -309,7 +261,7 @@ export default function BoxBuilder({
         </div>
       </div>
 
-      {filled !== 100 && shares.length > 0 && allShares && (
+      {filled !== 100 && parts.length > 0 && (
         <div className="tiny muted">
           {filled < 100
             ? `${100 - filled}% of the box unaccounted for — add what else was in it, or raise a share.`
