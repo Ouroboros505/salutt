@@ -27,6 +27,14 @@ interface SetRow {
   reps: number
   weightKg?: number
   /**
+   * Work and rest of this round, in seconds. Per round rather than per
+   * exercise: a session is allowed to change its mind halfway, and five hard
+   * rounds followed by five easier ones is a normal way to train, not an
+   * anomaly to be modelled later.
+   */
+  hard?: number
+  easy?: number
+  /**
    * Ticked off as it is finished. A session is worked through in order and
    * the useful thing mid-workout is knowing where you are in it, which a page
    * of identical rows does not tell you.
@@ -64,11 +72,15 @@ function loadDraft(date: ISODate): Done[] | null {
   }
 }
 
-function startingSets(ex: Exercise): SetRow[] {
+function startingSets(ex: Exercise, saved?: { hard: number; easy: number }): SetRow[] {
   if (ex.byMinutes) return []
   // A protocol round has no count of its own; parsing one out of the text
-  // only invents a number that means nothing afterwards.
-  if (isProtocol(ex)) return Array.from({ length: ex.sets }, () => ({ reps: 0 }))
+  // only invents a number that means nothing afterwards. It carries its shape
+  // instead — last session's if there is one, otherwise the plan's.
+  if (isProtocol(ex)) {
+    const base = saved ?? parseProtocol(ex.reps) ?? { hard: 30, easy: 90 }
+    return Array.from({ length: ex.sets }, () => ({ reps: 0, hard: base.hard, easy: base.easy }))
+  }
   return Array.from({ length: ex.sets }, () => ({ reps: parseInt(ex.reps, 10) || 10 }))
 }
 
@@ -127,7 +139,7 @@ export default function SessionSheet({
       .map((ex, i) => ({
         key: `${ex.name}-${i}`,
         name: ex.name,
-        sets: startingSets(ex),
+        sets: startingSets(ex, settings.intervals?.[ex.name]),
         minutes: ex.byMinutes ? ex.sets : undefined,
       }))
   })
@@ -187,29 +199,49 @@ export default function SessionSheet({
     const saved = settings.intervals?.[name]
     return saved ?? parseProtocol(ex.reps)
   }
-  const exFor = (i: Done): Exercise | undefined => {
+  /** The shape of one round, falling back through row, memory, then plan. */
+  const roundOf = (i: Done, set: SetRow) => {
+    const base = shape(i.name)
+    return { hard: set.hard ?? base?.hard ?? 0, easy: set.easy ?? base?.easy ?? 0 }
+  }
+  /** The exercise as one particular round was actually run. */
+  const exFor = (i: Done, set?: SetRow): Exercise | undefined => {
     const ex = byName(i.name)
     if (!ex || !isProtocol(ex)) return ex
-    const s = { hard: i.hard, easy: i.easy }
-    const base = shape(i.name)
-    const hard = s.hard ?? base?.hard
-    const easy = s.easy ?? base?.easy
-    return hard && easy ? withInterval(ex, hard, easy) : ex
+    const r = roundOf(i, set ?? i.sets[0] ?? { reps: 0 })
+    return r.hard && r.easy ? withInterval(ex, r.hard, r.easy) : ex
   }
   const countOf = (i: Done) => (i.minutes != null ? i.minutes : i.sets.length)
+  // Rounds may differ from one another, so they are priced one at a time
+  // rather than multiplied by a count that assumes they are all alike.
+  const eachRound = (i: Done, f: (ex: Exercise) => number) =>
+    i.sets.reduce((t, set) => {
+      const ex = exFor(i, set)
+      return t + (ex ? f(ex) : 0)
+    }, 0)
   const kcalOf = (i: Done) => {
-    const ex = exFor(i)
-    return ex ? exerciseKcal(ex, countOf(i), kg) : 0
+    const ex = byName(i.name)
+    if (!ex) return 0
+    if (isProtocol(ex)) return Math.round(eachRound(i, (e) => exerciseKcal(e, 1, kg)))
+    return exerciseKcal(ex, countOf(i), kg)
   }
   const minutesOf = (i: Done) => {
-    const ex = exFor(i)
-    return ex ? exerciseMinutes(ex, countOf(i)) : 0
+    const ex = byName(i.name)
+    if (!ex) return 0
+    if (isProtocol(ex)) return Math.round(eachRound(i, (e) => e.secPerSet / 60))
+    return exerciseMinutes(ex, countOf(i))
   }
 
   const totalSets = items.reduce((t, i) => t + i.sets.length, 0)
   const doneSets = items.reduce((t, i) => t + i.sets.filter((x) => x.done).length, 0)
   const kcal = items.reduce((t, i) => t + kcalOf(i), 0)
   const minutes = items.reduce((t, i) => t + minutesOf(i), 0)
+  // Time actually spent on a cardio machine, which is what you need when you
+  // are standing on one deciding whether to get off. The session total is a
+  // different question: it counts planks and yoga you do on the floor after.
+  const cardio = items.filter((i) => detail(i.name)?.group === 'Cardio')
+  const cardioMin = cardio.reduce((t, i) => t + minutesOf(i), 0)
+  const cardioKcal = cardio.reduce((t, i) => t + kcalOf(i), 0)
   const planned = plan?.exercises.length ?? 0
   const kept = items.filter((i) => plan?.exercises.includes(i.name)).length
 
@@ -249,7 +281,7 @@ export default function SessionSheet({
                   {
                     key: `${ex.name}-${xs.length}-${ex.sets}`,
                     name: ex.name,
-                    sets: startingSets(ex),
+                    sets: startingSets(ex, settings.intervals?.[ex.name]),
                     minutes: ex.byMinutes ? ex.sets : undefined,
                   },
                 ])
@@ -350,44 +382,79 @@ export default function SessionSheet({
                 </div>
               ) : (
                 <>
-                  {/* Your round, not the plan's. Changing it here rewrites the
-                      energy — two minutes on against one off is two thirds
-                      work where 30/90 is a quarter — and is remembered, so it
-                      does not have to be retyped every session. */}
+                  {/* Sets every round at once, for when the whole session is
+                      one pattern. Each round can still be changed on its own
+                      below — this is the shortcut, not the rule. */}
                   {ex && isProtocol(ex) && (
                     <div className="row" style={{ gap: 6, alignItems: 'center' }}>
                       <span className="tiny muted" style={{ width: 30, flex: 'none' }}>
-                        round
+                        all
                       </span>
-                      <div style={{ width: 92, flex: 'none' }}>
+                      <div style={{ width: 84, flex: 'none' }}>
                         <NumberInput
-                          value={i.hard ?? shape(i.name)?.hard}
-                          unit="s hard"
+                          value={i.sets[0]?.hard ?? shape(i.name)?.hard}
+                          unit="s on"
                           onChange={(v) => {
-                            update(i.key, { hard: v ?? undefined })
-                            const easy = i.easy ?? shape(i.name)?.easy
-                            if (v && easy)
+                            if (!v) return
+                            update(i.key, { sets: i.sets.map((x) => ({ ...x, hard: v })) })
+                            const easy = i.sets[0]?.easy ?? shape(i.name)?.easy
+                            if (easy)
                               void db.settings.update('settings', {
                                 intervals: { ...(settings.intervals ?? {}), [i.name]: { hard: v, easy } },
                               })
                           }}
                         />
                       </div>
-                      <div style={{ width: 92, flex: 'none' }}>
+                      <div style={{ width: 84, flex: 'none' }}>
                         <NumberInput
-                          value={i.easy ?? shape(i.name)?.easy}
-                          unit="s easy"
+                          value={i.sets[0]?.easy ?? shape(i.name)?.easy}
+                          unit="s off"
                           onChange={(v) => {
-                            update(i.key, { easy: v ?? undefined })
-                            const hard = i.hard ?? shape(i.name)?.hard
-                            if (v && hard)
+                            if (!v) return
+                            update(i.key, { sets: i.sets.map((x) => ({ ...x, easy: v })) })
+                            const hard = i.sets[0]?.hard ?? shape(i.name)?.hard
+                            if (hard)
                               void db.settings.update('settings', {
                                 intervals: { ...(settings.intervals ?? {}), [i.name]: { hard, easy: v } },
                               })
                           }}
                         />
                       </div>
-                      <span className="tiny muted grow truncate">every round</span>
+                      <span className="tiny muted grow truncate">sets every round</span>
+                    </div>
+                  )}
+                  {/* The same shortcut for everything else: fill every set at
+                      once, then change whichever ones went differently. Ten
+                      rows of the same number is not freedom, it is typing. */}
+                  {ex && !isProtocol(ex) && i.sets.length > 1 && (
+                    <div className="row" style={{ gap: 6, alignItems: 'center' }}>
+                      <span className="tiny muted" style={{ width: 30, flex: 'none' }}>
+                        all
+                      </span>
+                      <div style={{ width: 92, flex: 'none' }}>
+                        <NumberInput
+                          value={i.sets[0]?.reps || undefined}
+                          unit={repUnit(ex.reps)}
+                          onChange={(v) =>
+                            update(i.key, { sets: i.sets.map((x) => ({ ...x, reps: v ?? 0 })) })
+                          }
+                        />
+                      </div>
+                      {takesLoad(ex) && (
+                        <div style={{ width: 96, flex: 'none' }}>
+                          <NumberInput
+                            value={toDisplayWeight(i.sets[0]?.weightKg, unit)}
+                            unit={unit}
+                            placeholder="—"
+                            onChange={(v) =>
+                              update(i.key, {
+                                sets: i.sets.map((x) => ({ ...x, weightKg: fromDisplayWeight(v, unit) })),
+                              })
+                            }
+                          />
+                        </div>
+                      )}
+                      <span className="tiny muted grow truncate">fills every set</span>
                     </div>
                   )}
                   {i.sets.map((set, idx) => (
@@ -404,7 +471,22 @@ export default function SessionSheet({
                         {set.done ? <Icon.check /> : <span className="tiny num">{idx + 1}</span>}
                       </button>
                       {ex && isProtocol(ex) ? (
-                        <span className="small grow truncate">{exFor(i)?.reps ?? ex.reps}</span>
+                        <>
+                          <div style={{ width: 84, flex: 'none' }}>
+                            <NumberInput
+                              value={set.hard ?? shape(i.name)?.hard}
+                              unit="s on"
+                              onChange={(v) => setSet(i.key, idx, { hard: v ?? undefined })}
+                            />
+                          </div>
+                          <div style={{ width: 84, flex: 'none' }}>
+                            <NumberInput
+                              value={set.easy ?? shape(i.name)?.easy}
+                              unit="s off"
+                              onChange={(v) => setSet(i.key, idx, { easy: v ?? undefined })}
+                            />
+                          </div>
+                        </>
                       ) : (
                         <div style={{ width: 92, flex: 'none' }}>
                           <NumberInput
@@ -478,6 +560,14 @@ export default function SessionSheet({
           </span>
           <span className="stat-value num">{kcal} kcal</span>
         </div>
+        {cardio.length > 1 && (
+          <div className="row between tiny muted num">
+            <span>on the machines — {cardio.map((i) => `${minutesOf(i)}`).join(' + ')} min</span>
+            <span>
+              {cardioMin} min · {cardioKcal} kcal
+            </span>
+          </div>
+        )}
         {totalSets > 0 && (
           <>
             <div className="row between small num">
@@ -513,14 +603,12 @@ export default function SessionSheet({
               kcal,
               sets: items.flatMap((i) =>
                 i.sets.map((s) => {
-                  const sh = shape(i.name)
-                  const hard = i.hard ?? sh?.hard
-                  const easy = i.easy ?? sh?.easy
+                  const r = roundOf(i, s)
                   return {
                     exercise: i.name,
                     reps: s.reps,
                     weightKg: s.weightKg ?? 0,
-                    ...(hard && easy ? { hardSec: hard, easySec: easy } : {}),
+                    ...(r.hard && r.easy ? { hardSec: r.hard, easySec: r.easy } : {}),
                   }
                 }),
               ),
