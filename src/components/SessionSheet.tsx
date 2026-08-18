@@ -101,9 +101,20 @@ function startingSets(ex: Exercise, saved?: { hard: number; easy: number }): Set
 function fromWorkout(w: Workout): Done[] {
   const out: Done[] = []
   for (const s of w.sets) {
+    // Counted in minutes: its own item, never folded into a neighbour's sets.
+    if (s.minutes != null) {
+      out.push({ key: `${s.exercise}-${out.length}`, name: s.exercise, sets: [], minutes: s.minutes })
+      continue
+    }
+    const row: SetRow = {
+      reps: s.reps,
+      weightKg: s.weightKg || undefined,
+      hard: s.hardSec,
+      easy: s.easySec,
+    }
     const last = out[out.length - 1]
-    if (last && last.name === s.exercise) last.sets.push({ reps: s.reps, weightKg: s.weightKg || undefined })
-    else out.push({ key: `${s.exercise}-${out.length}`, name: s.exercise, sets: [{ reps: s.reps, weightKg: s.weightKg || undefined }] })
+    if (last && last.name === s.exercise && last.minutes == null) last.sets.push(row)
+    else out.push({ key: `${s.exercise}-${out.length}`, name: s.exercise, sets: [row] })
   }
   return out
 }
@@ -602,7 +613,9 @@ export default function SessionSheet({
               durationMin: minutes,
               kcal,
               sets: items.flatMap((i) =>
-                i.sets.map((s) => {
+                i.minutes != null
+                  ? [{ exercise: i.name, reps: 0, weightKg: 0, minutes: i.minutes }]
+                  : i.sets.map((s) => {
                   const r = roundOf(i, s)
                   return {
                     exercise: i.name,

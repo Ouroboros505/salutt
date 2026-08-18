@@ -142,6 +142,14 @@ export interface SetEntry {
   /** Work and rest of one interval round, when the set is a round. */
   hardSec?: number
   easySec?: number
+  /**
+   * Minutes, for an exercise counted that way rather than in sets.
+   *
+   * Such an exercise has no sets at all, so without a row of its own it left
+   * no trace in a saved session — and reopening one to fix a typo quietly
+   * deleted every cardio entry in it, along with its time and its energy.
+   */
+  minutes?: number
 }
 
 export interface Workout {
