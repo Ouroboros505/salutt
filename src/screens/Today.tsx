@@ -333,8 +333,10 @@ export default function Today({
           const goal = fibreTarget(targets.kcal, settings.fibreTargetG)
           const ceiling = settings.fibreCeilingG ?? FIBRE_PLENTY
           const got = totals.fiber
-          const colour =
-            got > ceiling ? 'var(--warning)' : got >= goal ? 'var(--good)' : 'var(--series-3)'
+          // Its own slot in the palette. It wore fat's green, and a second
+          // green for "at target" would have collided with it twice over —
+          // the meter reaching the end already says that much.
+          const colour = got > ceiling ? 'var(--warning)' : 'var(--series-5)'
           return (
             <button
               className="macro-tile stack tight"

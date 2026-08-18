@@ -18,6 +18,7 @@
   --series-2: #eb6834; /* carbs   */
   --series-3: #1baf7a; /* fat     */
   --series-4: #eda100;
+  --series-5: #8250c4; /* fibre  */
 
   --good: #0ca30c;
   --warning: #fab219;
@@ -51,6 +52,7 @@
     --series-2: #d95926;
     --series-3: #199e70;
     --series-4: #c98500;
+    --series-5: #a37ae0;
     --success-text: #0ca30c;
     --accent: #3987e5;
     --ghost: rgba(255, 255, 255, 0.07);
@@ -73,6 +75,7 @@
   --series-2: #d95926;
   --series-3: #199e70;
   --series-4: #c98500;
+  --series-5: #a37ae0;
   --success-text: #0ca30c;
   --accent: #3987e5;
   --ghost: rgba(255, 255, 255, 0.07);
