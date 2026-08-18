@@ -174,6 +174,23 @@ export async function copyDay(from: ISODate, to: ISODate): Promise<number> {
   return src.length
 }
 
+/** The sections of one particular day, with what each came to. */
+export async function mealsOn(date: ISODate): Promise<PastMeal[]> {
+  const rows = (await db.entries.where('date').equals(date).toArray()).sort(
+    (a, b) => a.createdAt - b.createdAt,
+  )
+  const out = new Map<string, PastMeal>()
+  for (const e of rows) {
+    const key = e.meal.trim().toLowerCase()
+    if (!key) continue
+    const seen = out.get(key) ?? { meal: e.meal, date, items: 0, kcal: 0 }
+    seen.items += 1
+    seen.kcal += e.kcal
+    out.set(key, seen)
+  }
+  return [...out.values()]
+}
+
 /** The most recent day before `before` that has anything logged. */
 export async function lastLoggedDay(before: ISODate): Promise<ISODate | null> {
   const rows = await db.entries.where('date').below(before).toArray()

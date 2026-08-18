@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, MEAL_SUGGESTIONS, type Entry, type ISODate, type Meal, type Settings, type PlannedMeal } from '../db/db'
 import {
-  copyDay,
   deleteMeal,
   lastLoggedDay,
   logFood,
@@ -29,6 +28,7 @@ import {
 } from '../lib/metrics'
 import { Icon, Meter, Sheet } from '../components/ui'
 import AddFood from '../components/AddFood'
+import CopyDay from '../components/CopyDay'
 
 /** Legacy rows used fixed lowercase keys; show them with proper names. */
 const LEGACY: Record<string, string> = {
@@ -82,6 +82,7 @@ export default function Today({
   const [naming, setNaming] = useState(false)
   const [openMacro, setOpenMacro] = useState<MacroKey | null>(null)
   const [openMeal, setOpenMeal] = useState<Meal | null>(null)
+  const [copying, setCopying] = useState(false)
   const [renaming, setRenaming] = useState<Meal | null>(null)
 
   // Offered whenever the day is empty: repeating a previous day wholesale is
@@ -526,14 +527,8 @@ export default function Today({
       })}
 
       {entries.length === 0 && previousDay && (
-        <button
-          className="btn block"
-          onClick={async () => {
-            const n = await copyDay(previousDay, date)
-            toast(n ? `Copied ${n} item${n > 1 ? 's' : ''} from ${formatDay(previousDay)}` : 'Nothing to copy')
-          }}
-        >
-          Copy {formatDay(previousDay).toLowerCase()}
+        <button className="btn block" onClick={() => setCopying(true)}>
+          Copy from {formatDay(previousDay).toLowerCase()}
         </button>
       )}
 
@@ -542,14 +537,8 @@ export default function Today({
           <Icon.plus /> Add meal entry
         </button>
         {entries.length > 0 && previousDay && (
-          <button
-            className="btn grow"
-            onClick={async () => {
-              const n = await copyDay(previousDay, date)
-              toast(n ? `Added ${n} item${n > 1 ? 's' : ''} from ${formatDay(previousDay)}` : 'Nothing to copy')
-            }}
-          >
-            Copy {formatDay(previousDay).toLowerCase()}
+          <button className="btn grow" onClick={() => setCopying(true)}>
+            Copy from {formatDay(previousDay).toLowerCase()}
           </button>
         )}
       </div>
@@ -575,6 +564,10 @@ export default function Today({
           )}
         </div>
       </div>
+
+      {copying && previousDay && (
+        <CopyDay from={previousDay} to={date} onClose={() => setCopying(false)} toast={toast} />
+      )}
 
       {naming && (
         <NameMeal
