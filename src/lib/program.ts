@@ -254,21 +254,25 @@ export const CATALOGUE: Exercise[] = [
   E('Movement Prep (bands, circles, bridges)', 'Mobility', 1, '3 min', 3, 180, 'Band, floor', true),
   E('Cool-Down Stretch', 'Mobility', 1, '8 min', 2.3, 480, 'Floor', true),
   {
-    ...E('Yoga Flow', 'Mobility', 10, '20 min', 2.5, 120, 'Mat', true),
-    // Twenty minutes, weighted towards what riding and pressing actually
-    // shorten: hip flexors from the saddle, the front of the shoulder and the
-    // thoracic spine from pushing. Ends lying down, because it should.
+    ...E('Yoga Flow', 'Mobility', 8, '20 min', 2.5, 150, 'Mat', true),
+    // The plan's own station, in an order that flows: move first, then the
+    // hips it asks for, then the spine, then lying down. Its six poses come to
+    // about twelve minutes, so two are added to fill the slot — Low Lunge and
+    // Thread the Needle — chosen for what an hour a day in the saddle and a
+    // pressing day actually shorten, which the plan's hip work does not reach:
+    // it opens the glutes and external rotators, not the flexors at the front.
+    //
+    // The hold is in the name because it is the thing you need on the mat, and
+    // the minutes beside it carry the changing over between sides.
     steps: [
-      { name: 'Child’s Pose', min: 2 },
-      { name: 'Cat–Cow', min: 1 },
-      { name: 'Downward Dog', min: 2 },
-      { name: 'Low Lunge — each side', min: 3 },
-      { name: 'Half Pigeon — each side', min: 3 },
-      { name: 'Thread the Needle — each side', min: 2 },
-      { name: 'Seated Forward Fold', min: 2 },
-      { name: 'Supine Twist — each side', min: 2 },
-      { name: 'Happy Baby', min: 1 },
-      { name: 'Savasana', min: 2 },
+      { name: 'Down Dog to Cobra — 5 slow reps', min: 2 },
+      { name: 'Low Lunge — 2 x 45s/side', min: 3 },
+      { name: 'Pigeon Pose — 2 x 45s/side', min: 3 },
+      { name: '90/90 Hip Stretch — 2 x 45s/side', min: 3 },
+      { name: 'Thread the Needle — 2 x 30s/side', min: 2 },
+      { name: 'Seated Forward Fold — 2 x 45s', min: 2 },
+      { name: 'Supine Spinal Twist — 45s/side', min: 2 },
+      { name: 'Quiet breathing to close', min: 3 },
     ],
   },
   E('Pigeon Pose', 'Mobility', 2, '45s/side', 2.3, 100, 'Mat', true),
