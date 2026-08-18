@@ -17,7 +17,7 @@ import {
   ZERO,
   type PastMeal,
 } from '../db/ops'
-import { addDays, formatDay, todayISO } from '../lib/date'
+import { addDays, formatDay, formatShort, todayISO } from '../lib/date'
 import {
   adaptiveTDEE,
   computeTargets,
@@ -39,6 +39,8 @@ const LEGACY: Record<string, string> = {
 }
 const label = (meal: Meal) => LEGACY[meal] ?? meal
 
+type MacroKey = 'protein' | 'carbs' | 'fat'
+
 export default function Today({
   settings,
   date,
@@ -58,6 +60,8 @@ export default function Today({
   const [editing, setEditing] = useState<Entry | null>(null)
   const [saving, setSaving] = useState<{ meal: Meal; items: Entry[] } | null>(null)
   const [naming, setNaming] = useState(false)
+  const [openMacro, setOpenMacro] = useState<MacroKey | null>(null)
+  const [openMeal, setOpenMeal] = useState<Meal | null>(null)
   const [renaming, setRenaming] = useState<Meal | null>(null)
 
   // Offered whenever the day is empty: repeating a previous day wholesale is
@@ -87,7 +91,15 @@ export default function Today({
   // Today's expenditure, computed from what is known and anchored to what was
   // measured, rather than an average day's figure applied to every day.
   const allWorkouts = useLiveQuery(() => db.workouts.toArray(), []) ?? []
-  const planned = useLiveQuery(() => db.plannedMeals.where('date').equals(date).toArray(), [date]) ?? []
+  // Anything weighed and not yet eaten, including earlier days: food that was
+  // not eaten yesterday is usually eaten today, and making him weigh it again
+  // to prove that would be the paper notebook all over again. It logs to the
+  // day it is actually eaten, not the day it was weighed.
+  const planned =
+    useLiveQuery(
+      () => db.plannedMeals.where('date').belowOrEqual(date).sortBy('date'),
+      [date],
+    ) ?? []
   const adaptive = adaptiveTDEE(allEntries, trend)
   const todayActivity = workouts.reduce((t, w) => t + (w.kcal ?? 0), 0)
   const usual = usualActivity(allWorkouts, date)
@@ -278,7 +290,12 @@ export default function Today({
 
         <div className="grid-3">
           {macros.map((m) => (
-            <div key={m.key} className="stack tight">
+            <button
+              key={m.key}
+              className="stack tight macro-tile"
+              aria-expanded={openMacro === m.key}
+              onClick={() => setOpenMacro(openMacro === m.key ? null : (m.key as MacroKey))}
+            >
               <div className="row" style={{ gap: 6 }}>
                 <span className="swatch" style={{ background: m.color }} />
                 <span className="tiny secondary">{m.label}</span>
@@ -288,9 +305,43 @@ export default function Today({
                 <span className="muted"> / {m.goal} g</span>
               </div>
               <Meter value={m.got} max={m.goal} color={m.color} />
-            </div>
+            </button>
           ))}
         </div>
+
+        {/* Where the number came from. A total tells you whether you are short;
+            only the breakdown tells you what to do about it. Folded away
+            because it is three numbers most of the time and thirty at dinner. */}
+        {openMacro && (
+          <div className="stack tight">
+            {(() => {
+              const key = openMacro
+              const rows = [...entries]
+                .filter((e) => (e[key] ?? 0) > 0)
+                .sort((a, b) => (b[key] ?? 0) - (a[key] ?? 0))
+              const total = rows.reduce((t, e) => t + (e[key] ?? 0), 0)
+              if (rows.length === 0)
+                return <div className="tiny muted">Nothing logged yet today.</div>
+              return (
+                <>
+                  {rows.map((e) => (
+                    <div className="row" key={e.id} style={{ gap: 8 }}>
+                      <span className="small truncate grow">{e.name}</span>
+                      <span className="tiny muted num">{Math.round(((e[key] ?? 0) / total) * 100)}%</span>
+                      <span className="small num" style={{ width: 54, textAlign: 'right' }}>
+                        {Math.round((e[key] ?? 0) * 10) / 10} g
+                      </span>
+                    </div>
+                  ))}
+                  <div className="row between tiny muted num">
+                    <span>{rows.length} items</span>
+                    <span>{Math.round(total * 10) / 10} g total</span>
+                  </div>
+                </>
+              )
+            })()}
+          </div>
+        )}
 
         {targets.basis === 'formula' && (
           <div className="tiny muted">
@@ -354,12 +405,47 @@ export default function Today({
                 {label(meal)}
               </button>
               <div className="row" style={{ gap: 4 }}>
-                {items.length > 0 && <span className="small muted num">{Math.round(t.kcal)} kcal</span>}
+                {items.length > 0 && (
+                  <>
+                    <span className="small muted num">{Math.round(t.kcal)} kcal</span>
+                    {/* The rest of the macros are a tap away rather than a
+                        second line on every section, which at six sections is
+                        six lines of numbers nobody reads. */}
+                    <button
+                      className="iconbtn"
+                      aria-label={`Macros for ${label(meal)}`}
+                      aria-expanded={openMeal === meal}
+                      onClick={() => setOpenMeal(openMeal === meal ? null : meal)}
+                    >
+                      <span className="tiny muted" style={{ fontWeight: 700 }}>
+                        {openMeal === meal ? '\u00d7' : 'i'}
+                      </span>
+                    </button>
+                  </>
+                )}
                 <button className="iconbtn" onClick={() => setAdding(meal)} aria-label={`Add to ${label(meal)}`}>
                   <Icon.plus />
                 </button>
               </div>
             </div>
+
+            {openMeal === meal && items.length > 0 && (
+              <div className="row wrap tiny num" style={{ gap: 10 }}>
+                <span>
+                  <strong>{Math.round(t.protein * 10) / 10}</strong> g protein
+                </span>
+                <span>
+                  <strong>{Math.round(t.carbs * 10) / 10}</strong> g carbs
+                </span>
+                <span>
+                  <strong>{Math.round(t.fat * 10) / 10}</strong> g fat
+                </span>
+                <span>
+                  <strong>{Math.round(t.fiber * 10) / 10}</strong> g fibre
+                </span>
+                <span className="muted">{Math.round(items.reduce((g, e) => g + e.grams, 0))} g eaten</span>
+              </div>
+            )}
 
             {(
               <div>
@@ -444,6 +530,7 @@ export default function Today({
           known={knownMeals}
           past={previousMeals}
           planned={planned}
+          forDate={date}
           onEatPlanned={async (p) => {
             const n = await logPlanned(p, date)
             setNaming(false)
@@ -581,6 +668,8 @@ function NameMeal({
   known,
   past = [],
   planned = [],
+  /** The day being logged, so a box weighed earlier can say so. */
+  forDate,
   title = 'Add meal entry',
   onPick,
   onEatPlanned,
@@ -597,6 +686,7 @@ function NameMeal({
   past?: PastMeal[]
   /** Weighed this morning and not yet eaten. */
   planned?: PlannedMeal[]
+  forDate?: ISODate
   title?: string
   onPick: (name: string) => void
   onEatPlanned?: (p: PlannedMeal) => void
@@ -637,7 +727,15 @@ function NameMeal({
             return (
               <button key={p.id} className="item" onClick={() => onEatPlanned(p)}>
                 <div className="grow">
-                  <div className="item-title truncate">{p.meal}</div>
+                  <div className="item-title truncate">
+                    {p.meal}
+                    {p.date !== forDate && (
+                      <span className="tiny" style={{ color: 'var(--warning)' }}>
+                        {' '}
+                        · weighed {formatShort(p.date)}
+                      </span>
+                    )}
+                  </div>
                   <div className="tiny muted truncate num">
                     {p.items.length} items · {Math.round(t.kcal)} kcal · P
                     {Math.round(t.protein * 10) / 10}

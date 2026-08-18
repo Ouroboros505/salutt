@@ -679,3 +679,22 @@ details.card[open] > summary svg {
   transform: rotate(90deg);
   transition: transform 120ms ease;
 }
+
+/*
+ * The macro tiles became buttons so their breakdown can be opened, and a
+ * button brings a lifetime of default chrome with it. Only the pointer and
+ * the pressed state should change.
+ */
+.macro-tile {
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.macro-tile[aria-expanded='true'] .swatch {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+}

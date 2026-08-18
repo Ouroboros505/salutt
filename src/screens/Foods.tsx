@@ -9,7 +9,7 @@ import { loadFoodDb, searchFoodDb } from '../lib/foodDb'
 import type { FoodHit } from '../lib/foodApi'
 import { plannedTotals, saveFood } from '../db/ops'
 import PlanMeal from '../components/PlanMeal'
-import { todayISO } from '../lib/date'
+import { formatShort, todayISO } from '../lib/date'
 import { isStandoutProtein, standoutLabel } from '../lib/quality'
 
 export default function Foods({ toast }: { toast: (m: string) => void }) {
@@ -20,10 +20,11 @@ export default function Foods({ toast }: { toast: (m: string) => void }) {
   const [recipe, setRecipe] = useState<Recipe | 'new' | null>(null)
   const [planning, setPlanning] = useState<PlannedMeal | 'new' | null>(null)
   const today = todayISO()
-  // Only today's. A meal weighed on Tuesday and never eaten is not waiting for
-  // you on Wednesday; it is in the bin, and a list that pretends otherwise
-  // would quietly inflate the day it finally got tapped.
-  const planned = useLiveQuery(() => db.plannedMeals.where('date').equals(today).toArray(), [today]) ?? []
+  // Yesterday's uneaten box is usually today's lunch, so it stays on the list
+  // rather than being thrown away — but it says which morning it was weighed,
+  // because a box of cut fruit has an opinion about that.
+  const planned =
+    useLiveQuery(() => db.plannedMeals.where('date').belowOrEqual(today).sortBy('date'), [today]) ?? []
 
   const foods = useLiveQuery(() => db.foods.toArray(), []) ?? []
   const templates = useLiveQuery(() => db.mealTemplates.orderBy('lastUsed').reverse().toArray(), []) ?? []
@@ -99,7 +100,15 @@ export default function Foods({ toast }: { toast: (m: string) => void }) {
                     style={{ background: 'none', border: 0, padding: 0, textAlign: 'left', minWidth: 0 }}
                     onClick={() => setPlanning(p)}
                   >
-                    <div className="item-title truncate">{p.meal}</div>
+                    <div className="item-title truncate">
+                      {p.meal}
+                      {p.date !== today && (
+                        <span className="tiny" style={{ color: 'var(--warning)' }}>
+                          {' '}
+                          · weighed {formatShort(p.date)}
+                        </span>
+                      )}
+                    </div>
                     <div className="tiny muted truncate num">
                       {p.items.length} items · {Math.round(t.grams)} g · {Math.round(t.kcal)} kcal · P
                       {Math.round(t.protein * 10) / 10}
