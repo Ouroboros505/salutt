@@ -231,29 +231,59 @@ export function TrendChart({
           </text>
         )}
 
+        {/*
+          The fit goes underneath and dashed, the measurements on top and
+          solid. A smoothed line is an interpretation of the readings; drawing
+          it boldly over them says the opposite — that the readings are a
+          smudge around the line. Every one of those dots is a morning you
+          stood on the scale, and the line is only what was inferred from them.
+        */}
+        <path
+          d={trendPath}
+          fill="none"
+          stroke="var(--series-1)"
+          strokeWidth={1.6}
+          strokeDasharray="5 4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          opacity={0.7}
+        />
+
+        {/* The end of the fit, small, so the line has somewhere to stop. */}
+        <circle
+          cx={X(n - 1)}
+          cy={Y(data[n - 1].trend)}
+          r={2.6}
+          fill="var(--series-1)"
+          opacity={0.7}
+        />
+
         {data.map((d, i) =>
           d.raw == null ? null : d.off ? (
-            // Hollow, so it reads as a reading that was seen and set aside
-            // rather than one the line was drawn through.
+            // Hollow: seen, and set aside.
             <circle
               key={i}
               cx={X(i)}
               cy={Y(d.raw)}
-              r={2.8}
-              fill="none"
+              r={4}
+              fill="var(--surface-1)"
               stroke="var(--text-muted)"
-              strokeWidth={1.2}
-              opacity={0.75}
+              strokeWidth={1.6}
             />
           ) : (
-            <circle key={i} cx={X(i)} cy={Y(d.raw)} r={2.5} fill="var(--text-muted)" opacity={0.55} />
+            // Ringed in the surface colour so a reading sitting on the line
+            // still reads as a separate thing rather than a bulge in it.
+            <circle
+              key={i}
+              cx={X(i)}
+              cy={Y(d.raw)}
+              r={4}
+              fill="var(--text-primary)"
+              stroke="var(--surface-1)"
+              strokeWidth={1.4}
+            />
           ),
         )}
-
-        <path d={trendPath} fill="none" stroke="var(--series-1)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-
-        {/* Latest point gets a surface ring so it stays legible over the line. */}
-        <circle cx={X(n - 1)} cy={Y(data[n - 1].trend)} r={4.5} fill="var(--series-1)" stroke="var(--surface-1)" strokeWidth={2} />
 
         {tip && (
           <>
@@ -276,20 +306,30 @@ export function TrendChart({
       <div className="legend">
         <span>
           <svg width="14" height="8" aria-hidden="true">
-            <line x1="0" y1="4" x2="14" y2="4" stroke="var(--series-1)" strokeWidth="2" strokeLinecap="round" />
+            <line
+              x1="0"
+              y1="4"
+              x2="14"
+              y2="4"
+              stroke="var(--series-1)"
+              strokeWidth="1.6"
+              strokeDasharray="5 4"
+              strokeLinecap="round"
+              opacity="0.7"
+            />
           </svg>
           Trend
         </span>
         <span>
-          <svg width="10" height="8" aria-hidden="true">
-            <circle cx="5" cy="4" r="2.5" fill="var(--text-muted)" opacity="0.55" />
+          <svg width="12" height="8" aria-hidden="true">
+            <circle cx="6" cy="4" r="3.4" fill="var(--text-primary)" />
           </svg>
           Daily reading
         </span>
         {data.some((d) => d.off) && (
           <span>
-            <svg width="10" height="8" aria-hidden="true">
-              <circle cx="5" cy="4" r="2.8" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" opacity="0.75" />
+            <svg width="12" height="8" aria-hidden="true">
+              <circle cx="6" cy="4" r="3.4" fill="var(--surface-1)" stroke="var(--text-muted)" strokeWidth="1.4" />
             </svg>
             Off protocol
           </span>
