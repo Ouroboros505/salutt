@@ -39,7 +39,26 @@ const LEGACY: Record<string, string> = {
 }
 const label = (meal: Meal) => LEGACY[meal] ?? meal
 
-type MacroKey = 'protein' | 'carbs' | 'fat'
+type MacroKey = 'protein' | 'carbs' | 'fat' | 'fiber'
+
+/**
+ * Fibre's target, from intake rather than fixed.
+ *
+ * The usual advice is a flat 30 g, which is written for someone eating 2500.
+ * On 1850 that is a much denser diet than the guideline actually asks for, and
+ * the guideline itself is per calorie: 14 g per 1000. Deriving it means the
+ * bar moves with the diet instead of quietly getting harder as the cut goes on.
+ */
+const fibreTarget = (kcalTarget: number) => Math.round((kcalTarget * 14) / 1000)
+
+/**
+ * Above this it stops being a good thing.
+ *
+ * There is no official ceiling, but the discomfort is real and arrives fairly
+ * predictably somewhere past 50 g — more so when it comes from beans, chia and
+ * inulin, which is exactly where his comes from. Worth a colour, not a warning.
+ */
+const FIBRE_PLENTY = 50
 
 export default function Today({
   settings,
@@ -308,6 +327,35 @@ export default function Today({
             </button>
           ))}
         </div>
+
+        {(() => {
+          const goal = fibreTarget(targets.kcal)
+          const got = totals.fiber
+          const colour =
+            got > FIBRE_PLENTY ? 'var(--warning)' : got >= goal ? 'var(--good)' : 'var(--series-3)'
+          return (
+            <button
+              className="macro-tile stack tight"
+              aria-expanded={openMacro === 'fiber'}
+              onClick={() => setOpenMacro(openMacro === 'fiber' ? null : 'fiber')}
+            >
+              <div className="row" style={{ gap: 6 }}>
+                <span className="swatch" style={{ background: colour }} />
+                <span className="tiny secondary grow">Fibre</span>
+                <span className="small num">
+                  <strong>{Math.round(got)}</strong>
+                  <span className="muted"> / {goal} g</span>
+                </span>
+              </div>
+              <Meter value={got} max={goal} color={colour} />
+              {got > FIBRE_PLENTY && (
+                <div className="tiny" style={{ color: 'var(--warning)' }}>
+                  Plenty. Past about {FIBRE_PLENTY} g it tends to cost more comfort than it buys.
+                </div>
+              )}
+            </button>
+          )
+        })()}
 
         {/* Where the number came from. A total tells you whether you are short;
             only the breakdown tells you what to do about it. Folded away
