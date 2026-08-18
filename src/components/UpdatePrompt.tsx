@@ -13,8 +13,18 @@ export default function UpdatePrompt() {
     updateServiceWorker,
   } = useRegisterSW({
     onRegisteredSW(_url, registration) {
-      // Check on load and hourly, so a long-lived tab does not sit on stale code.
-      if (registration) setInterval(() => void registration.update(), 60 * 60 * 1000)
+      if (!registration) return
+      // Hourly was far too slow on a day of frequent fixes: a bug could be
+      // fixed, deployed and reported again before the phone ever asked
+      // whether anything had changed, which looks exactly like the fix not
+      // working. The check is one conditional request against a small file.
+      const check = () => void registration.update()
+      setInterval(check, 60 * 1000)
+      // And whenever the app is picked back up, because that is when someone
+      // is about to rely on it.
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') check()
+      })
     },
   })
 
