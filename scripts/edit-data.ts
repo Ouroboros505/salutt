@@ -67,27 +67,38 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Not pooping is not a protocol violation, it is a fact about the reading.
+  // Sweet cherries, from USDA. Chelan Fresh grow them; they do not reformulate
+  // them, so the plain row is the right one and the brand is not worth storing.
   //
-  // Excluding those days throws away the weigh-in entirely and, if the habit
-  // shifts to the afternoon, would throw away every weigh-in forever. The
-  // offset is the wrong thing to exclude anyway: a constant one cancels in the
-  // slope, and an inconsistent one is measurable given both states on record.
-  // So the flags come off and the state goes on instead.
-  const STOOL: Record<string, boolean> = {
-    '2026-08-16': true,  // an ordinary morning
-    '2026-08-17': false, // did not go all day
-    '2026-08-18': false, // nor the next morning
-  }
-  for (const w of data.weighIns ?? []) {
-    const state = STOOL[w.date]
-    if (state === undefined) continue
-    if (w.offProtocol || w.afterStool !== state) {
-      delete w.offProtocol
-      w.afterStool = state
-      touch(w)
-      notes.push(`${w.date} (${w.kg} kg): counted again, ${state ? 'after' : 'before'} the toilet`)
-    }
+  // Portions are pitted weight, which is what the row measures. A bowl weighed
+  // with the stones in is about 8% heavier than what gets eaten.
+  if (!(data.foods ?? []).some((f) => /cherr/i.test(f.name))) {
+    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
+    ;(data.foods ??= []).push(
+      touch({
+        id: nextId,
+        name: 'Cherries, sweet',
+        kcal: 63,
+        protein: 1.06,
+        carbs: 16,
+        fat: 0.2,
+        fiber: 2.1,
+        portions: [
+          { label: '1 cup, pitted (154 g)', grams: 154 },
+          { label: 'a handful (~12 cherries)', grams: 98 },
+          { label: 'a big bowl (250 g)', grams: 250 },
+          { label: '1 cherry', grams: 8.2 },
+        ],
+        defaultPortion: 0,
+        liquid: false,
+        source: 'usda',
+        favorite: false,
+        useCount: 0,
+        lastUsed: 0,
+        createdAt: Date.now(),
+      }),
+    )
+    notes.push('added Cherries, sweet — 1 cup (154 g) = 97 kcal, 3.2 g fibre')
   }
 
   // --- example, currently a no-op -------------------------------------------

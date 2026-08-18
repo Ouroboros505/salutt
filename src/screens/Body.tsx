@@ -373,9 +373,9 @@ function WeighInSheet({ onClose, toast }: { onClose: () => void; toast: (m: stri
         </div>
       </Field>
 
-      {/* Conditions cannot be corrected for, only excluded. Day to day the
-          gut, glycogen and hydration move 300-1500 g while real change is
-          57-140 g, so one reading taken differently outweighs a week of it. */}
+      {/* What is left after the bowel is split out: confounds that cannot be
+          measured because they never repeat the same way twice. A meal still
+          digesting, an evening reading, clothes. These can only be excluded. */}
       <label className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
         <input
           type="checkbox"
@@ -384,11 +384,12 @@ function WeighInSheet({ onClose, toast }: { onClose: () => void; toast: (m: stri
           style={{ width: 20, height: 20, flex: 'none', marginTop: 2 }}
         />
         <span className="small">
-          Before pooping, after eating, or dressed
+          Unusual — evening, after eating, or dressed
           <span className="tiny muted" style={{ display: 'block' }}>
-            Whatever was different from how you normally weigh. A full bowel is 100–400 g and a
-            meal still digesting is up to 800, against the 57–140 g of fat you are looking for.
-            Kept and shown, left out of the trend.
+            Whatever was different from how you normally weigh. A meal still digesting is up to
+            800 g against the 57–140 g of fat you are looking for, and unlike the bowel it does
+            not repeat, so it can only be left out. Shown on the chart, kept out of the trend.
+            Not going to the toilet is not this — answer that above and the reading still counts.
           </span>
         </span>
       </label>

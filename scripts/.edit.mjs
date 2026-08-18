@@ -160,23 +160,33 @@ function touch(row) {
 var summarise = (data) => Object.entries(data).filter(([, rows]) => Array.isArray(rows) && rows.length).map(([t, rows]) => `${t}=${rows.length}`).join(" ");
 function change(data) {
   const notes = [];
-  const STOOL = {
-    "2026-08-16": true,
-    // an ordinary morning
-    "2026-08-17": false,
-    // did not go all day
-    "2026-08-18": false
-    // nor the next morning
-  };
-  for (const w of data.weighIns ?? []) {
-    const state = STOOL[w.date];
-    if (state === void 0) continue;
-    if (w.offProtocol || w.afterStool !== state) {
-      delete w.offProtocol;
-      w.afterStool = state;
-      touch(w);
-      notes.push(`${w.date} (${w.kg} kg): counted again, ${state ? "after" : "before"} the toilet`);
-    }
+  if (!(data.foods ?? []).some((f) => /cherr/i.test(f.name))) {
+    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1;
+    (data.foods ??= []).push(
+      touch({
+        id: nextId,
+        name: "Cherries, sweet",
+        kcal: 63,
+        protein: 1.06,
+        carbs: 16,
+        fat: 0.2,
+        fiber: 2.1,
+        portions: [
+          { label: "1 cup, pitted (154 g)", grams: 154 },
+          { label: "a handful (~12 cherries)", grams: 98 },
+          { label: "a big bowl (250 g)", grams: 250 },
+          { label: "1 cherry", grams: 8.2 }
+        ],
+        defaultPortion: 0,
+        liquid: false,
+        source: "usda",
+        favorite: false,
+        useCount: 0,
+        lastUsed: 0,
+        createdAt: Date.now()
+      })
+    );
+    notes.push("added Cherries, sweet \u2014 1 cup (154 g) = 97 kcal, 3.2 g fibre");
   }
   return notes;
 }
