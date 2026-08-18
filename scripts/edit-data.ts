@@ -67,44 +67,19 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Creatine, logged at zero energy.
+  // Yesterday's weigh-in was taken under the same confound as today's — two
+  // days without a bowel movement — and only today's was marked. A retained
+  // day or two is 200-500 g, which is most of the 0.85 kg jump the trend was
+  // being asked to believe.
   //
-  // It is not a fuel — it is phosphorylated, stored in muscle and leaves as
-  // creatinine — so the label declares no calories and neither does this. The
-  // row exists for the date, not the macros: creatine pulls water into muscle
-  // and the scale cannot tell that water from fat, so the first log is the
-  // marker that says where the trend stops meaning what it usually means.
-  //
-  // Maintenance here is solved backwards from weight change against intake.
-  // For the four weeks or so that the water is arriving, that sum reads a
-  // gain the diet did not cause and would answer by cutting food. The start
-  // date is what makes that window recognisable later.
-  if (!(data.foods ?? []).some((f) => /creatine/i.test(f.name))) {
-    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
-    ;(data.foods ??= []).push(
-      touch({
-        id: nextId,
-        name: 'Creatine monohydrate',
-        brand: 'Elevation, Aldi',
-        kcal: 0,
-        protein: 0,
-        carbs: 0,
-        fat: 0,
-        fiber: 0,
-        portions: [
-          { label: '1 dose (5 g, 1.5 tsp)', grams: 5 },
-          { label: 'half a dose', grams: 2.5 },
-        ],
-        defaultPortion: 0,
-        liquid: false,
-        source: 'manual',
-        favorite: true,
-        useCount: 0,
-        lastUsed: 0,
-        createdAt: Date.now(),
-      }),
-    )
-    notes.push('added Creatine monohydrate — 1 dose (5 g) = 0 kcal, starred for the daily log')
+  // Marking it leaves exactly one weigh-in the trend is allowed to use, so the
+  // line goes flat at 68.57 and the rate becomes unknown rather than wrong.
+  // That is the honest state: one clean reading is one clean reading.
+  const off = (data.weighIns ?? []).find((w) => w.date === '2026-08-17')
+  if (off && !off.offProtocol) {
+    off.offProtocol = true
+    touch(off)
+    notes.push(`weigh-in ${off.date} (${off.kg} kg) marked off protocol`)
   }
 
   // --- example, currently a no-op -------------------------------------------

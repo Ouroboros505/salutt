@@ -160,32 +160,11 @@ function touch(row) {
 var summarise = (data) => Object.entries(data).filter(([, rows]) => Array.isArray(rows) && rows.length).map(([t, rows]) => `${t}=${rows.length}`).join(" ");
 function change(data) {
   const notes = [];
-  if (!(data.foods ?? []).some((f) => /creatine/i.test(f.name))) {
-    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1;
-    (data.foods ??= []).push(
-      touch({
-        id: nextId,
-        name: "Creatine monohydrate",
-        brand: "Elevation, Aldi",
-        kcal: 0,
-        protein: 0,
-        carbs: 0,
-        fat: 0,
-        fiber: 0,
-        portions: [
-          { label: "1 dose (5 g, 1.5 tsp)", grams: 5 },
-          { label: "half a dose", grams: 2.5 }
-        ],
-        defaultPortion: 0,
-        liquid: false,
-        source: "manual",
-        favorite: true,
-        useCount: 0,
-        lastUsed: 0,
-        createdAt: Date.now()
-      })
-    );
-    notes.push("added Creatine monohydrate \u2014 1 dose (5 g) = 0 kcal, starred for the daily log");
+  const off = (data.weighIns ?? []).find((w) => w.date === "2026-08-17");
+  if (off && !off.offProtocol) {
+    off.offProtocol = true;
+    touch(off);
+    notes.push(`weigh-in ${off.date} (${off.kg} kg) marked off protocol`);
   }
   return notes;
 }
