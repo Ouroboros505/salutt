@@ -276,6 +276,18 @@ input[type='number'] {
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
+/*
+ * A grid item will not shrink below its content unless told to: `min-width`
+ * defaults to `auto`, so one long unbroken line — the day's training read out
+ * as "CoRec, Push, Ride — Campus to home, Ride — Home to Aldi" — widens its
+ * own track, pushes the grid past the screen and takes the whole page
+ * sideways with it. The ellipsis never gets a chance, because there is no
+ * overflow from the box's point of view. This is what lets it clip.
+ */
+.grid-2 > *,
+.grid-3 > * {
+  min-width: 0;
+}
 .grid-3 {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -302,6 +314,27 @@ input[type='number'] {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/*
+ * Two marks on a food, and they must not be mistaken for each other. The star
+ * is earned — protein per calorie, worked out from the numbers — and the
+ * heart is chosen, meaning only that you like it. They were both a gold star
+ * once, which made the earned one unreadable.
+ */
+.star {
+  color: var(--series-4);
+  font-size: 13px;
+  line-height: 1;
+  /* Sits with the name rather than competing with it. */
+  opacity: 0.9;
+  flex: none;
+}
+.loved {
+  color: var(--series-2);
+  font-size: 13px;
+  line-height: 1;
+  flex: none;
 }
 
 .hero {

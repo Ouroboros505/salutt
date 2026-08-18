@@ -8,6 +8,7 @@ import { finishedWeight, per100, servingGrams } from '../lib/recipes'
 import { loadFoodDb, searchFoodDb } from '../lib/foodDb'
 import type { FoodHit } from '../lib/foodApi'
 import { saveFood } from '../db/ops'
+import { isStandoutProtein, standoutLabel } from '../lib/quality'
 
 export default function Foods({ toast }: { toast: (m: string) => void }) {
   const [query, setQuery] = useState('')
@@ -145,7 +146,12 @@ export default function Foods({ toast }: { toast: (m: string) => void }) {
                     {f.useCount > 0 ? ` · used ${f.useCount}×` : ''}
                   </div>
                 </div>
-                {f.favorite && <span style={{ color: 'var(--series-4)' }}>★</span>}
+                {isStandoutProtein(f) && (
+                  <span className="star" title={standoutLabel(f)} aria-label={standoutLabel(f)}>
+                    ★
+                  </span>
+                )}
+                {f.favorite && <span className="loved" aria-label="Favourite">♥</span>}
                 <span className="muted">
                   <Icon.edit />
                 </span>
@@ -419,7 +425,7 @@ function EditFood({ food, onClose, toast }: { food: Food; onClose: () => void; t
           aria-pressed={favorite}
           onClick={() => setFavorite(!favorite)}
         >
-          <span style={{ color: favorite ? 'var(--series-4)' : 'var(--text-muted)', fontSize: 18 }}>★</span>
+          <span className={favorite ? 'loved' : 'muted'} style={{ fontSize: 18 }}>♥</span>
         </button>
       }
     >

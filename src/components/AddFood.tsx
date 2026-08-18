@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { isStandoutProtein, standoutLabel } from '../lib/quality'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, MEAL_SUGGESTIONS, type Food, type ISODate, type Meal, type Recipe } from '../db/db'
 import { logFood, logRecipe, quickFoods, saveFood, scale, searchLocal } from '../db/ops'
@@ -336,7 +337,12 @@ function FoodRow({ food, onPick }: { food: Food; onPick: () => void }) {
             : `${Math.round(food.kcal)} kcal / 100 g`}
         </div>
       </div>
-      {food.favorite && <span style={{ color: 'var(--series-4)' }}>★</span>}
+      {isStandoutProtein(food) && (
+        <span className="star" title={standoutLabel(food)} aria-label={standoutLabel(food)}>
+          ★
+        </span>
+      )}
+      {food.favorite && <span className="loved" aria-label="Favourite">♥</span>}
       <span className="muted">
         <Icon.chevron />
       </span>
@@ -527,7 +533,7 @@ function PortionStep({
           }}
           aria-label="Favourite"
         >
-          <span style={{ color: fav ? 'var(--series-4)' : 'var(--text-muted)' }}>★</span>
+          <span className={fav ? 'loved' : 'muted'}>♥</span>
         </button>
         <button
           className="btn primary grow"
