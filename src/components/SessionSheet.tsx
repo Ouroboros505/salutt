@@ -7,6 +7,8 @@ import {
   byName,
   describeSession,
   isProtocol,
+  isTimed,
+  withHold,
   parseProtocol,
   withInterval,
   repUnit,
@@ -223,23 +225,32 @@ export default function SessionSheet({
     return r.hard && r.easy ? withInterval(ex, r.hard, r.easy) : ex
   }
   const countOf = (i: Done) => (i.minutes != null ? i.minutes : i.sets.length)
-  // Rounds may differ from one another, so they are priced one at a time
-  // rather than multiplied by a count that assumes they are all alike.
-  const eachRound = (i: Done, f: (ex: Exercise) => number) =>
+  // Sets may differ from one another — a round shortened, a plank held longer
+  // — so each is priced on its own rather than multiplied by a count that
+  // assumes they are all alike.
+  /** Each set as it was actually performed, rather than as prescribed. */
+  const asDone = (i: Done, set: SetRow): Exercise | undefined => {
+    const ex = byName(i.name)
+    if (!ex) return undefined
+    if (isProtocol(ex)) return exFor(i, set)
+    if (isTimed(ex)) return withHold(ex, set.reps)
+    return ex
+  }
+  const eachSet = (i: Done, f: (ex: Exercise) => number) =>
     i.sets.reduce((t, set) => {
-      const ex = exFor(i, set)
+      const ex = asDone(i, set)
       return t + (ex ? f(ex) : 0)
     }, 0)
   const kcalOf = (i: Done) => {
     const ex = byName(i.name)
     if (!ex) return 0
-    if (isProtocol(ex)) return Math.round(eachRound(i, (e) => exerciseKcal(e, 1, kg)))
+    if (isProtocol(ex) || isTimed(ex)) return Math.round(eachSet(i, (e) => exerciseKcal(e, 1, kg)))
     return exerciseKcal(ex, countOf(i), kg)
   }
   const minutesOf = (i: Done) => {
     const ex = byName(i.name)
     if (!ex) return 0
-    if (isProtocol(ex)) return Math.round(eachRound(i, (e) => e.secPerSet / 60))
+    if (isProtocol(ex) || isTimed(ex)) return Math.round(eachSet(i, (e) => e.secPerSet / 60))
     return exerciseMinutes(ex, countOf(i))
   }
 

@@ -370,6 +370,34 @@ export function withInterval(ex: Exercise, hard: number, easy: number): Exercise
   }
 }
 
+/**
+ * A timed set, held for however long it was actually held.
+ *
+ * `secPerSet` in the catalogue is the whole set — the hold plus the rest after
+ * it — so a plank prescribed at 30s and costed at 75s carries 45s of standing
+ * about. Holding it for a minute instead makes the set longer by exactly the
+ * extra thirty seconds, not by nothing, which is what a fixed figure said.
+ *
+ * Rest is taken as whatever the catalogue's own figure leaves over, so the
+ * prescribed hold reproduces the published number exactly and only a change
+ * from it moves anything.
+ */
+const perSide = (reps: string) => /\/\s*side/i.test(reps)
+
+export function withHold(ex: Exercise, heldSec: number): Exercise {
+  if (!(heldSec > 0)) return ex
+  const sides = perSide(ex.reps) ? 2 : 1
+  const prescribed = parseFloat(ex.reps)
+  if (!Number.isFinite(prescribed)) return ex
+  const rest = Math.max(0, ex.secPerSet - prescribed * sides)
+  return { ...ex, secPerSet: heldSec * sides + rest }
+}
+
+/** Whether the number on a set is a duration rather than a count. */
+export function isTimed(ex: Exercise): boolean {
+  return !ex.byMinutes && !isProtocol(ex) && repUnit(ex.reps) === 's'
+}
+
 /** Whether a weight field makes any sense for this exercise. */
 export function takesLoad(ex: Pick<Exercise, 'load'>): boolean {
   return (ex.load?.factor ?? 1) > 0
