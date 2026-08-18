@@ -196,6 +196,34 @@ export default function Settings({
         </Field>
 
         <Field
+          label="Fibre target (g)"
+          hint={`Leave empty to follow intake at 14 g per 1000 kcal — ${Math.round(
+            (preview.kcal * 14) / 1000,
+          )} g at ${preview.kcal} kcal. The familiar 38 g for men is that same rule at 2700 kcal.`}
+        >
+          <input
+            type="number"
+            inputMode="numeric"
+            value={s.fibreTargetG ?? ''}
+            placeholder={String(Math.round((preview.kcal * 14) / 1000))}
+            onChange={(e) => patch({ fibreTargetG: num(e.target.value) })}
+          />
+        </Field>
+
+        <Field
+          label="Fibre, too much above (g)"
+          hint="No authority sets an upper limit, so this is yours. Most people meet the symptoms somewhere past 40-50 g, sooner if it went up fast or ferments hard."
+        >
+          <input
+            type="number"
+            inputMode="numeric"
+            value={s.fibreCeilingG ?? ''}
+            placeholder="50"
+            onChange={(e) => patch({ fibreCeilingG: num(e.target.value) })}
+          />
+        </Field>
+
+        <Field
           label="Manual calorie target"
           hint="Leave empty to let Salutt derive it from your measured maintenance."
         >

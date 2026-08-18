@@ -305,6 +305,21 @@ export interface Settings {
    */
   liftUnit?: 'kg' | 'lb'
   /**
+   * Fibre, in grams a day. Left empty it follows intake at the guideline's own
+   * 14 g per 1000 kcal, which is how the figure was written — the familiar
+   * flat 38 g for men is that same rule applied to a 2700 kcal day.
+   */
+  fibreTargetG?: number
+  /**
+   * Where fibre stops being worth more of.
+   *
+   * No authority sets an upper limit; none has been shown to harm mineral
+   * balance. What exists is a symptom threshold, and it is personal — most
+   * people meet it somewhere past 40-50 g, sooner if the increase was quick or
+   * the sources ferment hard. So it is a number you set, not one I assert.
+   */
+  fibreCeilingG?: number
+  /**
    * Interval rounds as he actually runs them, in seconds, keyed by exercise.
    * The plan's prescription is a starting suggestion; once it is changed, the
    * change is the default, because nobody wants to retype it every session.

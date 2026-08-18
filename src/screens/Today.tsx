@@ -49,7 +49,8 @@ type MacroKey = 'protein' | 'carbs' | 'fat' | 'fiber'
  * the guideline itself is per calorie: 14 g per 1000. Deriving it means the
  * bar moves with the diet instead of quietly getting harder as the cut goes on.
  */
-const fibreTarget = (kcalTarget: number) => Math.round((kcalTarget * 14) / 1000)
+const fibreTarget = (kcalTarget: number, override?: number) =>
+  override && override > 0 ? override : Math.round((kcalTarget * 14) / 1000)
 
 /**
  * Above this it stops being a good thing.
@@ -329,10 +330,11 @@ export default function Today({
         </div>
 
         {(() => {
-          const goal = fibreTarget(targets.kcal)
+          const goal = fibreTarget(targets.kcal, settings.fibreTargetG)
+          const ceiling = settings.fibreCeilingG ?? FIBRE_PLENTY
           const got = totals.fiber
           const colour =
-            got > FIBRE_PLENTY ? 'var(--warning)' : got >= goal ? 'var(--good)' : 'var(--series-3)'
+            got > ceiling ? 'var(--warning)' : got >= goal ? 'var(--good)' : 'var(--series-3)'
           return (
             <button
               className="macro-tile stack tight"
@@ -348,9 +350,9 @@ export default function Today({
                 </span>
               </div>
               <Meter value={got} max={goal} color={colour} />
-              {got > FIBRE_PLENTY && (
+              {got > ceiling && (
                 <div className="tiny" style={{ color: 'var(--warning)' }}>
-                  Plenty. Past about {FIBRE_PLENTY} g it tends to cost more comfort than it buys.
+                  Plenty. Past about {ceiling} g it tends to cost more comfort than it buys.
                 </div>
               )}
             </button>
