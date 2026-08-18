@@ -161,7 +161,8 @@ var summarise = (data) => Object.entries(data).filter(([, rows]) => Array.isArra
 function change(data) {
   const notes = [];
   const cherry = (data.foods ?? []).find((f) => /cherr/i.test(f.name));
-  if (cherry && cherry.kcal !== 57.96) {
+  const CHERRY_G = 8;
+  if (cherry && cherry.portions?.[0]?.grams !== CHERRY_G) {
     Object.assign(cherry, {
       name: "Cherries, sweet (weighed with pits)",
       kcal: 57.96,
@@ -170,15 +171,15 @@ function change(data) {
       fat: 0.184,
       fiber: 1.932,
       portions: [
-        { label: "1 cherry (13.28 g, as weighed)", grams: 13.28 },
-        { label: "a handful (10 cherries)", grams: 133 },
+        { label: `1 cherry (${CHERRY_G} g, as weighed)`, grams: CHERRY_G },
+        { label: "a handful (10 cherries)", grams: CHERRY_G * 10 },
         { label: "a bowl (200 g)", grams: 200 },
         { label: "a big bowl (300 g)", grams: 300 }
       ],
       defaultPortion: 0
     });
     touch(cherry);
-    notes.push("cherries: now weighed with pits, 8% refuse taken off behind the scenes");
+    notes.push(`cherries: 1 cherry is now ${CHERRY_G} g as weighed, 8% refuse still handled behind the scenes`);
   }
   const avo = (data.foods ?? []).find((f) => /avocado/i.test(f.name));
   if (avo && avo.portions?.[0]?.grams !== 77) {

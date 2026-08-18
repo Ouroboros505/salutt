@@ -69,16 +69,17 @@ function change(data: Data): string[] {
 
   // Cherries, stored against the weight that can actually be measured.
   //
-  // The stone cannot be taken out before eating, so the scale only ever sees
-  // the whole fruit. Rather than ask for a weight nobody can produce, the
-  // per-100 figures are USDA's edible values scaled by 0.92 — the 8% that
-  // USDA calls refuse for sweet cherries, stones and stems. Weigh the bowl as
-  // it comes and the arithmetic lands in the right place.
+  // The stone cannot come out before eating, so the scale only ever sees the
+  // whole fruit. Rather than ask for a weight nobody can produce, the per-100
+  // figures are USDA's edible values scaled by 0.92 — the 8% it calls refuse
+  // for sweet cherries. That ratio holds whatever a single cherry weighs, so
+  // resizing the portion below does not disturb it.
   //
-  // One of his is 13.28 g whole, which is a big cherry; USDA's own "1 cherry"
-  // is 8.2 g of flesh. The portion below is his, not theirs.
+  // The first one weighed came in at 13.28 g and was a freak; several more put
+  // the real figure at 8 g whole. One measurement is an anecdote.
   const cherry = (data.foods ?? []).find((f) => /cherr/i.test(f.name))
-  if (cherry && cherry.kcal !== 57.96) {
+  const CHERRY_G = 8
+  if (cherry && cherry.portions?.[0]?.grams !== CHERRY_G) {
     Object.assign(cherry, {
       name: 'Cherries, sweet (weighed with pits)',
       kcal: 57.96,
@@ -87,15 +88,15 @@ function change(data: Data): string[] {
       fat: 0.184,
       fiber: 1.932,
       portions: [
-        { label: '1 cherry (13.28 g, as weighed)', grams: 13.28 },
-        { label: 'a handful (10 cherries)', grams: 133 },
+        { label: `1 cherry (${CHERRY_G} g, as weighed)`, grams: CHERRY_G },
+        { label: 'a handful (10 cherries)', grams: CHERRY_G * 10 },
         { label: 'a bowl (200 g)', grams: 200 },
         { label: 'a big bowl (300 g)', grams: 300 },
       ],
       defaultPortion: 0,
     })
     touch(cherry)
-    notes.push('cherries: now weighed with pits, 8% refuse taken off behind the scenes')
+    notes.push(`cherries: 1 cherry is now ${CHERRY_G} g as weighed, 8% refuse still handled behind the scenes`)
   }
 
   // The avocado was measured again: 110 g whole, not 133. At USDA's 30% refuse
