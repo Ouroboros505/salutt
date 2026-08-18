@@ -37,6 +37,14 @@ interface SetRow {
   hard?: number
   easy?: number
   /**
+   * What this row is, for a block that is a named sequence.
+   *
+   * Carried on the row rather than looked up by position: delete the third
+   * pose and every pose under it shifts into the wrong name, which is worse
+   * than no name at all — it would have you holding Pigeon and reading 90/90.
+   */
+  label?: string
+  /**
    * Ticked off as it is finished. A session is worked through in order and
    * the useful thing mid-workout is knowing where you are in it, which a page
    * of identical rows does not tell you.
@@ -79,7 +87,7 @@ function startingSets(ex: Exercise, saved?: { hard: number; easy: number }): Set
   // A protocol round has no count of its own; parsing one out of the text
   // only invents a number that means nothing afterwards. It carries its shape
   // instead — last session's if there is one, otherwise the plan's.
-  if (ex.steps) return ex.steps.map((st) => ({ reps: st.min }))
+  if (ex.steps) return ex.steps.map((st) => ({ reps: st.min, label: st.name }))
   if (isProtocol(ex)) {
     const base = saved ?? parseProtocol(ex.reps) ?? { hard: 30, easy: 90 }
     return Array.from({ length: ex.sets }, () => ({ reps: 0, hard: base.hard, easy: base.easy }))
@@ -500,7 +508,7 @@ export default function SessionSheet({
                       </button>
                       {ex?.steps ? (
                         <>
-                          <span className="small grow truncate">{ex.steps[idx]?.name ?? ''}</span>
+                          <span className="small grow truncate">{set.label ?? ''}</span>
                           <div style={{ width: 84, flex: 'none' }}>
                             <NumberInput
                               value={set.reps || undefined}
