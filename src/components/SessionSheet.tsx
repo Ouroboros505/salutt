@@ -79,6 +79,7 @@ function startingSets(ex: Exercise, saved?: { hard: number; easy: number }): Set
   // A protocol round has no count of its own; parsing one out of the text
   // only invents a number that means nothing afterwards. It carries its shape
   // instead — last session's if there is one, otherwise the plan's.
+  if (ex.steps) return ex.steps.map((st) => ({ reps: st.min }))
   if (isProtocol(ex)) {
     const base = saved ?? parseProtocol(ex.reps) ?? { hard: 30, easy: 90 }
     return Array.from({ length: ex.sets }, () => ({ reps: 0, hard: base.hard, easy: base.easy }))
@@ -241,15 +242,19 @@ export default function SessionSheet({
       const ex = asDone(i, set)
       return t + (ex ? f(ex) : 0)
     }, 0)
+  /** A sequence lasts exactly as long as the steps in it. */
+  const stepMinutes = (i: Done) => i.sets.reduce((t, s) => t + (s.reps || 0), 0)
   const kcalOf = (i: Done) => {
     const ex = byName(i.name)
     if (!ex) return 0
+    if (ex.steps) return Math.round((ex.met * kg * stepMinutes(i) * 60) / 3600)
     if (isProtocol(ex) || isTimed(ex)) return Math.round(eachSet(i, (e) => exerciseKcal(e, 1, kg)))
     return exerciseKcal(ex, countOf(i), kg)
   }
   const minutesOf = (i: Done) => {
     const ex = byName(i.name)
     if (!ex) return 0
+    if (ex.steps) return stepMinutes(i)
     if (isProtocol(ex) || isTimed(ex)) return Math.round(eachSet(i, (e) => e.secPerSet / 60))
     return exerciseMinutes(ex, countOf(i))
   }
@@ -364,8 +369,9 @@ export default function SessionSheet({
                 <div className="grow" style={{ minWidth: 0 }}>
                   <div className="item-title truncate">{i.name}</div>
                   <div className="tiny muted num">
-                    {minutesOf(i)} min · {kcalOf(i)} kcal
+                    {minutesOf(i)} min{ex && isTimed(ex) ? ' with rest' : ''} · {kcalOf(i)} kcal
                     {ex && isProtocol(ex) ? ` · MET ${exFor(i)?.met}` : ''}
+                    {ex?.steps ? ` · ${ex.steps.length} poses` : ''}
                     {ex?.load && !ex.byMinutes && takesLoad(ex) ? ` · weight = ${ex.load.label}` : ''}
                   </div>
                   {(() => {
@@ -448,7 +454,7 @@ export default function SessionSheet({
                   {/* The same shortcut for everything else: fill every set at
                       once, then change whichever ones went differently. Ten
                       rows of the same number is not freedom, it is typing. */}
-                  {ex && !isProtocol(ex) && i.sets.length > 1 && (
+                  {ex && !isProtocol(ex) && !ex.steps && i.sets.length > 1 && (
                     <div className="row" style={{ gap: 6, alignItems: 'center' }}>
                       <span className="tiny muted" style={{ width: 30, flex: 'none' }}>
                         all
@@ -492,7 +498,18 @@ export default function SessionSheet({
                       >
                         {set.done ? <Icon.check /> : <span className="tiny num">{idx + 1}</span>}
                       </button>
-                      {ex && isProtocol(ex) ? (
+                      {ex?.steps ? (
+                        <>
+                          <span className="small grow truncate">{ex.steps[idx]?.name ?? ''}</span>
+                          <div style={{ width: 84, flex: 'none' }}>
+                            <NumberInput
+                              value={set.reps || undefined}
+                              unit="min"
+                              onChange={(v) => setSet(i.key, idx, { reps: v ?? 0 })}
+                            />
+                          </div>
+                        </>
+                      ) : isProtocol(ex!) ? (
                         <>
                           <div style={{ width: 84, flex: 'none' }}>
                             <NumberInput
@@ -528,7 +545,7 @@ export default function SessionSheet({
                           />
                         </div>
                       )}
-                      {ex && !takesLoad(ex) && !isProtocol(ex) && (
+                      {ex && !takesLoad(ex) && !isProtocol(ex) && !ex.steps && (
                         <span className="tiny muted truncate" style={{ width: 96, flex: 'none' }}>
                           {ex.reps}
                         </span>

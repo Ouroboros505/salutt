@@ -48,6 +48,15 @@ export interface Exercise {
    */
   byMinutes?: boolean
   /**
+   * Named steps, for a block that is really a sequence.
+   *
+   * "Yoga Flow, 20 min" is not something anyone can follow — it assumes you
+   * already know the flow, which is the one thing a plan should not assume.
+   * Each step becomes its own row with its own tick, so it reads as a
+   * sequence to work through rather than a countdown to endure.
+   */
+  steps?: { name: string; min: number }[]
+  /**
    * What to type in the weight box, and how it becomes load moved.
    *
    * The lifting convention is not uniform and pretending otherwise makes a
@@ -244,7 +253,24 @@ export const CATALOGUE: Exercise[] = [
   // ------------------------------------------------------------- Mobility
   E('Movement Prep (bands, circles, bridges)', 'Mobility', 1, '3 min', 3, 180, 'Band, floor', true),
   E('Cool-Down Stretch', 'Mobility', 1, '8 min', 2.3, 480, 'Floor', true),
-  E('Yoga Flow', 'Mobility', 1, '20 min', 2.5, 1200, 'Mat', true),
+  {
+    ...E('Yoga Flow', 'Mobility', 10, '20 min', 2.5, 120, 'Mat', true),
+    // Twenty minutes, weighted towards what riding and pressing actually
+    // shorten: hip flexors from the saddle, the front of the shoulder and the
+    // thoracic spine from pushing. Ends lying down, because it should.
+    steps: [
+      { name: 'Child’s Pose', min: 2 },
+      { name: 'Cat–Cow', min: 1 },
+      { name: 'Downward Dog', min: 2 },
+      { name: 'Low Lunge — each side', min: 3 },
+      { name: 'Half Pigeon — each side', min: 3 },
+      { name: 'Thread the Needle — each side', min: 2 },
+      { name: 'Seated Forward Fold', min: 2 },
+      { name: 'Supine Twist — each side', min: 2 },
+      { name: 'Happy Baby', min: 1 },
+      { name: 'Savasana', min: 2 },
+    ],
+  },
   E('Pigeon Pose', 'Mobility', 2, '45s/side', 2.3, 100, 'Mat', true),
   E('Legs-Up-The-Wall', 'Mobility', 1, '3 min', 1.5, 180, 'Wall', true),
 ]
