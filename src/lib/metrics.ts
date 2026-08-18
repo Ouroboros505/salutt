@@ -50,6 +50,11 @@ export interface TrendPoint {
   raw?: number
   /** Smoothed trend weight — this is the number that actually matters. */
   trend: number
+  /**
+   * Taken outside the usual conditions, so it was not allowed to move the
+   * trend. Present only on the charting series; the maths never sees these.
+   */
+  off?: boolean
 }
 
 /**
@@ -90,6 +95,43 @@ export function weightTrend(weighIns: WeighIn[], halfLifeDays: number): TrendPoi
     prevDate = w.date
   }
   return out
+}
+
+/**
+ * The trend, plus the readings the trend refuses to use.
+ *
+ * `weightTrend` drops an off-protocol weigh-in outright, which is right for
+ * every number derived from it and wrong for the picture: you stepped on the
+ * scale, the app said it saved, and then the dot was nowhere. Silence looks
+ * like data loss even when the reasoning is sound.
+ *
+ * So the excluded readings come back here as points carrying the trend value
+ * they did not change — flat across the gap, which is the honest shape, since
+ * ignoring a reading means the trend genuinely learned nothing that day. They
+ * are flagged `off` so the chart can draw them apart from the real series, and
+ * this function is deliberately not what the statistics run on.
+ */
+export function weightSeries(weighIns: WeighIn[], halfLifeDays: number): TrendPoint[] {
+  const counted = weightTrend(weighIns, halfLifeDays)
+  const skipped = weighIns.filter((w) => w.offProtocol)
+  if (skipped.length === 0) return counted
+
+  const byDate = new Map(counted.map((p) => [p.date, p]))
+  for (const w of skipped) {
+    // A day cannot be both counted and skipped; if it somehow is, the counted
+    // one wins rather than being overwritten by the reading it excluded.
+    if (!byDate.has(w.date)) byDate.set(w.date, { date: w.date, raw: w.kg, trend: NaN, off: true })
+  }
+
+  const merged = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date))
+  // Carry the last real trend across each skipped day. A leading skipped day
+  // has no trend behind it, so it borrows the first one ahead instead.
+  let last = counted[0]?.trend ?? skipped[0].kg
+  for (const p of merged) {
+    if (Number.isNaN(p.trend)) p.trend = last
+    else last = p.trend
+  }
+  return merged
 }
 
 /** Least-squares slope of trend weight, converted to kg per week. */

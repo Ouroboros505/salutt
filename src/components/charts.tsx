@@ -90,6 +90,8 @@ export interface TrendDatum {
   label: string
   raw?: number
   trend: number
+  /** Weighed under different conditions: shown, but it moved no trend. */
+  off?: boolean
 }
 
 /**
@@ -178,6 +180,7 @@ export function TrendChart({
         d.label,
         `Trend ${d.trend.toFixed(1)} ${unit}`,
         ...(d.raw != null ? [`Scale ${d.raw.toFixed(2)} ${unit}`] : []),
+        ...(d.off ? ['Off protocol — not counted in the trend'] : []),
       ],
     })
   }
@@ -229,9 +232,22 @@ export function TrendChart({
         )}
 
         {data.map((d, i) =>
-          d.raw != null ? (
+          d.raw == null ? null : d.off ? (
+            // Hollow, so it reads as a reading that was seen and set aside
+            // rather than one the line was drawn through.
+            <circle
+              key={i}
+              cx={X(i)}
+              cy={Y(d.raw)}
+              r={2.8}
+              fill="none"
+              stroke="var(--text-muted)"
+              strokeWidth={1.2}
+              opacity={0.75}
+            />
+          ) : (
             <circle key={i} cx={X(i)} cy={Y(d.raw)} r={2.5} fill="var(--text-muted)" opacity={0.55} />
-          ) : null,
+          ),
         )}
 
         <path d={trendPath} fill="none" stroke="var(--series-1)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
@@ -270,6 +286,14 @@ export function TrendChart({
           </svg>
           Daily reading
         </span>
+        {data.some((d) => d.off) && (
+          <span>
+            <svg width="10" height="8" aria-hidden="true">
+              <circle cx="5" cy="4" r="2.8" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" opacity="0.75" />
+            </svg>
+            Off protocol
+          </span>
+        )}
       </div>
     </div>
   )

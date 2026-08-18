@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Measurement, type Settings } from '../db/db'
 import { addDays, formatShort, todayISO } from '../lib/date'
-import { bmi, navyBodyFat, projectGoal, trendSlopeKgPerWeek, weightTrend } from '../lib/metrics'
+import { bmi, navyBodyFat, projectGoal, trendSlopeKgPerWeek, weightSeries, weightTrend } from '../lib/metrics'
 import { TrendChart } from '../components/charts'
 import { Field, Icon, NumberInput, Segmented, Sheet } from '../components/ui'
 import type { ListenerState } from '../lib/useScaleListener'
@@ -59,8 +59,10 @@ export default function Body({
   const measurements = useLiveQuery(() => db.measurements.orderBy('date').reverse().toArray(), []) ?? []
 
   const full = weightTrend(weighIns, settings.trendHalfLifeDays)
+  // The chart shows every reading; every number below it uses only the ones
+  // the trend was allowed to learn from.
   const from = range === 'all' ? '0000-00-00' : addDays(todayISO(), -Number(range))
-  const shown = full.filter((p) => p.date >= from)
+  const shown = weightSeries(weighIns, settings.trendHalfLifeDays).filter((p) => p.date >= from)
 
   const latest = full.at(-1)
   const rate = trendSlopeKgPerWeek(full)
@@ -131,7 +133,13 @@ export default function Body({
         </div>
         <Segmented value={range} options={RANGES} onChange={setRange} />
         <TrendChart
-          data={shown.map((p) => ({ date: p.date, label: formatShort(p.date), raw: p.raw, trend: p.trend }))}
+          data={shown.map((p) => ({
+            date: p.date,
+            label: formatShort(p.date),
+            raw: p.raw,
+            trend: p.trend,
+            off: p.off,
+          }))}
           goal={settings.goalWeightKg}
         />
         {projection && (
