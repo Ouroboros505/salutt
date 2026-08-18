@@ -98,6 +98,16 @@ export interface WeighIn {
    * the line further than a week of dieting does.
    */
   offProtocol?: boolean
+  /**
+   * Whether this reading was taken after a bowel movement.
+   *
+   * Not squeamishness: a loaded colon is 100-400 g, which is five days of
+   * progress at this rate, and whether it is there varies day to day. Recorded
+   * as a fact about the reading so the offset can be measured from the data
+   * rather than guessed at, and then subtracted. `undefined` means it was not
+   * recorded, which is most of the history and is left alone.
+   */
+  afterStool?: boolean
   bodyFatPct?: number
   fatFreeKg?: number
   muscleKg?: number

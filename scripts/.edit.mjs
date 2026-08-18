@@ -160,11 +160,23 @@ function touch(row) {
 var summarise = (data) => Object.entries(data).filter(([, rows]) => Array.isArray(rows) && rows.length).map(([t, rows]) => `${t}=${rows.length}`).join(" ");
 function change(data) {
   const notes = [];
-  const off = (data.weighIns ?? []).find((w) => w.date === "2026-08-17");
-  if (off && !off.offProtocol) {
-    off.offProtocol = true;
-    touch(off);
-    notes.push(`weigh-in ${off.date} (${off.kg} kg) marked off protocol`);
+  const STOOL = {
+    "2026-08-16": true,
+    // an ordinary morning
+    "2026-08-17": false,
+    // did not go all day
+    "2026-08-18": false
+    // nor the next morning
+  };
+  for (const w of data.weighIns ?? []) {
+    const state = STOOL[w.date];
+    if (state === void 0) continue;
+    if (w.offProtocol || w.afterStool !== state) {
+      delete w.offProtocol;
+      w.afterStool = state;
+      touch(w);
+      notes.push(`${w.date} (${w.kg} kg): counted again, ${state ? "after" : "before"} the toilet`);
+    }
   }
   return notes;
 }

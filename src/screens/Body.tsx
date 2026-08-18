@@ -2,7 +2,15 @@ import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Measurement, type Settings } from '../db/db'
 import { addDays, formatShort, todayISO } from '../lib/date'
-import { bmi, navyBodyFat, projectGoal, trendSlopeKgPerWeek, weightSeries, weightTrend } from '../lib/metrics'
+import {
+  bmi,
+  navyBodyFat,
+  projectGoal,
+  stoolOffset,
+  trendSlopeKgPerWeek,
+  weightSeries,
+  weightTrend,
+} from '../lib/metrics'
 import { TrendChart } from '../components/charts'
 import { Field, Icon, NumberInput, Segmented, Sheet } from '../components/ui'
 import type { ListenerState } from '../lib/useScaleListener'
@@ -68,6 +76,7 @@ export default function Body({
   const rate = trendSlopeKgPerWeek(full)
   const last = measurements[0]
 
+  const stool = stoolOffset(weighIns)
   const week = pastTrend(full, 7)
   const month = pastTrend(full, 30)
 
@@ -146,6 +155,13 @@ export default function Body({
           <div className="small secondary">
             At this rate you reach {settings.goalWeightKg} kg around{' '}
             <strong>{formatShort(projection.date)}</strong> ({Math.round(projection.weeks)} weeks).
+          </div>
+        )}
+        {stool && (
+          <div className="tiny muted">
+            A full bowel weighs <strong className="num">{stool.kg.toFixed(2)} kg</strong> on you,
+            measured from {stool.after + stool.before} weigh-ins. Readings taken before are
+            corrected by that much, so a day you have not been does not read as a gain.
           </div>
         )}
       </div>
@@ -310,6 +326,9 @@ function WeighInSheet({ onClose, toast }: { onClose: () => void; toast: (m: stri
   const [kg, setKg] = useState('')
   const [bfp, setBfp] = useState('')
   const [offProtocol, setOffProtocol] = useState(false)
+  // Tri-state on purpose: not recorded is its own answer, and guessing at it
+  // would poison the very average it is meant to measure.
+  const [stool, setStool] = useState<boolean | undefined>(undefined)
 
   const existing = useLiveQuery(() => db.weighIns.where('date').equals(date).first(), [date])
   const value = parseFloat(kg)
@@ -337,6 +356,21 @@ function WeighInSheet({ onClose, toast }: { onClose: () => void; toast: (m: stri
           unit="%"
           onChange={(v) => setBfp(v === undefined ? '' : String(v))}
         />
+      </Field>
+
+      {/* This one CAN be corrected for, which is why it is asked separately.
+          A full colon is 100-400 g and whether it is there varies day to day —
+          but it varies in a way that repeats, so with enough readings on both
+          sides the offset is measurable and can be subtracted. */}
+      <Field label="Been to the toilet?" hint="Optional — but answer it often and the trend gets sharper.">
+        <div className="scroll-x">
+          <button className="chip" aria-pressed={stool === true} onClick={() => setStool(stool === true ? undefined : true)}>
+            Yes, emptied
+          </button>
+          <button className="chip" aria-pressed={stool === false} onClick={() => setStool(stool === false ? undefined : false)}>
+            Not yet
+          </button>
+        </div>
       </Field>
 
       {/* Conditions cannot be corrected for, only excluded. Day to day the
@@ -369,6 +403,7 @@ function WeighInSheet({ onClose, toast }: { onClose: () => void; toast: (m: stri
             kg: value,
             bodyFatPct: bfp ? parseFloat(bfp) : undefined,
             offProtocol: offProtocol || undefined,
+            afterStool: stool,
             source: 'manual',
             createdAt: Date.now(),
           })

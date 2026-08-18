@@ -67,19 +67,27 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Yesterday's weigh-in was taken under the same confound as today's — two
-  // days without a bowel movement — and only today's was marked. A retained
-  // day or two is 200-500 g, which is most of the 0.85 kg jump the trend was
-  // being asked to believe.
+  // Not pooping is not a protocol violation, it is a fact about the reading.
   //
-  // Marking it leaves exactly one weigh-in the trend is allowed to use, so the
-  // line goes flat at 68.57 and the rate becomes unknown rather than wrong.
-  // That is the honest state: one clean reading is one clean reading.
-  const off = (data.weighIns ?? []).find((w) => w.date === '2026-08-17')
-  if (off && !off.offProtocol) {
-    off.offProtocol = true
-    touch(off)
-    notes.push(`weigh-in ${off.date} (${off.kg} kg) marked off protocol`)
+  // Excluding those days throws away the weigh-in entirely and, if the habit
+  // shifts to the afternoon, would throw away every weigh-in forever. The
+  // offset is the wrong thing to exclude anyway: a constant one cancels in the
+  // slope, and an inconsistent one is measurable given both states on record.
+  // So the flags come off and the state goes on instead.
+  const STOOL: Record<string, boolean> = {
+    '2026-08-16': true,  // an ordinary morning
+    '2026-08-17': false, // did not go all day
+    '2026-08-18': false, // nor the next morning
+  }
+  for (const w of data.weighIns ?? []) {
+    const state = STOOL[w.date]
+    if (state === undefined) continue
+    if (w.offProtocol || w.afterStool !== state) {
+      delete w.offProtocol
+      w.afterStool = state
+      touch(w)
+      notes.push(`${w.date} (${w.kg} kg): counted again, ${state ? 'after' : 'before'} the toilet`)
+    }
   }
 
   // --- example, currently a no-op -------------------------------------------

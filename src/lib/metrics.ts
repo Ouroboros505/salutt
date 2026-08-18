@@ -75,18 +75,85 @@ export interface TrendPoint {
  * The smoothing factor is derived from the gap between weigh-ins rather than
  * assumed to be one day, so skipping days does not distort the curve.
  */
+export interface StoolOffset {
+  /** Kilograms a full colon adds, measured from your own readings. */
+  kg: number
+  /** Readings that carried the flag, split by state. */
+  after: number
+  before: number
+}
+
+/**
+ * How much a loaded colon weighs, on you specifically.
+ *
+ * Cannot be a simple average of the two groups: weight is falling, so if the
+ * unemptied readings happen to cluster early in a cut they look heavier for a
+ * reason that has nothing to do with stool. Fitting weight against day AND
+ * state at once separates the two — the slope absorbs the diet, and what is
+ * left on the state term is the colon.
+ *
+ * Returns null until there is enough of both to mean anything. Four each is
+ * not a lot, but the alternative is a correction invented from two readings,
+ * and a wrong correction is worse than none: it moves every number.
+ */
+export function stoolOffset(weighIns: WeighIn[]): StoolOffset | null {
+  const known = weighIns.filter((w) => w.afterStool !== undefined && !w.offProtocol)
+  const after = known.filter((w) => w.afterStool).length
+  const before = known.length - after
+  if (after < 4 || before < 4) return null
+
+  // Least squares on kg = a + b*day + c*after, solved through the normal
+  // equations for three unknowns.
+  const t0 = known[0].date
+  const rows = known.map((w) => ({ x: daysBetween(t0, w.date), s: w.afterStool ? 1 : 0, y: w.kg }))
+  const n = rows.length
+  const S = (f: (r: (typeof rows)[0]) => number) => rows.reduce((a, r) => a + f(r), 0)
+  const [Sx, Ss, Sy] = [S((r) => r.x), S((r) => r.s), S((r) => r.y)]
+  const [Sxx, Sss, Sxs] = [S((r) => r.x * r.x), S((r) => r.s * r.s), S((r) => r.x * r.s)]
+  const [Sxy, Ssy] = [S((r) => r.x * r.y), S((r) => r.s * r.y)]
+
+  // Centre both predictors, which reduces the fit to a 2x2 solve.
+  const mx = Sx / n
+  const ms = Ss / n
+  const cxx = Sxx - n * mx * mx
+  const css = Sss - n * ms * ms
+  const cxs = Sxs - n * mx * ms
+  const cxy = Sxy - (Sx * Sy) / n
+  const csy = Ssy - (Ss * Sy) / n
+  const det = cxx * css - cxs * cxs
+  if (!(Math.abs(det) > 1e-9)) return null
+  const c = (cxy * -cxs + csy * cxx) / det
+
+  // Emptying cannot make you heavier, and it cannot plausibly be a kilo. A
+  // figure outside that is measuring something else — a change of scale, a
+  // holiday — and is not worth trusting over no correction at all.
+  const kg = -c
+  if (!(kg > 0) || kg > 0.8) return null
+  return { kg, after, before }
+}
+
 export function weightTrend(weighIns: WeighIn[], halfLifeDays: number): TrendPoint[] {
   // A reading taken under different conditions measures something else.
   const sorted = [...weighIns].filter((w) => !w.offProtocol).sort((a, b) => a.date.localeCompare(b.date))
   if (sorted.length === 0) return []
 
-  const out: TrendPoint[] = []
-  let s1 = sorted[0].kg
-  let s2 = sorted[0].kg
-  let prevDate = sorted[0].date
+  // Put every reading on the same footing before smoothing. A colon that is
+  // sometimes full and sometimes not is noise, and noise is the only thing
+  // that actually costs anything here — a constant offset cancels in the
+  // slope, an inconsistent one does not. Readings with no flag are left as
+  // they are rather than guessed at.
+  const off = stoolOffset(weighIns)
+  const adjusted = !off
+    ? sorted
+    : sorted.map((w) => (w.afterStool === false ? { ...w, kg: w.kg - off.kg } : w))
 
-  for (let i = 0; i < sorted.length; i++) {
-    const w = sorted[i]
+  const out: TrendPoint[] = []
+  let s1 = adjusted[0].kg
+  let s2 = adjusted[0].kg
+  let prevDate = adjusted[0].date
+
+  for (let i = 0; i < adjusted.length; i++) {
+    const w = adjusted[i]
     const gap = Math.max(1, daysBetween(prevDate, w.date))
     const alpha = i === 0 ? 1 : 1 - Math.pow(0.5, gap / halfLifeDays)
     s1 += (w.kg - s1) * alpha
