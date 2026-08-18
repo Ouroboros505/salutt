@@ -160,35 +160,32 @@ function touch(row) {
 var summarise = (data) => Object.entries(data).filter(([, rows]) => Array.isArray(rows) && rows.length).map(([t, rows]) => `${t}=${rows.length}`).join(" ");
 function change(data) {
   const notes = [];
-  const FRUIT = [
-    { name: "Watermelon, cut", kcal: 30, protein: 0.61, carbs: 7.55, fat: 0.15, fiber: 0.4, cup: 152 },
-    { name: "Cantaloupe, cut", kcal: 34, protein: 0.82, carbs: 8.16, fat: 0.18, fiber: 0.8, cup: 160 },
-    { name: "Pineapple, cut", kcal: 50, protein: 0.54, carbs: 13.1, fat: 0.12, fiber: 1.4, cup: 165 }
-  ];
-  for (const fr of FRUIT) {
-    if ((data.foods ?? []).some((f) => f.name === fr.name)) continue;
+  if (!(data.foods ?? []).some((f) => /creatine/i.test(f.name))) {
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1;
-    const { cup, ...macros } = fr;
     (data.foods ??= []).push(
       touch({
         id: nextId,
-        ...macros,
+        name: "Creatine monohydrate",
+        brand: "Elevation, Aldi",
+        kcal: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        fiber: 0,
         portions: [
-          { label: `1 cup of chunks (${cup} g)`, grams: cup },
-          { label: "a small bowl (250 g)", grams: 250 },
-          { label: "a big bowl (400 g)", grams: 400 },
-          { label: "half a cup", grams: Math.round(cup / 2) }
+          { label: "1 dose (5 g, 1.5 tsp)", grams: 5 },
+          { label: "half a dose", grams: 2.5 }
         ],
         defaultPortion: 0,
         liquid: false,
-        source: "usda",
-        favorite: false,
+        source: "manual",
+        favorite: true,
         useCount: 0,
         lastUsed: 0,
         createdAt: Date.now()
       })
     );
-    notes.push(`added ${fr.name} \u2014 1 cup (${cup} g) = ${Math.round(fr.kcal * cup / 100)} kcal`);
+    notes.push("added Creatine monohydrate \u2014 1 dose (5 g) = 0 kcal, starred for the daily log");
   }
   return notes;
 }

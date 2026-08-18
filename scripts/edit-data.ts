@@ -67,47 +67,44 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // The three tubs of cut fruit, from USDA.
+  // Creatine, logged at zero energy.
   //
-  // All three are already in the bundled database, so this is not about the
-  // numbers — it is about the portions. The stock rows offer wedges of melon
-  // and slices off a whole pineapple, and none of that survives contact with
-  // a tub of chunks. What is needed is bowls.
+  // It is not a fuel — it is phosphorylated, stored in muscle and leaves as
+  // creatinine — so the label declares no calories and neither does this. The
+  // row exists for the date, not the macros: creatine pulls water into muscle
+  // and the scale cannot tell that water from fat, so the first log is the
+  // marker that says where the trend stops meaning what it usually means.
   //
-  // Pineapple is worth keeping separate in the mind: at 50 kcal it is nearly
-  // twice the other two, so in a mixed bowl it carries most of the energy.
-  // The "traditional varieties" row is deliberately not the one copied here —
-  // it reports zero fibre, which is a hole in the source rather than the
-  // fruit.
-  const FRUIT = [
-    { name: 'Watermelon, cut', kcal: 30, protein: 0.61, carbs: 7.55, fat: 0.15, fiber: 0.4, cup: 152 },
-    { name: 'Cantaloupe, cut', kcal: 34, protein: 0.82, carbs: 8.16, fat: 0.18, fiber: 0.8, cup: 160 },
-    { name: 'Pineapple, cut', kcal: 50, protein: 0.54, carbs: 13.1, fat: 0.12, fiber: 1.4, cup: 165 },
-  ]
-  for (const fr of FRUIT) {
-    if ((data.foods ?? []).some((f) => f.name === fr.name)) continue
+  // Maintenance here is solved backwards from weight change against intake.
+  // For the four weeks or so that the water is arriving, that sum reads a
+  // gain the diet did not cause and would answer by cutting food. The start
+  // date is what makes that window recognisable later.
+  if (!(data.foods ?? []).some((f) => /creatine/i.test(f.name))) {
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
-    const { cup, ...macros } = fr
     ;(data.foods ??= []).push(
       touch({
         id: nextId,
-        ...macros,
+        name: 'Creatine monohydrate',
+        brand: 'Elevation, Aldi',
+        kcal: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        fiber: 0,
         portions: [
-          { label: `1 cup of chunks (${cup} g)`, grams: cup },
-          { label: 'a small bowl (250 g)', grams: 250 },
-          { label: 'a big bowl (400 g)', grams: 400 },
-          { label: 'half a cup', grams: Math.round(cup / 2) },
+          { label: '1 dose (5 g, 1.5 tsp)', grams: 5 },
+          { label: 'half a dose', grams: 2.5 },
         ],
         defaultPortion: 0,
         liquid: false,
-        source: 'usda',
-        favorite: false,
+        source: 'manual',
+        favorite: true,
         useCount: 0,
         lastUsed: 0,
         createdAt: Date.now(),
       }),
     )
-    notes.push(`added ${fr.name} — 1 cup (${cup} g) = ${Math.round((fr.kcal * cup) / 100)} kcal`)
+    notes.push('added Creatine monohydrate — 1 dose (5 g) = 0 kcal, starred for the daily log')
   }
 
   // --- example, currently a no-op -------------------------------------------
