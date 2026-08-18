@@ -139,6 +139,9 @@ export interface SetEntry {
   exercise: string
   reps: number
   weightKg: number
+  /** Work and rest of one interval round, when the set is a round. */
+  hardSec?: number
+  easySec?: number
 }
 
 export interface Workout {
@@ -257,6 +260,12 @@ export interface Settings {
    * in your head between sets is how a log stops being kept.
    */
   liftUnit?: 'kg' | 'lb'
+  /**
+   * Interval rounds as he actually runs them, in seconds, keyed by exercise.
+   * The plan's prescription is a starting suggestion; once it is changed, the
+   * change is the default, because nobody wants to retype it every session.
+   */
+  intervals?: Record<string, { hard: number; easy: number }>
   /** Athletic body type — shifts the scale's body-fat derivation. */
   athlete?: boolean
   usdaApiKey?: string

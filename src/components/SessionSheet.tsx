@@ -7,6 +7,8 @@ import {
   byName,
   describeSession,
   isProtocol,
+  parseProtocol,
+  withInterval,
   repUnit,
   takesLoad,
   exerciseKcal,
@@ -35,6 +37,9 @@ interface SetRow {
 interface Done {
   key: string
   name: string
+  /** Work and rest of one round, in seconds, when this is an interval. */
+  hard?: number
+  easy?: number
   /** Sets, each with its own reps and load. Empty for the cardio entries. */
   sets: SetRow[]
   /** Minutes, for the entries counted that way. */
@@ -170,13 +175,34 @@ export default function SessionSheet({
   }, [date, items, workout])
 
   const detail = (name: string) => byName(name)
+
+  /**
+   * The exercise as actually performed. The catalogue writes down one shape of
+   * round; the machine and the mood produce another, and the energy has to
+   * follow what was done rather than what was suggested.
+   */
+  const shape = (name: string) => {
+    const ex = byName(name)
+    if (!ex || !isProtocol(ex)) return null
+    const saved = settings.intervals?.[name]
+    return saved ?? parseProtocol(ex.reps)
+  }
+  const exFor = (i: Done): Exercise | undefined => {
+    const ex = byName(i.name)
+    if (!ex || !isProtocol(ex)) return ex
+    const s = { hard: i.hard, easy: i.easy }
+    const base = shape(i.name)
+    const hard = s.hard ?? base?.hard
+    const easy = s.easy ?? base?.easy
+    return hard && easy ? withInterval(ex, hard, easy) : ex
+  }
   const countOf = (i: Done) => (i.minutes != null ? i.minutes : i.sets.length)
   const kcalOf = (i: Done) => {
-    const ex = detail(i.name)
+    const ex = exFor(i)
     return ex ? exerciseKcal(ex, countOf(i), kg) : 0
   }
   const minutesOf = (i: Done) => {
-    const ex = detail(i.name)
+    const ex = exFor(i)
     return ex ? exerciseMinutes(ex, countOf(i)) : 0
   }
 
@@ -285,6 +311,7 @@ export default function SessionSheet({
                   <div className="item-title truncate">{i.name}</div>
                   <div className="tiny muted num">
                     {minutesOf(i)} min · {kcalOf(i)} kcal
+                    {ex && isProtocol(ex) ? ` · MET ${exFor(i)?.met}` : ''}
                     {ex?.load && !ex.byMinutes && takesLoad(ex) ? ` · weight = ${ex.load.label}` : ''}
                   </div>
                   {(() => {
@@ -323,6 +350,46 @@ export default function SessionSheet({
                 </div>
               ) : (
                 <>
+                  {/* Your round, not the plan's. Changing it here rewrites the
+                      energy — two minutes on against one off is two thirds
+                      work where 30/90 is a quarter — and is remembered, so it
+                      does not have to be retyped every session. */}
+                  {ex && isProtocol(ex) && (
+                    <div className="row" style={{ gap: 6, alignItems: 'center' }}>
+                      <span className="tiny muted" style={{ width: 30, flex: 'none' }}>
+                        round
+                      </span>
+                      <div style={{ width: 92, flex: 'none' }}>
+                        <NumberInput
+                          value={i.hard ?? shape(i.name)?.hard}
+                          unit="s hard"
+                          onChange={(v) => {
+                            update(i.key, { hard: v ?? undefined })
+                            const easy = i.easy ?? shape(i.name)?.easy
+                            if (v && easy)
+                              void db.settings.update('settings', {
+                                intervals: { ...(settings.intervals ?? {}), [i.name]: { hard: v, easy } },
+                              })
+                          }}
+                        />
+                      </div>
+                      <div style={{ width: 92, flex: 'none' }}>
+                        <NumberInput
+                          value={i.easy ?? shape(i.name)?.easy}
+                          unit="s easy"
+                          onChange={(v) => {
+                            update(i.key, { easy: v ?? undefined })
+                            const hard = i.hard ?? shape(i.name)?.hard
+                            if (v && hard)
+                              void db.settings.update('settings', {
+                                intervals: { ...(settings.intervals ?? {}), [i.name]: { hard, easy: v } },
+                              })
+                          }}
+                        />
+                      </div>
+                      <span className="tiny muted grow truncate">every round</span>
+                    </div>
+                  )}
                   {i.sets.map((set, idx) => (
                     <div className="row" key={idx} style={{ gap: 6, alignItems: 'center' }}>
                       {/* Looked like a row number, so nobody pressed it. It is
@@ -337,7 +404,7 @@ export default function SessionSheet({
                         {set.done ? <Icon.check /> : <span className="tiny num">{idx + 1}</span>}
                       </button>
                       {ex && isProtocol(ex) ? (
-                        <span className="small grow truncate">{ex.reps}</span>
+                        <span className="small grow truncate">{exFor(i)?.reps ?? ex.reps}</span>
                       ) : (
                         <div style={{ width: 92, flex: 'none' }}>
                           <NumberInput
@@ -445,7 +512,17 @@ export default function SessionSheet({
               durationMin: minutes,
               kcal,
               sets: items.flatMap((i) =>
-                i.sets.map((s) => ({ exercise: i.name, reps: s.reps, weightKg: s.weightKg ?? 0 })),
+                i.sets.map((s) => {
+                  const sh = shape(i.name)
+                  const hard = i.hard ?? sh?.hard
+                  const easy = i.easy ?? sh?.easy
+                  return {
+                    exercise: i.name,
+                    reps: s.reps,
+                    weightKg: s.weightKg ?? 0,
+                    ...(hard && easy ? { hardSec: hard, easySec: easy } : {}),
+                  }
+                }),
               ),
               notes: plan && kept < planned ? `${kept} of ${planned} planned exercises` : undefined,
               createdAt: workout?.createdAt ?? Date.now(),

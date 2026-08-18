@@ -324,6 +324,49 @@ export function isProtocol(ex: Pick<Exercise, 'reps'>): boolean {
   return /hard/i.test(ex.reps)
 }
 
+/** The work and rest of one round, in seconds, read out of the prescription. */
+export function parseProtocol(reps: string): { hard: number; easy: number } | null {
+  const parts = reps.split('/')
+  if (parts.length !== 2) return null
+  const secs = parts.map((p) => {
+    const n = parseFloat(p)
+    if (!Number.isFinite(n)) return NaN
+    return /min/i.test(p) ? n * 60 : n
+  })
+  if (!secs.every((n) => n > 0)) return null
+  return { hard: secs[0], easy: secs[1] }
+}
+
+/**
+ * What a round costs when it is not the round the plan wrote down.
+ *
+ * Two minutes hard against one easy is far harder work than thirty seconds
+ * against ninety, and the difference is not small — the same ten rounds can
+ * be two thirds work instead of a quarter. Holding the MET fixed would price
+ * both the same.
+ *
+ * Rather than assert absolute figures for hard and easy, this keeps the
+ * catalogue value exactly where the catalogue's own ratio is used and scales
+ * away from it by how the work-to-rest blend shifts. The published number
+ * stays the published number, and only the departure from it is modelled.
+ */
+const HARD_MET = 12
+const EASY_MET = 6
+const blend = (hard: number, easy: number) => (HARD_MET * hard + EASY_MET * easy) / (hard + easy)
+
+export function withInterval(ex: Exercise, hard: number, easy: number): Exercise {
+  const base = parseProtocol(ex.reps)
+  if (!base || !(hard > 0) || !(easy > 0)) return ex
+  return {
+    ...ex,
+    secPerSet: hard + easy,
+    met: Math.round((ex.met * blend(hard, easy)) / blend(base.hard, base.easy) * 10) / 10,
+    reps: `${hard >= 60 && hard % 60 === 0 ? `${hard / 60} min` : `${hard}s`} hard / ${
+      easy >= 60 && easy % 60 === 0 ? `${easy / 60} min` : `${easy}s`
+    } easy`,
+  }
+}
+
 /** Whether a weight field makes any sense for this exercise. */
 export function takesLoad(ex: Pick<Exercise, 'load'>): boolean {
   return (ex.load?.factor ?? 1) > 0
