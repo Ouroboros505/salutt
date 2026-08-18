@@ -475,8 +475,13 @@ export const WEEK: DayPlan[] = [
     weekday: 4,
     name: 'Cardio, core and yoga',
     exercises: [
-      'Bike Intervals', 'Easy pace ramp / cool-down', 'Plank', 'Bird Dog',
-      'Mountain Climbers', 'Side Plank', 'Yoga Flow',
+      // Same shape as Tuesday, down to the order of the core work — the two
+      // days are the same session and only the machine changes, so anything
+      // that differs between them is a difference to be explained rather than
+      // a choice. The yoga is literally the same exercise, so it follows along
+      // on its own.
+      'Bike Intervals', 'Easy pace ramp / cool-down', 'Plank', 'Side Plank',
+      'Bird Dog', 'Mountain Climbers', 'Yoga Flow',
     ],
   },
   {
