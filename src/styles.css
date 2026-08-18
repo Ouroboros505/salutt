@@ -310,6 +310,31 @@ input[type='number'] {
 .num {
   font-variant-numeric: tabular-nums;
 }
+/*
+ * The set tick. It began as a bare number in an icon button, which read as a
+ * row label rather than a control, so sessions went unticked and the progress
+ * meter stayed at zero all workout. A border is the whole fix.
+ */
+.tickbox {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 0;
+  cursor: pointer;
+}
+.tickbox.on {
+  border-color: var(--success-text);
+  background: color-mix(in srgb, var(--success-text) 16%, transparent);
+  color: var(--success-text);
+}
+
 .truncate {
   overflow: hidden;
   text-overflow: ellipsis;

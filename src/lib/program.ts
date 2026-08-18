@@ -116,6 +116,14 @@ export const LOAD_ONE: LoadStyle = { label: 'the one dumbbell', factor: 1 }
  */
 export const LOAD_STACK: LoadStyle = { label: 'the number on the stack', factor: 1 }
 export const LOAD_BODY: LoadStyle = { label: 'added weight only, if any', factor: 1 }
+/**
+ * Nothing to load and nowhere to put a number.
+ *
+ * A StairMaster has no stack, and offering a weight box beside a flight of
+ * stairs is not merely useless — it is a question the machine cannot answer,
+ * which reads as the app knowing less about the gym than you do.
+ */
+export const LOAD_NONE: LoadStyle = { label: '', factor: 0 }
 
 const E = (
   name: string,
@@ -278,7 +286,35 @@ const LOAD_BY_NAME: Record<string, LoadStyle> = {
   'Preacher Curl': LOAD_ONE,
 }
 for (const ex of CATALOGUE) {
-  ex.load = LOAD_BY_NAME[ex.name] ?? (BODYWEIGHT.includes(ex.name) ? LOAD_BODY : LOAD_STACK)
+  ex.load =
+    LOAD_BY_NAME[ex.name] ??
+    // Cardio and mobility carry no load by nature. Falling through to the
+    // stack default gave the StairMaster a pounds field and told him the
+    // weight was "the number on the stack".
+    (ex.group === 'Cardio' || ex.group === 'Mobility'
+      ? LOAD_NONE
+      : BODYWEIGHT.includes(ex.name)
+        ? LOAD_BODY
+        : LOAD_STACK)
+}
+
+/**
+ * What one set of this exercise is counted in.
+ *
+ * The prescription is free text because that is how a plan is written —
+ * "12", "30s hard / 90s easy", "10/side", "20 min". The number parsed out of
+ * it is only meaningful alongside its unit, and calling 30 seconds "30 reps"
+ * is the kind of small lie that makes someone stop trusting the whole screen.
+ */
+export function repUnit(reps: string): string {
+  if (/min/i.test(reps)) return 'min'
+  if (/s\b|sec/i.test(reps)) return 's'
+  return 'reps'
+}
+
+/** Whether a weight field makes any sense for this exercise. */
+export function takesLoad(ex: Pick<Exercise, 'load'>): boolean {
+  return (ex.load?.factor ?? 1) > 0
 }
 
 export const GROUPS: MuscleGroup[] = [

@@ -6,6 +6,8 @@ import {
   GROUPS,
   byName,
   describeSession,
+  repUnit,
+  takesLoad,
   exerciseKcal,
   exerciseMinutes,
   fromDisplayWeight,
@@ -279,7 +281,7 @@ export default function SessionSheet({
                   <div className="item-title truncate">{i.name}</div>
                   <div className="tiny muted num">
                     {minutesOf(i)} min · {kcalOf(i)} kcal
-                    {ex?.load && !ex.byMinutes ? ` · weight = ${ex.load.label}` : ''}
+                    {ex?.load && !ex.byMinutes && takesLoad(ex) ? ` · weight = ${ex.load.label}` : ''}
                   </div>
                   {(() => {
                     const prev = lastTime.get(i.name)
@@ -319,33 +321,39 @@ export default function SessionSheet({
                 <>
                   {i.sets.map((set, idx) => (
                     <div className="row" key={idx} style={{ gap: 6, alignItems: 'center' }}>
+                      {/* Looked like a row number, so nobody pressed it. It is
+                          the only way to mark a set off, so it now looks like
+                          the checkbox it always was. */}
                       <button
-                        className="iconbtn"
+                        className={`tickbox${set.done ? ' on' : ''}`}
                         aria-label={`Set ${idx + 1} ${set.done ? 'done' : 'not done'}`}
                         aria-pressed={!!set.done}
                         onClick={() => setSet(i.key, idx, { done: !set.done })}
-                        style={{
-                          minWidth: 30,
-                          color: set.done ? 'var(--success-text)' : 'var(--text-muted)',
-                        }}
                       >
                         {set.done ? <Icon.check /> : <span className="tiny num">{idx + 1}</span>}
                       </button>
                       <div style={{ width: 92, flex: 'none' }}>
                         <NumberInput
                           value={set.reps || undefined}
-                          unit="reps"
+                          unit={ex ? repUnit(ex.reps) : 'reps'}
                           onChange={(v) => setSet(i.key, idx, { reps: v ?? 0 })}
                         />
                       </div>
-                      <div style={{ width: 96, flex: 'none' }}>
-                        <NumberInput
-                          value={toDisplayWeight(set.weightKg, unit)}
-                          unit={unit}
-                          placeholder="—"
-                          onChange={(v) => setSet(i.key, idx, { weightKg: fromDisplayWeight(v, unit) })}
-                        />
-                      </div>
+                      {(!ex || takesLoad(ex)) && (
+                        <div style={{ width: 96, flex: 'none' }}>
+                          <NumberInput
+                            value={toDisplayWeight(set.weightKg, unit)}
+                            unit={unit}
+                            placeholder="—"
+                            onChange={(v) => setSet(i.key, idx, { weightKg: fromDisplayWeight(v, unit) })}
+                          />
+                        </div>
+                      )}
+                      {ex && !takesLoad(ex) && (
+                        <span className="tiny muted truncate" style={{ width: 96, flex: 'none' }}>
+                          {ex.reps}
+                        </span>
+                      )}
                       <span className="tiny muted grow num truncate">
                         {set.weightKg && ex?.load && (ex.load.factor > 1 || ex.load.barKg)
                           ? `= ${Math.round(toDisplayWeight(totalLoadKg(set.weightKg, ex.load), unit) ?? 0)} ${unit}${
