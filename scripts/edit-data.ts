@@ -67,38 +67,51 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Sweet cherries, from USDA. Chelan Fresh grow them; they do not reformulate
-  // them, so the plain row is the right one and the brand is not worth storing.
+  // Cherries, stored against the weight that can actually be measured.
   //
-  // Portions are pitted weight, which is what the row measures. A bowl weighed
-  // with the stones in is about 8% heavier than what gets eaten.
-  if (!(data.foods ?? []).some((f) => /cherr/i.test(f.name))) {
-    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
-    ;(data.foods ??= []).push(
-      touch({
-        id: nextId,
-        name: 'Cherries, sweet',
-        kcal: 63,
-        protein: 1.06,
-        carbs: 16,
-        fat: 0.2,
-        fiber: 2.1,
-        portions: [
-          { label: '1 cup, pitted (154 g)', grams: 154 },
-          { label: 'a handful (~12 cherries)', grams: 98 },
-          { label: 'a big bowl (250 g)', grams: 250 },
-          { label: '1 cherry', grams: 8.2 },
-        ],
-        defaultPortion: 0,
-        liquid: false,
-        source: 'usda',
-        favorite: false,
-        useCount: 0,
-        lastUsed: 0,
-        createdAt: Date.now(),
-      }),
-    )
-    notes.push('added Cherries, sweet — 1 cup (154 g) = 97 kcal, 3.2 g fibre')
+  // The stone cannot be taken out before eating, so the scale only ever sees
+  // the whole fruit. Rather than ask for a weight nobody can produce, the
+  // per-100 figures are USDA's edible values scaled by 0.92 — the 8% that
+  // USDA calls refuse for sweet cherries, stones and stems. Weigh the bowl as
+  // it comes and the arithmetic lands in the right place.
+  //
+  // One of his is 13.28 g whole, which is a big cherry; USDA's own "1 cherry"
+  // is 8.2 g of flesh. The portion below is his, not theirs.
+  const cherry = (data.foods ?? []).find((f) => /cherr/i.test(f.name))
+  if (cherry && cherry.kcal !== 57.96) {
+    Object.assign(cherry, {
+      name: 'Cherries, sweet (weighed with pits)',
+      kcal: 57.96,
+      protein: 0.975,
+      carbs: 14.72,
+      fat: 0.184,
+      fiber: 1.932,
+      portions: [
+        { label: '1 cherry (13.28 g, as weighed)', grams: 13.28 },
+        { label: 'a handful (10 cherries)', grams: 133 },
+        { label: 'a bowl (200 g)', grams: 200 },
+        { label: 'a big bowl (300 g)', grams: 300 },
+      ],
+      defaultPortion: 0,
+    })
+    touch(cherry)
+    notes.push('cherries: now weighed with pits, 8% refuse taken off behind the scenes')
+  }
+
+  // The avocado was measured again: 110 g whole, not 133. At USDA's 30% refuse
+  // for skin and stone that is 77 g of flesh rather than 93 — 27 kcal a fruit,
+  // every time, which is the sort of error that hides inside a portion label
+  // and never announces itself.
+  const avo = (data.foods ?? []).find((f) => /avocado/i.test(f.name))
+  if (avo && avo.portions?.[0]?.grams !== 77) {
+    avo.portions = [
+      { label: '1 avocado (110 g whole)', grams: 77 },
+      { label: 'half', grams: 38.5 },
+      { label: '1 medium (194 g whole)', grams: 136 },
+    ]
+    avo.defaultPortion = 0
+    touch(avo)
+    notes.push('avocado: 1 fruit is now 110 g whole -> 77 g of flesh (was 133 -> 93)')
   }
 
   // --- example, currently a no-op -------------------------------------------
