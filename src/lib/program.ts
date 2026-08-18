@@ -308,7 +308,10 @@ for (const ex of CATALOGUE) {
  */
 export function repUnit(reps: string): string {
   if (/min/i.test(reps)) return 'min'
-  if (/s\b|sec/i.test(reps)) return 's'
+  // The s has to belong to the number. A bare /s\b/ also matches the s of
+  // "15 steps/side", because the slash after it is a word boundary — which
+  // labelled fifteen steps as fifteen seconds.
+  if (/\d\s*(s|sec)\b/i.test(reps)) return 's'
   return 'reps'
 }
 
