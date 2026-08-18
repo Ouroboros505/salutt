@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, MEAL_SUGGESTIONS, type Entry, type ISODate, type Meal, type Settings } from '../db/db'
+import { db, MEAL_SUGGESTIONS, type Entry, type ISODate, type Meal, type Settings, type PlannedMeal } from '../db/db'
 import {
   copyDay,
   deleteMeal,
   lastLoggedDay,
   logFood,
+  logPlanned,
   logTemplate,
   pastMeals,
+  plannedTotals,
   quickFoods,
   recentMealNames,
   repeatMeal,
@@ -85,6 +87,7 @@ export default function Today({
   // Today's expenditure, computed from what is known and anchored to what was
   // measured, rather than an average day's figure applied to every day.
   const allWorkouts = useLiveQuery(() => db.workouts.toArray(), []) ?? []
+  const planned = useLiveQuery(() => db.plannedMeals.where('date').equals(date).toArray(), [date]) ?? []
   const adaptive = adaptiveTDEE(allEntries, trend)
   const todayActivity = workouts.reduce((t, w) => t + (w.kcal ?? 0), 0)
   const usual = usualActivity(allWorkouts, date)
@@ -440,6 +443,12 @@ export default function Today({
           used={meals}
           known={knownMeals}
           past={previousMeals}
+          planned={planned}
+          onEatPlanned={async (p) => {
+            const n = await logPlanned(p, date)
+            setNaming(false)
+            toast(`${p.meal} logged — ${n} items`)
+          }}
           onPick={(name) => {
             setNaming(false)
             setAdding(name)
@@ -571,8 +580,10 @@ function NameMeal({
   used,
   known,
   past = [],
+  planned = [],
   title = 'Add meal entry',
   onPick,
+  onEatPlanned,
   onRepeat,
   onDelete,
   deleteCount = 0,
@@ -584,8 +595,11 @@ function NameMeal({
   known: Meal[]
   /** Whole meals eaten before, repeatable in one tap. */
   past?: PastMeal[]
+  /** Weighed this morning and not yet eaten. */
+  planned?: PlannedMeal[]
   title?: string
   onPick: (name: string) => void
+  onEatPlanned?: (p: PlannedMeal) => void
   onRepeat?: (meal: PastMeal) => void
   onDelete?: () => void
   deleteCount?: number
@@ -611,6 +625,32 @@ function NameMeal({
           placeholder="Breakfast, second lunch, midnight raid…"
         />
       </div>
+
+      {/* Weighed already, so it is one tap and no numbers: the grams were
+          settled at the scale hours ago. Offered first, because on a day these
+          exist they are almost always the answer. */}
+      {planned.length > 0 && onEatPlanned && (
+        <div className="stack tight">
+          <h3>Weighed this morning</h3>
+          {planned.map((p) => {
+            const t = plannedTotals(p)
+            return (
+              <button key={p.id} className="item" onClick={() => onEatPlanned(p)}>
+                <div className="grow">
+                  <div className="item-title truncate">{p.meal}</div>
+                  <div className="tiny muted truncate num">
+                    {p.items.length} items · {Math.round(t.kcal)} kcal · P
+                    {Math.round(t.protein * 10) / 10}
+                  </div>
+                </div>
+                <span className="muted">
+                  <Icon.plus />
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {yours.length > 0 && (
         <div className="stack tight">

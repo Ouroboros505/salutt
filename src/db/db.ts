@@ -238,6 +238,42 @@ export interface MealTemplate {
   createdAt: number
 }
 
+/**
+ * A meal weighed now and eaten later.
+ *
+ * Everything gets weighed in one go in the morning, but the day's remaining
+ * energy is what decides what to eat next — so logging it all at breakfast
+ * would make that figure wrong until dinner. Writing the grams on paper and
+ * copying them in later is the alternative, and it is the app's job to hold
+ * that, not a scrap of paper.
+ *
+ * Macros are snapshotted at weighing time, exactly as an entry snapshots them,
+ * so correcting a food later never rewrites what is already in the box.
+ */
+export interface PlannedItem {
+  foodId?: number
+  recipeId?: number
+  name: string
+  brand?: string
+  grams: number
+  amountLabel: string
+  kcal: number
+  protein: number
+  carbs: number
+  fat: number
+  fiber: number
+}
+
+export interface PlannedMeal {
+  id?: number
+  /** The day it was weighed for; it disappears from the list after that. */
+  date: ISODate
+  /** What it will be logged as when it is eaten. */
+  meal: Meal
+  items: PlannedItem[]
+  createdAt: number
+}
+
 export interface Settings {
   id: string
   sex: 'male' | 'female'
@@ -348,6 +384,7 @@ export const SYNCED_TABLES = [
   'mealTemplates',
   'recipes',
   'routes',
+  'plannedMeals',
 ] as const
 
 /** The synced tables as they stood at version 3, for that version's upgrade. */
@@ -370,6 +407,7 @@ class SaluttDB extends Dexie {
   mealTemplates!: Table<MealTemplate, number>
   recipes!: Table<Recipe, number>
   routes!: Table<Route, number>
+  plannedMeals!: Table<PlannedMeal, number>
   settings!: Table<Settings, string>
   tombstones!: Table<Tombstone, number>
 
@@ -412,6 +450,9 @@ class SaluttDB extends Dexie {
 
     // Routes arrived later; existing data is carried across untouched.
     this.version(4).stores({ routes: '++id, name, lastUsed' })
+
+    // Meals weighed ahead of being eaten.
+    this.version(5).stores({ plannedMeals: '++id, date, [date+meal]' })
 
     // Stamp every write, so no call site has to remember to. Dexie types the
     // three hooks as separate overloads, which a loop cannot satisfy.

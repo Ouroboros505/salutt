@@ -24,6 +24,9 @@ const TABLES = [
   // Restores tolerate its absence, so older backups still load.
   'recipes',
   'routes',
+  // Weighed-ahead meals travel too: they are a morning's work with a scale,
+  // and losing them on a phone swap would mean weighing everything again.
+  'plannedMeals',
   // Deletions have to travel too, or a merge resurrects them.
   'tombstones',
   'settings',

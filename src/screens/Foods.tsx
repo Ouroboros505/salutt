@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, type Food, type MealTemplate, type Recipe } from '../db/db'
+import { db, type Food, type MealTemplate, type PlannedMeal, type Recipe } from '../db/db'
 import { Field, Icon, NumberInput, Sheet } from '../components/ui'
 import RecipeEditor from '../components/RecipeEditor'
 import { CreateFood } from '../components/AddFood'
 import { finishedWeight, per100, servingGrams } from '../lib/recipes'
 import { loadFoodDb, searchFoodDb } from '../lib/foodDb'
 import type { FoodHit } from '../lib/foodApi'
-import { saveFood } from '../db/ops'
+import { plannedTotals, saveFood } from '../db/ops'
+import PlanMeal from '../components/PlanMeal'
+import { todayISO } from '../lib/date'
 import { isStandoutProtein, standoutLabel } from '../lib/quality'
 
 export default function Foods({ toast }: { toast: (m: string) => void }) {
@@ -16,6 +18,12 @@ export default function Foods({ toast }: { toast: (m: string) => void }) {
   const [creating, setCreating] = useState(false)
   const [template, setTemplate] = useState<MealTemplate | null>(null)
   const [recipe, setRecipe] = useState<Recipe | 'new' | null>(null)
+  const [planning, setPlanning] = useState<PlannedMeal | 'new' | null>(null)
+  const today = todayISO()
+  // Only today's. A meal weighed on Tuesday and never eaten is not waiting for
+  // you on Wednesday; it is in the bin, and a list that pretends otherwise
+  // would quietly inflate the day it finally got tapped.
+  const planned = useLiveQuery(() => db.plannedMeals.where('date').equals(today).toArray(), [today]) ?? []
 
   const foods = useLiveQuery(() => db.foods.toArray(), []) ?? []
   const templates = useLiveQuery(() => db.mealTemplates.orderBy('lastUsed').reverse().toArray(), []) ?? []
@@ -66,6 +74,50 @@ export default function Foods({ toast }: { toast: (m: string) => void }) {
         <span style={{ position: 'absolute', left: 10, top: 11, color: 'var(--text-muted)', pointerEvents: 'none' }}>
           <Icon.search />
         </span>
+      </div>
+
+      <div className="card tight">
+        <div className="card-head">
+          <h3>Weighed, waiting to be eaten</h3>
+          <button className="btn sm" onClick={() => setPlanning('new')}>
+            <Icon.plus /> Weigh
+          </button>
+        </div>
+        {planned.length === 0 ? (
+          <div className="empty">
+            Weigh the boxes once in the morning and they sit here until you eat them, so the day's
+            remaining energy stays true in between.
+          </div>
+        ) : (
+          <div>
+            {planned.map((p) => {
+              const t = plannedTotals(p)
+              return (
+                <div key={p.id} className="item" style={{ cursor: 'default' }}>
+                  <button
+                    className="grow"
+                    style={{ background: 'none', border: 0, padding: 0, textAlign: 'left', minWidth: 0 }}
+                    onClick={() => setPlanning(p)}
+                  >
+                    <div className="item-title truncate">{p.meal}</div>
+                    <div className="tiny muted truncate num">
+                      {p.items.length} items · {Math.round(t.grams)} g · {Math.round(t.kcal)} kcal · P
+                      {Math.round(t.protein * 10) / 10}
+                    </div>
+                  </button>
+                  <button
+                    className="iconbtn"
+                    aria-label={`Delete ${p.meal}`}
+                    onClick={() => void db.plannedMeals.delete(p.id!)}
+                  >
+                    <Icon.close />
+                  </button>
+                </div>
+              )
+            })}
+            <div className="tiny muted">Tap one to change it. Eat it from Today.</div>
+          </div>
+        )}
       </div>
 
       <div className="card tight">
@@ -192,6 +244,15 @@ export default function Foods({ toast }: { toast: (m: string) => void }) {
             ))}
           </div>
         </div>
+      )}
+
+      {planning && (
+        <PlanMeal
+          date={today}
+          existing={planning === 'new' ? undefined : planning}
+          onClose={() => setPlanning(null)}
+          toast={toast}
+        />
       )}
 
       {editing && <EditFood food={editing} onClose={() => setEditing(null)} toast={toast} />}

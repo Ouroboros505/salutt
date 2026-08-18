@@ -1,4 +1,4 @@
-import { db, type Entry, type Food, type ISODate, type Meal, type MealTemplate, type Recipe } from './db'
+import { db, type Entry, type Food, type ISODate, type Meal, type MealTemplate, type PlannedMeal, type Recipe } from './db'
 import type { FoodHit } from '../lib/foodApi'
 import { per100 } from '../lib/recipes'
 
@@ -268,6 +268,59 @@ export async function repeatMeal(
     })),
   )
   return src.length
+}
+
+/**
+ * Eats a meal that was weighed earlier.
+ *
+ * The planned row is removed in the same transaction that writes the entries,
+ * so the list empties itself as the day is eaten and a meal can never be
+ * logged twice from it.
+ */
+export async function logPlanned(planned: PlannedMeal, to?: ISODate): Promise<number> {
+  const when = to ?? planned.date
+  const now = Date.now()
+  await db.transaction('rw', db.entries, db.foods, db.plannedMeals, async () => {
+    await db.entries.bulkAdd(
+      planned.items.map((it, i) => ({
+        date: when,
+        meal: planned.meal,
+        foodId: it.foodId,
+        name: it.name,
+        brand: it.brand,
+        grams: it.grams,
+        amountLabel: it.amountLabel,
+        kcal: it.kcal,
+        protein: it.protein,
+        carbs: it.carbs,
+        fat: it.fat,
+        fiber: it.fiber,
+        createdAt: now + i,
+      })),
+    )
+    for (const it of planned.items) {
+      if (!it.foodId) continue
+      const food = await db.foods.get(it.foodId)
+      if (food) await db.foods.update(it.foodId, { useCount: (food.useCount ?? 0) + 1, lastUsed: now })
+    }
+    if (planned.id != null) await db.plannedMeals.delete(planned.id)
+  })
+  return planned.items.length
+}
+
+/** What a weighed-ahead meal comes to, for the list. */
+export function plannedTotals(p: PlannedMeal): Totals & { grams: number } {
+  return p.items.reduce(
+    (t, i) => ({
+      grams: t.grams + i.grams,
+      kcal: t.kcal + i.kcal,
+      protein: t.protein + i.protein,
+      carbs: t.carbs + i.carbs,
+      fat: t.fat + i.fat,
+      fiber: t.fiber + i.fiber,
+    }),
+    { grams: 0, kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
+  )
 }
 
 /** Removes a whole section of a day. */
