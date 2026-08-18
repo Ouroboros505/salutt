@@ -312,6 +312,18 @@ export function repUnit(reps: string): string {
   return 'reps'
 }
 
+/**
+ * Whether a set is a prescribed protocol rather than something to record.
+ *
+ * "30s hard / 90s easy" is two durations describing one round. There is no
+ * single number that captures it, so asking for one asks a question with no
+ * answer — is 30 the work, the rest, or the round? A round like this is only
+ * ever done or not done, and the tick already says which.
+ */
+export function isProtocol(ex: Pick<Exercise, 'reps'>): boolean {
+  return /hard/i.test(ex.reps)
+}
+
 /** Whether a weight field makes any sense for this exercise. */
 export function takesLoad(ex: Pick<Exercise, 'load'>): boolean {
   return (ex.load?.factor ?? 1) > 0

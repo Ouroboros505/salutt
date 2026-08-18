@@ -6,6 +6,7 @@ import {
   GROUPS,
   byName,
   describeSession,
+  isProtocol,
   repUnit,
   takesLoad,
   exerciseKcal,
@@ -60,6 +61,9 @@ function loadDraft(date: ISODate): Done[] | null {
 
 function startingSets(ex: Exercise): SetRow[] {
   if (ex.byMinutes) return []
+  // A protocol round has no count of its own; parsing one out of the text
+  // only invents a number that means nothing afterwards.
+  if (isProtocol(ex)) return Array.from({ length: ex.sets }, () => ({ reps: 0 }))
   return Array.from({ length: ex.sets }, () => ({ reps: parseInt(ex.reps, 10) || 10 }))
 }
 
@@ -332,14 +336,18 @@ export default function SessionSheet({
                       >
                         {set.done ? <Icon.check /> : <span className="tiny num">{idx + 1}</span>}
                       </button>
-                      <div style={{ width: 92, flex: 'none' }}>
-                        <NumberInput
-                          value={set.reps || undefined}
-                          unit={ex ? repUnit(ex.reps) : 'reps'}
-                          onChange={(v) => setSet(i.key, idx, { reps: v ?? 0 })}
-                        />
-                      </div>
-                      {(!ex || takesLoad(ex)) && (
+                      {ex && isProtocol(ex) ? (
+                        <span className="small grow truncate">{ex.reps}</span>
+                      ) : (
+                        <div style={{ width: 92, flex: 'none' }}>
+                          <NumberInput
+                            value={set.reps || undefined}
+                            unit={ex ? repUnit(ex.reps) : 'reps'}
+                            onChange={(v) => setSet(i.key, idx, { reps: v ?? 0 })}
+                          />
+                        </div>
+                      )}
+                      {(!ex || (takesLoad(ex) && !isProtocol(ex))) && (
                         <div style={{ width: 96, flex: 'none' }}>
                           <NumberInput
                             value={toDisplayWeight(set.weightKg, unit)}
@@ -349,7 +357,7 @@ export default function SessionSheet({
                           />
                         </div>
                       )}
-                      {ex && !takesLoad(ex) && (
+                      {ex && !takesLoad(ex) && !isProtocol(ex) && (
                         <span className="tiny muted truncate" style={{ width: 96, flex: 'none' }}>
                           {ex.reps}
                         </span>
