@@ -11,7 +11,10 @@
 export interface Demo {
   photos: string[]
   steps: string[]
+  /** A YouTube search URL — the fallback if the specific video will not embed. */
   video: string
+  /** A resolved, embeddable YouTube id, so the player has a real video to load. */
+  videoId?: string
 }
 
 let cache: Record<string, Demo> | null = null

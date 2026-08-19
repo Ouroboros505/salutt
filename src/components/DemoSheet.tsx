@@ -24,13 +24,17 @@ export default function DemoSheet({ name, onClose }: { name: string; onClose: ()
 
   const clean = name.replace(/—.*|\(.*\)/g, '').trim()
   const query = encodeURIComponent(`how to ${clean} proper form technique`)
-  const embed = `https://www.youtube-nocookie.com/embed?listType=search&list=${query}`
   const search = `https://www.youtube.com/results?search_query=${query}`
+  // A specific, embed-checked id plays; a search embed does not (Error 153),
+  // so without an id there is nothing to play in-app and only the link remains.
+  const embed = demo?.videoId
+    ? `https://www.youtube-nocookie.com/embed/${demo.videoId}`
+    : null
 
   return (
     <Sheet title={clean} onClose={onClose}>
-      {/* The video leads: it is what he actually came for. */}
-      {playing ? (
+      {/* The video leads: it is what he came for. */}
+      {playing && embed ? (
         <div style={{ position: 'relative', paddingTop: '56%', borderRadius: 10, overflow: 'hidden' }}>
           <iframe
             title={`${clean} demo`}
@@ -41,7 +45,7 @@ export default function DemoSheet({ name, onClose }: { name: string; onClose: ()
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0 }}
           />
         </div>
-      ) : (
+      ) : embed ? (
         <button
           className="btn primary block"
           onClick={() => setPlaying(true)}
@@ -49,6 +53,10 @@ export default function DemoSheet({ name, onClose }: { name: string; onClose: ()
         >
           <Icon.play /> Play a demo video
         </button>
+      ) : (
+        <a className="btn primary block" href={search} target="_blank" rel="noreferrer">
+          <Icon.play /> Watch on YouTube
+        </a>
       )}
 
       {demo && demo.photos.length > 0 && (
