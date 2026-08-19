@@ -56,6 +56,8 @@ interface SetRow {
 interface Done {
   key: string
   name: string
+  /** The planned exercise this slot came from, when swapped for a stand-in. */
+  origName?: string
   /** Work and rest of one round, in seconds, when this is an interval. */
   hard?: number
   easy?: number
@@ -222,12 +224,14 @@ export default function SessionSheet({
     setItems((xs) =>
       xs.map((it) => {
         if (it.key !== key) return it
-        const alt = altFor(it.name)
-        if (!alt) return it
-        const ex = byName(alt)
+        // Swapped already: go back to what the plan asked for.
+        const target = it.origName ?? altFor(it.name)
+        if (!target) return it
+        const ex = byName(target)
         return {
-          key: `${alt}-${key}`,
-          name: alt,
+          key: `${target}-${it.key}`,
+          name: target,
+          origName: it.origName ? undefined : it.name,
           sets: ex ? startingSets(ex) : [{ reps: 0 }],
           minutes: ex?.byMinutes ? ex.sets : undefined,
         }
@@ -423,11 +427,19 @@ export default function SessionSheet({
                     )
                   })()}
                 </div>
-                {altFor(i.name) && (
+                {(altFor(i.name) || i.origName) && (
                   <button
                     className="iconbtn"
-                    aria-label={`Machine busy — switch ${i.name} for ${altFor(i.name)}`}
-                    title={`Machine busy? Do ${altFor(i.name)} instead`}
+                    aria-pressed={!!i.origName}
+                    style={i.origName ? { color: 'var(--accent)' } : undefined}
+                    aria-label={
+                      i.origName
+                        ? `Switch ${i.name} back to ${i.origName}`
+                        : `Machine busy — switch ${i.name} for ${altFor(i.name)}`
+                    }
+                    title={
+                      i.origName ? `Back to ${i.origName}` : `Machine busy? Do ${altFor(i.name)} instead`
+                    }
                     onClick={() => swapForAlt(i.key)}
                   >
                     <Icon.swap />
