@@ -94,6 +94,26 @@ function change(data: Data): string[] {
     notes.push('pesto tray: cook loss 25% -> 29%, from each ingredient rather than one guess')
   }
 
+  // --- WAITING ON REAL WEIGHTS ---------------------------------------------
+  //
+  // He weighs every ingredient on the next meal prep, both recipes. When those
+  // numbers arrive, fill them in here and the estimates below go away:
+  //
+  //   * the pesto tray's "2 zucchini = 392 g", "3 bell peppers = 357 g",
+  //     "1 onion = 110 g", "1 pint tomatoes = 283 g" — all invented from
+  //     typical sizes and the only reason the raw total is not exact.
+  //   * the braise's ingredient weights, same story.
+  //
+  // What this will NOT fix, and is worth being honest about: the finished
+  // weight. Weighing what goes in tells you the numerator; the cook loss is
+  // still modelled (29% for the tray, 8% for the braise). Only weighing
+  // something after it comes out settles that — and packing containers and
+  // adding them up is the version that fits in a 5 kg scale.
+  //
+  // const WEIGHED: Record<string, number> = { 'Squash, summer...': 0 }
+  // for (const r of data.recipes ?? []) for (const i of r.items)
+  //   if (WEIGHED[i.name]) { /* rescale i's macros by the new grams, touch(r) */ }
+
   // --- example, currently a no-op -------------------------------------------
   // const recipe = data.recipes?.find((r) => r.name.includes('Braised'))
   // if (recipe) {
