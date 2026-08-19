@@ -11,7 +11,7 @@ import {
   withHold,
   parseProtocol,
   withInterval,
-  repUnit,
+  repLabel,
   takesLoad,
   exerciseKcal,
   exerciseMinutes,
@@ -470,7 +470,7 @@ export default function SessionSheet({
                       <div style={{ width: 92, flex: 'none' }}>
                         <NumberInput
                           value={i.sets[0]?.reps || undefined}
-                          unit={repUnit(ex.reps)}
+                          unit={repLabel(ex.reps)}
                           onChange={(v) =>
                             update(i.key, { sets: i.sets.map((x) => ({ ...x, reps: v ?? 0 })) })
                           }
@@ -538,7 +538,7 @@ export default function SessionSheet({
                         <div style={{ width: 92, flex: 'none' }}>
                           <NumberInput
                             value={set.reps || undefined}
-                            unit={ex ? repUnit(ex.reps) : 'reps'}
+                            unit={ex ? repLabel(ex.reps) : 'reps'}
                             onChange={(v) => setSet(i.key, idx, { reps: v ?? 0 })}
                           />
                         </div>

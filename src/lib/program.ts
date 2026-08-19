@@ -345,6 +345,26 @@ export function repUnit(reps: string): string {
   return 'reps'
 }
 
+/** The per-limb word in a prescription, if any: "side", "leg", "arm". */
+export function perSideWord(reps: string): string | null {
+  const m = /\/\s*(side|leg|arm)|each\s+(side|leg|arm)/i.exec(reps)
+  return m ? (m[1] ?? m[2]).toLowerCase() : null
+}
+
+/**
+ * The unit shown on the set's number, with "/side" made explicit.
+ *
+ * A one-arm row prescribed "12/side" is logged per arm, not doubled — but a
+ * field that just says "reps" leaves you guessing whether to put 12 or 24.
+ * The count is a record for progression and never enters the energy sum, so
+ * either number is harmless arithmetically; the label removes the doubt.
+ */
+export function repLabel(reps: string): string {
+  const u = repUnit(reps)
+  const side = perSideWord(reps)
+  return side ? `${u}/${side}` : u
+}
+
 /**
  * Whether a set is a prescribed protocol rather than something to record.
  *
