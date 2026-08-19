@@ -1,10 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, MEAL_SUGGESTIONS, type Food, type ISODate, type PlannedItem, type PlannedMeal } from '../db/db'
-import { healPlannedItems, saveFood, scale } from '../db/ops'
-import { loadFoodDb, searchFoodDb } from '../lib/foodDb'
+import { healPlannedItems, scale } from '../db/ops'
 import { per100 } from '../lib/recipes'
-import type { FoodHit } from '../lib/foodApi'
 import { Field, Icon, NumberInput, Sheet } from './ui'
 
 /**
@@ -50,31 +48,12 @@ export default function PlanMeal({
 
   const foods = useLiveQuery(() => db.foods.toArray(), []) ?? []
   const recipes = useLiveQuery(() => db.recipes.orderBy('lastUsed').reverse().toArray(), []) ?? []
+  const templates = useLiveQuery(() => db.mealTemplates.orderBy('lastUsed').reverse().toArray(), []) ?? []
 
-  // The bundled database answers too, so a food weighed for the first time
-  // does not have to be created before it can be put in the box.
-  const entries = useRef<Awaited<ReturnType<typeof loadFoodDb>> | null>(null)
-  const [dbReady, setDbReady] = useState(false)
-  const [fromDb, setFromDb] = useState<FoodHit[]>([])
-  useEffect(() => {
-    let alive = true
-    void loadFoodDb()
-      .then((e) => {
-        if (!alive) return
-        entries.current = e
-        setDbReady(true)
-      })
-      .catch(() => setDbReady(false))
-    return () => {
-      alive = false
-    }
-  }, [])
-  useEffect(() => {
-    if (!entries.current) return
-    setFromDb(query.trim().length >= 2 ? searchFoodDb(query, entries.current, 12) : [])
-  }, [query, dbReady])
-
+  // Deliberately his library only — the whole bundled database was noise when
+  // weighing a meal he eats every week. New foods are created in the Foods tab.
   const q = query.trim().toLowerCase()
+  const myTemplates = q ? templates.filter((t) => t.name.toLowerCase().includes(q)) : templates.slice(0, 4)
   const mine = q
     ? foods
         .filter((f) => f.name.toLowerCase().includes(q) || (f.brand ?? '').toLowerCase().includes(q))
@@ -111,6 +90,27 @@ export default function PlanMeal({
     }
   }
 
+  /** Drops every item of a saved meal in, each priced from its current food. */
+  const addTemplate = async (t: (typeof templates)[number]) => {
+    const added: PlannedItem[] = []
+    for (const ti of t.items) {
+      const food = await db.foods.get(ti.foodId)
+      if (!food) continue
+      added.push({
+        foodId: food.id,
+        name: food.name,
+        brand: food.brand,
+        grams: ti.grams,
+        amountLabel: `${ti.grams} g`,
+        ...scale(food, ti.grams),
+        per100: { kcal: food.kcal, protein: food.protein, carbs: food.carbs, fat: food.fat, fiber: food.fiber },
+      })
+    }
+    setItems((xs) => [...xs, ...added])
+    setQuery('')
+    toast(`${t.name} — ${added.length} item${added.length === 1 ? '' : 's'} added`)
+  }
+
   const addFood = (food: Food, grams: number, label: string) =>
     setItems((xs) => [
       ...xs,
@@ -126,8 +126,14 @@ export default function PlanMeal({
     ])
 
   const totals = items.reduce(
-    (t, i) => ({ kcal: t.kcal + i.kcal, protein: t.protein + i.protein, grams: t.grams + i.grams }),
-    { kcal: 0, protein: 0, grams: 0 },
+    (t, i) => ({
+      kcal: t.kcal + i.kcal,
+      protein: t.protein + i.protein,
+      fat: t.fat + i.fat,
+      fiber: t.fiber + i.fiber,
+      grams: t.grams + i.grams,
+    }),
+    { kcal: 0, protein: 0, fat: 0, fiber: 0, grams: 0 },
   )
 
   const [picking, setPicking] = useState<Food | null>(null)
@@ -160,7 +166,7 @@ export default function PlanMeal({
               <div className="grow" style={{ minWidth: 0 }}>
                 <div className="small truncate">{it.name}</div>
                 <div className="tiny muted num truncate">
-                  {it.kcal} kcal · P{it.protein}
+                  {it.kcal} kcal · P{it.protein} · F{it.fat} · fib{it.fiber}
                 </div>
               </div>
               {/* Weight editable in place. Everything on the row scales with
@@ -186,8 +192,13 @@ export default function PlanMeal({
             <span className="muted">
               {items.length} items · {Math.round(totals.grams)} g
             </span>
+            <span>{Math.round(totals.kcal)} kcal</span>
+          </div>
+          <div className="row between tiny muted num">
+            <span>everything below counts toward the day when you eat it</span>
             <span>
-              {Math.round(totals.kcal)} kcal · P{Math.round(totals.protein * 10) / 10}
+              P{Math.round(totals.protein * 10) / 10} · F{Math.round(totals.fat * 10) / 10} · fibre{' '}
+              {Math.round(totals.fiber * 10) / 10}
             </span>
           </div>
         </div>
@@ -247,6 +258,25 @@ export default function PlanMeal({
             />
           </Field>
 
+          {myTemplates.length > 0 && (
+            <div className="stack tight">
+              <div className="tiny muted">Saved meals — tap to drop the whole thing in</div>
+              {myTemplates.map((t) => (
+                <button key={`t${t.id}`} className="item" onClick={() => void addTemplate(t)}>
+                  <div className="grow">
+                    <div className="item-title truncate">{t.name}</div>
+                    <div className="tiny muted truncate num">
+                      saved meal · {t.items.length} item{t.items.length === 1 ? '' : 's'}
+                    </div>
+                  </div>
+                  <span className="muted">
+                    <Icon.plus />
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
           {myRecipes.map((r) => {
             const p = per100(r)
             return (
@@ -284,25 +314,6 @@ export default function PlanMeal({
             </button>
           ))}
 
-          {fromDb.map((h, i) => (
-            <button
-              key={`d${i}`}
-              className="item"
-              onClick={async () => {
-                const id = await saveFood(h)
-                const saved = await db.foods.get(id)
-                if (saved) setPicking(saved)
-              }}
-            >
-              <div className="grow">
-                <div className="item-title truncate">{h.name}</div>
-                <div className="tiny muted truncate num">database · {Math.round(h.kcal)} kcal/100 g</div>
-              </div>
-              <span className="muted">
-                <Icon.plus />
-              </span>
-            </button>
-          ))}
         </>
       )}
 
