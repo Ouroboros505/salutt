@@ -8,6 +8,6 @@
   # which is why robots.txt below permits crawling rather than blocking it.
   X-Robots-Tag: noindex, nofollow, noarchive, nosnippet
   # Never leak this hostname to sites you navigate out to.
-  Referrer-Policy: no-referrer
+  Referrer-Policy: strict-origin-when-cross-origin
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY

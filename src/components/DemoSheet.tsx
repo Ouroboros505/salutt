@@ -27,8 +27,11 @@ export default function DemoSheet({ name, onClose }: { name: string; onClose: ()
   const search = `https://www.youtube.com/results?search_query=${query}`
   // A specific, embed-checked id plays; a search embed does not (Error 153),
   // so without an id there is nothing to play in-app and only the link remains.
+  // A concrete video id, told which origin is embedding it — the Playback ID
+  // error is YouTube declining to play when it cannot confirm that origin.
+  const origin = typeof location !== 'undefined' ? location.origin : ''
   const embed = demo?.videoId
-    ? `https://www.youtube-nocookie.com/embed/${demo.videoId}`
+    ? `https://www.youtube-nocookie.com/embed/${demo.videoId}?rel=0&playsinline=1&origin=${encodeURIComponent(origin)}`
     : null
 
   return (
