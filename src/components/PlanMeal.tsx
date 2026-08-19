@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, MEAL_SUGGESTIONS, type Food, type ISODate, type PlannedItem, type PlannedMeal } from '../db/db'
-import { saveFood, scale } from '../db/ops'
+import { healPlannedItems, saveFood, scale } from '../db/ops'
 import { loadFoodDb, searchFoodDb } from '../lib/foodDb'
 import { per100 } from '../lib/recipes'
 import type { FoodHit } from '../lib/foodApi'
@@ -33,6 +33,20 @@ export default function PlanMeal({
   const [meal, setMeal] = useState(existing?.meal ?? '')
   const [items, setItems] = useState<PlannedItem[]>(existing?.items ?? [])
   const [query, setQuery] = useState('')
+
+  // Anything already saved is healed on open: an item that drifted to zero, or
+  // was frozen empty by an older build, comes back the moment the box is
+  // looked at, rather than waiting to be noticed.
+  useEffect(() => {
+    if (!existing?.items?.length) return
+    let alive = true
+    void healPlannedItems(existing.items).then(({ items: healed, changed }) => {
+      if (alive && changed) setItems(healed)
+    })
+    return () => {
+      alive = false
+    }
+  }, [existing?.id])
 
   const foods = useLiveQuery(() => db.foods.toArray(), []) ?? []
   const recipes = useLiveQuery(() => db.recipes.orderBy('lastUsed').reverse().toArray(), []) ?? []

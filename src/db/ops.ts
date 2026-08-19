@@ -1,4 +1,4 @@
-import { db, type Entry, type Food, type ISODate, type Meal, type MealTemplate, type PlannedMeal, type Recipe } from './db'
+import { db, type Entry, type Food, type ISODate, type Meal, type MealTemplate, type PlannedItem, type PlannedMeal, type Recipe } from './db'
 import type { FoodHit } from '../lib/foodApi'
 import { per100 } from '../lib/recipes'
 
@@ -287,6 +287,59 @@ export async function repeatMeal(
   return src.length
 }
 
+/** Macros per 100 g of a finished recipe — the same maths the recipe screen uses. */
+function per100Of(rec: Recipe): { kcal: number; protein: number; carbs: number; fat: number; fiber: number } {
+  const t = per100(rec)
+  return { kcal: t.kcal, protein: t.protein, carbs: t.carbs, fat: t.fat, fiber: t.fiber }
+}
+
+/**
+ * Repairs any weighed-meal item whose nutrition has gone stale or zero.
+ *
+ * A planned meal is staging for a future log, not history, so its items should
+ * reflect the current food and recipe definitions. This recomputes any item
+ * that references a food or recipe from that source at its chosen grams —
+ * catching a value that drifted to zero however it got there, and refreshing
+ * one whose food was corrected since. Items with no reference (a one-off typed
+ * by hand) are left exactly as they are. Returns whether anything changed, so
+ * a caller saves only when it must.
+ */
+export async function healPlannedItems(
+  items: PlannedItem[],
+): Promise<{ items: PlannedItem[]; changed: boolean }> {
+  let changed = false
+  const out: PlannedItem[] = []
+  for (const it of items) {
+    let per100: PlannedItem['per100'] | null = null
+    if (it.foodId != null) {
+      const food = await db.foods.get(it.foodId)
+      if (food)
+        per100 = { kcal: food.kcal, protein: food.protein, carbs: food.carbs, fat: food.fat, fiber: food.fiber }
+    } else if (it.recipeId != null) {
+      const rec = await db.recipes.get(it.recipeId)
+      if (rec) per100 = per100Of(rec)
+    }
+    if (!per100) {
+      out.push(it)
+      continue
+    }
+    const f = (it.grams ?? 0) / 100
+    const round1 = (v: number) => Math.round(v * f * 10) / 10
+    const fixed: PlannedItem = {
+      ...it,
+      per100,
+      kcal: Math.round(per100.kcal * f),
+      protein: round1(per100.protein),
+      carbs: round1(per100.carbs),
+      fat: round1(per100.fat),
+      fiber: round1(per100.fiber),
+    }
+    if (fixed.kcal !== it.kcal || fixed.protein !== it.protein || !it.per100) changed = true
+    out.push(fixed)
+  }
+  return { items: out, changed }
+}
+
 /**
  * Eats a meal that was weighed earlier.
  *
@@ -297,9 +350,12 @@ export async function repeatMeal(
 export async function logPlanned(planned: PlannedMeal, to?: ISODate): Promise<number> {
   const when = to ?? planned.date
   const now = Date.now()
+  // A box eaten straight from a notification never passes through the editor,
+  // so heal it here too: whatever it holds, the day gets the real numbers.
+  const { items } = await healPlannedItems(planned.items)
   await db.transaction('rw', db.entries, db.foods, db.plannedMeals, async () => {
     await db.entries.bulkAdd(
-      planned.items.map((it, i) => ({
+      items.map((it, i) => ({
         date: when,
         meal: planned.meal,
         foodId: it.foodId,
@@ -315,14 +371,14 @@ export async function logPlanned(planned: PlannedMeal, to?: ISODate): Promise<nu
         createdAt: now + i,
       })),
     )
-    for (const it of planned.items) {
+    for (const it of items) {
       if (!it.foodId) continue
       const food = await db.foods.get(it.foodId)
       if (food) await db.foods.update(it.foodId, { useCount: (food.useCount ?? 0) + 1, lastUsed: now })
     }
     if (planned.id != null) await db.plannedMeals.delete(planned.id)
   })
-  return planned.items.length
+  return items.length
 }
 
 /** What a weighed-ahead meal comes to, for the list. */
