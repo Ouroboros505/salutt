@@ -160,6 +160,36 @@ function touch(row) {
 var summarise = (data) => Object.entries(data).filter(([, rows]) => Array.isArray(rows) && rows.length).map(([t, rows]) => `${t}=${rows.length}`).join(" ");
 function change(data) {
   const notes = [];
+  if (!(data.foods ?? []).some((f) => /jerky, original/i.test(f.name))) {
+    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1;
+    const SRV = 28;
+    (data.foods ??= []).push(
+      touch({
+        id: nextId,
+        name: "Beef jerky, Original",
+        brand: "Simms",
+        // 1 oz (28 g): 80 kcal, 1 g fat, 5 g carb (5 g sugar), 0 fibre, 10 g protein, 620 mg sodium.
+        kcal: Math.round(80 / SRV * 1e3) / 10,
+        protein: Math.round(10 / SRV * 1e3) / 10,
+        carbs: Math.round(5 / SRV * 1e3) / 10,
+        fat: Math.round(1 / SRV * 1e3) / 10,
+        fiber: 0,
+        portions: [
+          { label: "1 oz serving (28 g)", grams: SRV },
+          { label: "half a serving", grams: 14 },
+          { label: "the whole bag (142 g)", grams: 142 }
+        ],
+        defaultPortion: 0,
+        liquid: false,
+        source: "manual",
+        favorite: false,
+        useCount: 0,
+        lastUsed: 0,
+        createdAt: Date.now()
+      })
+    );
+    notes.push("added Beef jerky, Original (Simms) \u2014 1 oz = 80 kcal, 10 g protein");
+  }
   if (!(data.foods ?? []).some((f) => /skipjack|tuna/i.test(f.name))) {
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1;
     const CAN = 95;

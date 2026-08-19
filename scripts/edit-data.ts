@@ -67,6 +67,39 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
+  // Simms Original beef jerky (Aldi), per its 1 oz serving. Named with the
+  // flavour so it sits apart from the other Simms jerky in the library.
+  if (!(data.foods ?? []).some((f) => /jerky, original/i.test(f.name))) {
+    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
+    const SRV = 28
+    ;(data.foods ??= []).push(
+      touch({
+        id: nextId,
+        name: 'Beef jerky, Original',
+        brand: 'Simms',
+        // 1 oz (28 g): 80 kcal, 1 g fat, 5 g carb (5 g sugar), 0 fibre, 10 g protein, 620 mg sodium.
+        kcal: Math.round((80 / SRV) * 1000) / 10,
+        protein: Math.round((10 / SRV) * 1000) / 10,
+        carbs: Math.round((5 / SRV) * 1000) / 10,
+        fat: Math.round((1 / SRV) * 1000) / 10,
+        fiber: 0,
+        portions: [
+          { label: '1 oz serving (28 g)', grams: SRV },
+          { label: 'half a serving', grams: 14 },
+          { label: 'the whole bag (142 g)', grams: 142 },
+        ],
+        defaultPortion: 0,
+        liquid: false,
+        source: 'manual',
+        favorite: false,
+        useCount: 0,
+        lastUsed: 0,
+        createdAt: Date.now(),
+      }),
+    )
+    notes.push('added Beef jerky, Original (Simms) — 1 oz = 80 kcal, 10 g protein')
+  }
+
   // Northern Catch skipjack tuna, chunk light in water (Aldi), from the label.
   // The can is one serving — 110 kcal, 25 g protein, 1 g fat — so the per-100
   // figures are the can over its drained weight. That weight is the one guess:
