@@ -25,6 +25,7 @@ import {
 } from '../lib/program'
 import { Icon, Meter, NumberInput, Sheet } from './ui'
 import { formatShort } from '../lib/date'
+import DemoSheet from './DemoSheet'
 
 interface SetRow {
   reps: number
@@ -170,6 +171,7 @@ export default function SessionSheet({
   })
   const [adding, setAdding] = useState<MuscleGroup | null>(null)
   const [saving, setSaving] = useState(false)
+  const [demoName, setDemoName] = useState<string | null>(null)
 
   /**
    * What you did last time, per exercise.
@@ -427,6 +429,14 @@ export default function SessionSheet({
                     )
                   })()}
                 </div>
+                <button
+                  className="iconbtn"
+                  aria-label={`How to do ${i.name}`}
+                  title={`How to do ${i.name}`}
+                  onClick={() => setDemoName(i.name)}
+                >
+                  <Icon.help />
+                </button>
                 {(altFor(i.name) || i.origName) && (
                   <button
                     className="iconbtn"
@@ -554,7 +564,13 @@ export default function SessionSheet({
                       </button>
                       {ex?.steps ? (
                         <>
-                          <span className="small grow truncate">{set.label ?? ''}</span>
+                          <button
+                            className="small grow truncate"
+                            style={{ background: 'none', border: 0, textAlign: 'left', padding: 0, color: 'inherit', textDecoration: 'underline dotted', textUnderlineOffset: 3 }}
+                            onClick={() => set.label && setDemoName(set.label)}
+                          >
+                            {set.label ?? ''}
+                          </button>
                           <div style={{ width: 84, flex: 'none' }}>
                             <NumberInput
                               value={set.reps || undefined}
@@ -726,6 +742,8 @@ export default function SessionSheet({
       <button className="btn ghost block muted" onClick={onClose}>
         {workout ? 'Cancel' : 'Keep for later'}
       </button>
+
+      {demoName && <DemoSheet name={demoName} onClose={() => setDemoName(null)} />}
     </Sheet>
   )
 }

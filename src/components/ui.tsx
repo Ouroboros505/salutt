@@ -38,6 +38,8 @@ export const Icon = {
   plate: () => svg(<><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="4" /></>),
   box: () => svg(<><path d="M4.5 7.5h15v11a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1z" /><path d="M3.5 7.5 6 4.5h12l2.5 3" /><path d="M4.5 13.5h15" /></>),
   swap: () => svg(<><path d="M4 8h13l-3-3M20 16H7l3 3" /></>),
+  play: () => svg(<><path d="M8 5v14l11-7z" /></>),
+  help: () => svg(<><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1 .8-1 1.7" /><circle cx="12" cy="17" r=".6" fill="currentColor" /></>),
 }
 
 /* ---------------------------------------------------------------- sheet */
