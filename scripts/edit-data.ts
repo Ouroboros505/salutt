@@ -67,52 +67,48 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Cherries, stored against the weight that can actually be measured.
+  // The Aldi couscous mix, on a prepared basis, because that is what gets
+  // weighed into the box.
   //
-  // The stone cannot come out before eating, so the scale only ever sees the
-  // whole fruit. Rather than ask for a weight nobody can produce, the per-100
-  // figures are USDA's edible values scaled by 0.92 — the 8% it calls refuse
-  // for sweet cherries. That ratio holds whatever a single cherry weighs, so
-  // resizing the portion below does not disturb it.
+  // Not the couscous I recommended. The database's plain "Couscous, cooked" is
+  // 112 kcal/100 g; this is a seasoned mix with oil, semolina and maltodextrin
+  // and comes out at 140 — above the jasmine rice it was supposed to replace.
+  // The protein and fibre are still better, so it is not a bad swap; it is
+  // just not the calorie saving I quoted, and the row should not pretend to be
+  // the plain one.
   //
-  // The first one weighed came in at 13.28 g and was a freak; several more put
-  // the real figure at 8 g whole. One measurement is an anecdote.
-  const cherry = (data.foods ?? []).find((f) => /cherr/i.test(f.name))
-  const CHERRY_G = 8
-  if (cherry && cherry.portions?.[0]?.grams !== CHERRY_G) {
-    Object.assign(cherry, {
-      name: 'Cherries, sweet (weighed with pits)',
-      kcal: 57.96,
-      protein: 0.975,
-      carbs: 14.72,
-      fat: 0.184,
-      fiber: 1.932,
-      portions: [
-        { label: `1 cherry (${CHERRY_G} g, as weighed)`, grams: CHERRY_G },
-        { label: 'a handful (10 cherries)', grams: CHERRY_G * 10 },
-        { label: 'a bowl (200 g)', grams: 200 },
-        { label: 'a big bowl (300 g)', grams: 300 },
-      ],
-      defaultPortion: 0,
-    })
-    touch(cherry)
-    notes.push(`cherries: 1 cherry is now ${CHERRY_G} g as weighed, 8% refuse still handled behind the scenes`)
-  }
-
-  // The avocado was measured again: 110 g whole, not 133. At USDA's 30% refuse
-  // for skin and stone that is 77 g of flesh rather than 93 — 27 kcal a fruit,
-  // every time, which is the sort of error that hides inside a portion label
-  // and never announces itself.
-  const avo = (data.foods ?? []).find((f) => /avocado/i.test(f.name))
-  if (avo && avo.portions?.[0]?.grams !== 77) {
-    avo.portions = [
-      { label: '1 avocado (110 g whole)', grams: 77 },
-      { label: 'half', grams: 38.5 },
-      { label: '1 medium (194 g whole)', grams: 136 },
-    ]
-    avo.defaultPortion = 0
-    touch(avo)
-    notes.push('avocado: 1 fruit is now 110 g whole -> 77 g of flesh (was 133 -> 93)')
+  // The prepared weight is inferred rather than measured: the box says 1/3 cup
+  // dry makes 1 cup, and USDA puts a cup of cooked couscous at 157 g. Weighing
+  // one made-up serving would replace this, the way the braise's density did.
+  if (!(data.foods ?? []).some((f) => /couscous/i.test(f.name))) {
+    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
+    ;(data.foods ??= []).push(
+      touch({
+        id: nextId,
+        name: 'Couscous mix, roasted garlic (prepared)',
+        brand: 'Earthly Grains, Aldi',
+        // 1 serving prepared = 1/3 cup dry (56 g) + 1 tsp olive oil:
+        // 220 kcal, 2 g fat, 42 g carb, 3 g fibre, 7 g protein, 500 mg sodium.
+        kcal: 140.13,
+        protein: 4.46,
+        carbs: 26.75,
+        fat: 1.27,
+        fiber: 1.91,
+        portions: [
+          { label: '1 serving, made (~157 g)', grams: 157 },
+          { label: 'half a serving', grams: 78 },
+          { label: 'the whole box, made', grams: 471 },
+        ],
+        defaultPortion: 0,
+        liquid: false,
+        source: 'manual',
+        favorite: false,
+        useCount: 0,
+        lastUsed: 0,
+        createdAt: Date.now(),
+      }),
+    )
+    notes.push('added Couscous mix, roasted garlic (Aldi) — 1 serving made = 220 kcal, 7 g protein')
   }
 
   // --- example, currently a no-op -------------------------------------------
