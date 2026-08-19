@@ -160,24 +160,27 @@ function touch(row) {
 var summarise = (data) => Object.entries(data).filter(([, rows]) => Array.isArray(rows) && rows.length).map(([t, rows]) => `${t}=${rows.length}`).join(" ");
 function change(data) {
   const notes = [];
-  if (!(data.foods ?? []).some((f) => /couscous/i.test(f.name))) {
+  if (!(data.foods ?? []).some((f) => /pesto/i.test(f.name))) {
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1;
     (data.foods ??= []).push(
       touch({
         id: nextId,
-        name: "Couscous mix, roasted garlic (prepared)",
-        brand: "Earthly Grains, Aldi",
-        // 1 serving prepared = 1/3 cup dry (56 g) + 1 tsp olive oil:
-        // 220 kcal, 2 g fat, 42 g carb, 3 g fibre, 7 g protein, 500 mg sodium.
-        kcal: 140.13,
-        protein: 4.46,
-        carbs: 26.75,
-        fat: 1.27,
-        fiber: 1.91,
+        name: "Pesto alla Genovese",
+        brand: "Priano, Aldi",
+        // 1/4 cup (47 g): 210 kcal, 21 g fat (3 sat), 3 g carb, <1 g fibre,
+        // 2 g protein, 560 mg sodium. Jar is 190 g, about four servings.
+        kcal: 446.8,
+        protein: 4.255,
+        carbs: 6.383,
+        fat: 44.68,
+        // "<1 g" declared; taken as half a gram rather than none, which is
+        // the honest reading of a number the label declined to give.
+        fiber: 1.064,
         portions: [
-          { label: "1 serving, made (~157 g)", grams: 157 },
-          { label: "half a serving", grams: 78 },
-          { label: "the whole box, made", grams: 471 }
+          { label: "1 tbsp (12 g)", grams: 12 },
+          { label: "2 tbsp (24 g)", grams: 24 },
+          { label: "1 serving, 1/4 cup (47 g)", grams: 47 },
+          { label: "the whole jar (190 g)", grams: 190 }
         ],
         defaultPortion: 0,
         liquid: false,
@@ -188,7 +191,7 @@ function change(data) {
         createdAt: Date.now()
       })
     );
-    notes.push("added Couscous mix, roasted garlic (Aldi) \u2014 1 serving made = 220 kcal, 7 g protein");
+    notes.push("added Pesto alla Genovese (Priano, Aldi) \u2014 1 tbsp = 54 kcal");
   }
   return notes;
 }

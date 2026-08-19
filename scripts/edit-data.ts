@@ -67,37 +67,37 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // The Aldi couscous mix, on a prepared basis, because that is what gets
-  // weighed into the box.
+  // Priano pesto, from the label.
   //
-  // Not the couscous I recommended. The database's plain "Couscous, cooked" is
-  // 112 kcal/100 g; this is a seasoned mix with oil, semolina and maltodextrin
-  // and comes out at 140 — above the jasmine rice it was supposed to replace.
-  // The protein and fibre are still better, so it is not a bad swap; it is
-  // just not the calorie saving I quoted, and the row should not pretend to be
-  // the plain one.
+  // The serving on the jar is a quarter cup — 210 kcal, which is a meal's
+  // worth of energy in a condiment. Nobody eats pesto by the quarter cup and
+  // the default portion should not imply they do, so a tablespoon leads and
+  // the jar's own serving is offered further down for the rare day it is true.
   //
-  // The prepared weight is inferred rather than measured: the box says 1/3 cup
-  // dry makes 1 cup, and USDA puts a cup of cooked couscous at 157 g. Weighing
-  // one made-up serving would replace this, the way the braise's density did.
-  if (!(data.foods ?? []).some((f) => /couscous/i.test(f.name))) {
+  // 0.4 g of protein per 100 kcal, the lowest of anything in the library. This
+  // is flavour, not food, and it earns its place by making a bowl of couscous
+  // worth eating rather than by feeding him.
+  if (!(data.foods ?? []).some((f) => /pesto/i.test(f.name))) {
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
     ;(data.foods ??= []).push(
       touch({
         id: nextId,
-        name: 'Couscous mix, roasted garlic (prepared)',
-        brand: 'Earthly Grains, Aldi',
-        // 1 serving prepared = 1/3 cup dry (56 g) + 1 tsp olive oil:
-        // 220 kcal, 2 g fat, 42 g carb, 3 g fibre, 7 g protein, 500 mg sodium.
-        kcal: 140.13,
-        protein: 4.46,
-        carbs: 26.75,
-        fat: 1.27,
-        fiber: 1.91,
+        name: 'Pesto alla Genovese',
+        brand: 'Priano, Aldi',
+        // 1/4 cup (47 g): 210 kcal, 21 g fat (3 sat), 3 g carb, <1 g fibre,
+        // 2 g protein, 560 mg sodium. Jar is 190 g, about four servings.
+        kcal: 446.8,
+        protein: 4.255,
+        carbs: 6.383,
+        fat: 44.68,
+        // "<1 g" declared; taken as half a gram rather than none, which is
+        // the honest reading of a number the label declined to give.
+        fiber: 1.064,
         portions: [
-          { label: '1 serving, made (~157 g)', grams: 157 },
-          { label: 'half a serving', grams: 78 },
-          { label: 'the whole box, made', grams: 471 },
+          { label: '1 tbsp (12 g)', grams: 12 },
+          { label: '2 tbsp (24 g)', grams: 24 },
+          { label: '1 serving, 1/4 cup (47 g)', grams: 47 },
+          { label: 'the whole jar (190 g)', grams: 190 },
         ],
         defaultPortion: 0,
         liquid: false,
@@ -108,7 +108,7 @@ function change(data: Data): string[] {
         createdAt: Date.now(),
       }),
     )
-    notes.push('added Couscous mix, roasted garlic (Aldi) — 1 serving made = 220 kcal, 7 g protein')
+    notes.push('added Pesto alla Genovese (Priano, Aldi) — 1 tbsp = 54 kcal')
   }
 
   // --- example, currently a no-op -------------------------------------------
