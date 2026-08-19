@@ -134,6 +134,26 @@ export const LOAD_BODY: LoadStyle = { label: 'added weight only, if any', factor
  */
 export const LOAD_NONE: LoadStyle = { label: '', factor: 0 }
 
+/**
+ * The resistance bands, lightest to heaviest.
+ *
+ * A band has no number on a stack, so its colour is the load — and moving up a
+ * colour is how you progress a band exercise, the same way you would add a
+ * plate. These are the five Tribe loops; the short labels keep the chips small.
+ */
+export const BAND_LEVELS: { label: string; full: string; lbs: string; shade: string }[] = [
+  { label: 'XL', full: 'Extra light', lbs: '<10 lb', shade: '#c9c9c9' },
+  { label: 'L', full: 'Light', lbs: '10-15 lb', shade: '#a3a3a3' },
+  { label: 'M', full: 'Medium', lbs: '15-25 lb', shade: '#7a7a7a' },
+  { label: 'H', full: 'Heavy', lbs: '25-35 lb', shade: '#4d4d4d' },
+  { label: 'XH', full: 'Extra heavy', lbs: '35-75 lb', shade: '#222222' },
+]
+
+/** True when the exercise is done with a band rather than a weight. */
+export function usesBand(ex: Pick<Exercise, 'equipment'>): boolean {
+  return /band/i.test(ex.equipment ?? '')
+}
+
 const E = (
   name: string,
   group: MuscleGroup,

@@ -6,6 +6,7 @@ import {
   GROUPS,
   byName,
   describeSession,
+  BAND_LEVELS,
   altFor,
   isProtocol,
   isTimed,
@@ -14,6 +15,7 @@ import {
   withInterval,
   repLabel,
   takesLoad,
+  usesBand,
   exerciseKcal,
   exerciseMinutes,
   fromDisplayWeight,
@@ -46,6 +48,8 @@ interface SetRow {
    * than no name at all — it would have you holding Pigeon and reading 90/90.
    */
   label?: string
+  /** Band level (index into BAND_LEVELS) for a band exercise. */
+  band?: number
   /**
    * Ticked off as it is finished. A session is worked through in order and
    * the useful thing mid-workout is knowing where you are in it, which a page
@@ -126,6 +130,7 @@ function fromWorkout(w: Workout): Done[] {
       weightKg: s.weightKg || undefined,
       hard: s.hardSec,
       easy: s.easySec,
+      band: s.band,
     }
     const last = out[out.length - 1]
     if (last && last.name === s.exercise && last.minutes == null) last.sets.push(row)
@@ -186,16 +191,16 @@ export default function SessionSheet({
     [date],
   )
   const lastTime = useMemo(() => {
-    const out = new Map<string, { date: ISODate; sets: { reps: number; weightKg: number }[] }>()
+    const out = new Map<string, { date: ISODate; sets: { reps: number; weightKg: number; band?: number }[] }>()
     // Newest first. `sortBy` always ascends whatever the collection's order, so
     // reversing it here is what makes "last time" the latest rather than the
     // first time the exercise was ever done.
     for (const w of [...(history ?? [])].reverse()) {
       for (const s of w.sets) {
         const entry = out.get(s.exercise)
-        if (!entry) out.set(s.exercise, { date: w.date, sets: [{ reps: s.reps, weightKg: s.weightKg }] })
+        if (!entry) out.set(s.exercise, { date: w.date, sets: [{ reps: s.reps, weightKg: s.weightKg, band: s.band }] })
         // Only the one session, not every session it has ever appeared in.
-        else if (entry.date === w.date) entry.sets.push({ reps: s.reps, weightKg: s.weightKg })
+        else if (entry.date === w.date) entry.sets.push({ reps: s.reps, weightKg: s.weightKg, band: s.band })
       }
     }
     return out
@@ -410,7 +415,7 @@ export default function SessionSheet({
                     {minutesOf(i)} min{ex && isTimed(ex) ? ' with rest' : ''} · {kcalOf(i)} kcal
                     {ex && isProtocol(ex) ? ` · MET ${exFor(i)?.met}` : ''}
                     {ex?.steps ? ` · ${ex.steps.length} poses` : ''}
-                    {ex?.load && !ex.byMinutes && takesLoad(ex) ? ` · weight = ${ex.load.label}` : ''}
+                    {ex && usesBand(ex) ? ' · pick the band level' : ex?.load && !ex.byMinutes && takesLoad(ex) ? ` · weight = ${ex.load.label}` : ''}
                   </div>
                   {(() => {
                     const prev = lastTime.get(i.name)
@@ -420,9 +425,11 @@ export default function SessionSheet({
                         {formatShort(prev.date)}:{' '}
                         {prev.sets
                           .map((s2) =>
-                            s2.weightKg
-                              ? `${s2.reps}×${Math.round(toDisplayWeight(s2.weightKg, unit) ?? 0)}`
-                              : `${s2.reps}`,
+                            s2.band != null
+                              ? `${BAND_LEVELS[s2.band]?.label ?? '?'} band`
+                              : s2.weightKg
+                                ? `${s2.reps}×${Math.round(toDisplayWeight(s2.weightKg, unit) ?? 0)}`
+                                : `${s2.reps}`,
                           )
                           .join(' · ')}
                       </div>
@@ -605,7 +612,26 @@ export default function SessionSheet({
                           />
                         </div>
                       )}
-                      {(!ex || (takesLoad(ex) && !isProtocol(ex))) && (
+                      {ex && usesBand(ex) ? (
+                        <div className="scroll-x" style={{ gap: 4, flex: 1, minWidth: 0 }}>
+                          {BAND_LEVELS.map((b, bi) => (
+                            <button
+                              key={b.label}
+                              className="chip"
+                              aria-pressed={set.band === bi}
+                              title={`${b.full} · ${b.lbs}`}
+                              style={
+                                set.band === bi
+                                  ? { background: b.shade, color: '#fff', borderColor: b.shade }
+                                  : undefined
+                              }
+                              onClick={() => setSet(i.key, idx, { band: set.band === bi ? undefined : bi })}
+                            >
+                              {b.label}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (!ex || (takesLoad(ex) && !isProtocol(ex))) && !(ex && usesBand(ex)) ? (
                         <div style={{ width: 96, flex: 'none' }}>
                           <NumberInput
                             value={toDisplayWeight(set.weightKg, unit)}
@@ -614,7 +640,7 @@ export default function SessionSheet({
                             onChange={(v) => setSet(i.key, idx, { weightKg: fromDisplayWeight(v, unit) })}
                           />
                         </div>
-                      )}
+                      ) : null}
                       {ex && !takesLoad(ex) && !isProtocol(ex) && !ex.steps && (
                         <span className="tiny muted truncate" style={{ width: 96, flex: 'none' }}>
                           {ex.reps}
@@ -720,6 +746,7 @@ export default function SessionSheet({
                     reps: s.reps,
                     weightKg: s.weightKg ?? 0,
                     ...(r.hard && r.easy ? { hardSec: r.hard, easySec: r.easy } : {}),
+                    ...(s.band != null ? { band: s.band } : {}),
                   }
                 }),
               ),

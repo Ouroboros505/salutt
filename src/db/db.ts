@@ -139,6 +139,8 @@ export interface SetEntry {
   exercise: string
   reps: number
   weightKg: number
+  /** Band level (index into BAND_LEVELS) for a band exercise. */
+  band?: number
   /** Work and rest of one interval round, when the set is a round. */
   hardSec?: number
   easySec?: number
