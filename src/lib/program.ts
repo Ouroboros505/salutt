@@ -471,7 +471,8 @@ export const WEEK: DayPlan[] = [
     exercises: [
       'Movement Prep (bands, circles, bridges)', 'Barbell Bench Press', 'Incline DB Press',
       'Cable Fly', 'Seated DB Shoulder Press', 'Lateral Raises', 'Triceps Rope Pushdown',
-      'Overhead Triceps Extension (cable)', 'Face Pulls', 'Cool-Down Stretch',
+      'Overhead Triceps Extension (cable)', 'Face Pulls', 'Captain’s Chair Leg Raise',
+      'Cool-Down Stretch',
     ],
   },
   {
@@ -510,7 +511,7 @@ export const WEEK: DayPlan[] = [
     exercises: [
       'Movement Prep (bands, circles, bridges)', 'Goblet Squat', 'Romanian Deadlift',
       'Bulgarian Split Squat', 'Step-Ups', 'Leg Curl', 'Lateral Band Walks',
-      'Banded Terminal Knee Extension', 'Calf Raises', 'Cool-Down Stretch',
+      'Banded Terminal Knee Extension', 'Calf Raises', 'Cable Crunch', 'Cool-Down Stretch',
     ],
   },
 ]
