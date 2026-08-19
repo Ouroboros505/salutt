@@ -24,6 +24,10 @@ export default function ScaleResult({
 }) {
   const [saving, setSaving] = useState(false)
   const [offProtocol, setOffProtocol] = useState(false)
+  // The same pair the manual sheet asks. This is where weighing actually
+  // happens, so a question that exists only on the other form is a question
+  // that does not exist.
+  const [afterStool, setAfterStool] = useState<boolean | undefined>(undefined)
 
   const comp = reading.impedance
     ? bodyComposition(
@@ -39,7 +43,7 @@ export default function ScaleResult({
   const record = async () => {
     setSaving(true)
     try {
-      await saveReading(reading, settings, offProtocol)
+      await saveReading(reading, settings, offProtocol, afterStool)
       toast('Weigh-in recorded')
       onDone()
     } finally {
@@ -81,8 +85,31 @@ export default function ScaleResult({
         </div>
       )}
 
-      {/* Asked here because this is where weighing actually happens — the
-          manual form is the exception, not the rule. */}
+      {/* Correctable, so it is asked separately and the reading still counts. */}
+      <div className="stack tight">
+        <div className="stat-label">Been to the toilet?</div>
+        <div className="scroll-x">
+          <button
+            className="chip"
+            aria-pressed={afterStool === true}
+            onClick={() => setAfterStool(afterStool === true ? undefined : true)}
+          >
+            Yes, emptied
+          </button>
+          <button
+            className="chip"
+            aria-pressed={afterStool === false}
+            onClick={() => setAfterStool(afterStool === false ? undefined : false)}
+          >
+            Not yet
+          </button>
+        </div>
+        <div className="tiny muted">
+          Optional — but answer it often and the offset gets measured, and taken off.
+        </div>
+      </div>
+
+      {/* Not correctable, because it never repeats the same way twice. */}
       <label className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
         <input
           type="checkbox"
@@ -91,10 +118,12 @@ export default function ScaleResult({
           style={{ width: 20, height: 20, flex: 'none', marginTop: 2 }}
         />
         <span className="small">
-          Before pooping, after eating, or dressed
+          Unusual — evening, after eating, or dressed
           <span className="tiny muted" style={{ display: 'block' }}>
-            Kept and shown, left out of the trend. A full bowel is 100–400 g against the 57–140 g
-            of fat you are looking for.
+            A meal still digesting is up to 800 g against the 57–140 g of fat you are looking for,
+            and unlike the bowel it does not repeat, so it can only be left out. Shown on the chart,
+            kept out of the trend. Not going to the toilet is not this — answer that above and the
+            reading still counts.
           </span>
         </span>
       </label>

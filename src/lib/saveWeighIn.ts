@@ -16,6 +16,7 @@ export async function saveReading(
   r: ScaleReading,
   settings: Settings,
   offProtocol = false,
+  afterStool?: boolean,
 ): Promise<number> {
   const comp = r.impedance
     ? bodyComposition(
@@ -34,6 +35,7 @@ export async function saveReading(
   const row: WeighIn = {
     ...(existing?.id ? { id: existing.id } : {}),
     offProtocol: offProtocol || undefined,
+    afterStool,
     date,
     kg: r.kg,
     impedance: r.impedance,
