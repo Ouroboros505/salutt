@@ -160,6 +160,34 @@ function touch(row) {
 var summarise = (data) => Object.entries(data).filter(([, rows]) => Array.isArray(rows) && rows.length).map(([t, rows]) => `${t}=${rows.length}`).join(" ");
 function change(data) {
   const notes = [];
+  if (!(data.foods ?? []).some((f) => /skipjack|tuna/i.test(f.name))) {
+    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1;
+    const CAN = 95;
+    (data.foods ??= []).push(
+      touch({
+        id: nextId,
+        name: "Skipjack tuna, chunk light in water",
+        brand: "Northern Catch, Aldi",
+        kcal: Math.round(110 / CAN * 1e3) / 10,
+        protein: Math.round(25 / CAN * 1e3) / 10,
+        carbs: Math.round(1 / CAN * 1e3) / 10,
+        fat: Math.round(1 / CAN * 1e3) / 10,
+        fiber: 0,
+        portions: [
+          { label: "1 can, drained (95 g)", grams: CAN },
+          { label: "half a can", grams: Math.round(CAN / 2) }
+        ],
+        defaultPortion: 0,
+        liquid: false,
+        source: "manual",
+        favorite: false,
+        useCount: 0,
+        lastUsed: 0,
+        createdAt: Date.now()
+      })
+    );
+    notes.push("added Skipjack tuna, chunk light in water (Northern Catch, Aldi) \u2014 1 can = 110 kcal, 25 g protein");
+  }
   const tray = (data.recipes ?? []).find((r) => /pesto/i.test(r.name));
   if (tray && tray.cookLossPct !== 29) {
     tray.cookLossPct = 29;

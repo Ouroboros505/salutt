@@ -67,6 +67,40 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
+  // Northern Catch skipjack tuna, chunk light in water (Aldi), from the label.
+  // The can is one serving — 110 kcal, 25 g protein, 1 g fat — so the per-100
+  // figures are the can over its drained weight. That weight is the one guess:
+  // a 5 oz light-tuna can drains to about 95 g, which also lands the per-100 on
+  // USDA's light-tuna figure. Weigh a drained can and this becomes exact.
+  if (!(data.foods ?? []).some((f) => /skipjack|tuna/i.test(f.name))) {
+    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
+    const CAN = 95
+    ;(data.foods ??= []).push(
+      touch({
+        id: nextId,
+        name: 'Skipjack tuna, chunk light in water',
+        brand: 'Northern Catch, Aldi',
+        kcal: Math.round((110 / CAN) * 1000) / 10,
+        protein: Math.round((25 / CAN) * 1000) / 10,
+        carbs: Math.round((1 / CAN) * 1000) / 10,
+        fat: Math.round((1 / CAN) * 1000) / 10,
+        fiber: 0,
+        portions: [
+          { label: '1 can, drained (95 g)', grams: CAN },
+          { label: 'half a can', grams: Math.round(CAN / 2) },
+        ],
+        defaultPortion: 0,
+        liquid: false,
+        source: 'manual',
+        favorite: false,
+        useCount: 0,
+        lastUsed: 0,
+        createdAt: Date.now(),
+      }),
+    )
+    notes.push('added Skipjack tuna, chunk light in water (Northern Catch, Aldi) — 1 can = 110 kcal, 25 g protein')
+  }
+
   // Cook loss for the pesto tray, worked out per ingredient rather than
   // guessed once for the whole dish.
   //
