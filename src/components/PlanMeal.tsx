@@ -68,6 +68,21 @@ export default function PlanMeal({
     : []
   const myRecipes = q ? recipes.filter((r) => r.name.toLowerCase().includes(q)).slice(0, 4) : []
 
+  /** Same item at a new weight; macros are a snapshot per gram, so they scale. */
+  const rescale = (it: PlannedItem, grams: number): PlannedItem => {
+    const f = it.grams > 0 ? grams / it.grams : 0
+    const r = (v: number) => Math.round(v * f * 10) / 10
+    return {
+      ...it,
+      grams,
+      kcal: Math.round(it.kcal * f),
+      protein: r(it.protein),
+      carbs: r(it.carbs),
+      fat: r(it.fat),
+      fiber: r(it.fiber),
+    }
+  }
+
   const addFood = (food: Food, grams: number, label: string) =>
     setItems((xs) => [
       ...xs,
@@ -80,6 +95,7 @@ export default function PlanMeal({
   )
 
   const [picking, setPicking] = useState<Food | null>(null)
+  const [pickingRecipe, setPickingRecipe] = useState<{ name: string; recipeId?: number; p: ReturnType<typeof per100> } | null>(null)
 
   return (
     <Sheet title={existing ? 'Edit weighed meal' : 'Weigh a meal for later'} onClose={onClose}>
@@ -108,8 +124,18 @@ export default function PlanMeal({
               <div className="grow" style={{ minWidth: 0 }}>
                 <div className="small truncate">{it.name}</div>
                 <div className="tiny muted num truncate">
-                  {it.grams} g · {it.kcal} kcal · P{it.protein}
+                  {it.kcal} kcal · P{it.protein}
                 </div>
+              </div>
+              {/* Weight editable in place. Everything on the row scales with
+                  it — the snapshot was per those grams, so a factor rescales
+                  it, meal prep and plain food alike. */}
+              <div style={{ width: 92, flex: 'none' }}>
+                <NumberInput
+                  value={it.grams || undefined}
+                  unit="g"
+                  onChange={(v) => setItems((xs) => xs.map((x, j) => (j === idx ? rescale(x, v ?? 0) : x)))}
+                />
               </div>
               <button
                 className="iconbtn"
@@ -131,7 +157,33 @@ export default function PlanMeal({
         </div>
       )}
 
-      {picking ? (
+      {pickingRecipe ? (
+        <RecipeGramsStep
+          name={pickingRecipe.name}
+          p={pickingRecipe.p}
+          onCancel={() => setPickingRecipe(null)}
+          onAdd={(g) => {
+            const rec = pickingRecipe
+            const fac = g / 100
+            const r = (v: number) => Math.round(v * fac * 10) / 10
+            setItems((xs) => [
+              ...xs,
+              {
+                recipeId: rec.recipeId,
+                name: rec.name,
+                grams: g,
+                amountLabel: `${g} g`,
+                kcal: Math.round(rec.p.kcal * fac),
+                protein: r(rec.p.protein),
+                carbs: r(rec.p.carbs),
+                fat: r(rec.p.fat),
+                fiber: r(rec.p.fiber),
+              },
+            ])
+            setPickingRecipe(null)
+          }}
+        />
+      ) : picking ? (
         <GramsStep
           food={picking}
           onCancel={() => setPicking(null)}
@@ -159,23 +211,8 @@ export default function PlanMeal({
                 key={`r${r.id}`}
                 className="item"
                 onClick={() => {
-                  const grams = 100
-                  setItems((xs) => [
-                    ...xs,
-                    {
-                      recipeId: r.id,
-                      name: r.name,
-                      grams,
-                      amountLabel: `${grams} g`,
-                      kcal: Math.round(p.kcal),
-                      protein: Math.round(p.protein * 10) / 10,
-                      carbs: Math.round(p.carbs * 10) / 10,
-                      fat: Math.round(p.fat * 10) / 10,
-                      fiber: Math.round(p.fiber * 10) / 10,
-                    },
-                  ])
+                  setPickingRecipe({ name: r.name, recipeId: r.id, p })
                   setQuery('')
-                  toast(`${r.name} added at 100 g — change it in the list`)
                 }}
               >
                 <div className="grow">
@@ -245,6 +282,41 @@ export default function PlanMeal({
         {existing ? 'Save changes' : 'Save for later'} · {Math.round(totals.kcal)} kcal
       </button>
     </Sheet>
+  )
+}
+
+/** Grams for a meal prep, priced from its own per-100. */
+function RecipeGramsStep({
+  name,
+  p,
+  onAdd,
+  onCancel,
+}: {
+  name: string
+  p: ReturnType<typeof per100>
+  onAdd: (grams: number) => void
+  onCancel: () => void
+}) {
+  const [grams, setGrams] = useState<number | undefined>(undefined)
+  const f = (grams ?? 0) / 100
+  return (
+    <div className="card tight">
+      <div className="row between">
+        <strong className="small">{name}</strong>
+        <button className="iconbtn" aria-label="Cancel" onClick={onCancel}>
+          <Icon.close />
+        </button>
+      </div>
+      <Field label="Weighed (g)" hint={`${Math.round(p.kcal)} kcal per 100 g`}>
+        <NumberInput autoFocus value={grams} unit="g" onChange={setGrams} />
+      </Field>
+      <div className="tiny muted num">
+        {grams ? `${Math.round(p.kcal * f)} kcal · P${Math.round(p.protein * f * 10) / 10}` : 'Put the scale reading in.'}
+      </div>
+      <button className="btn block" disabled={!grams} onClick={() => onAdd(grams!)}>
+        <Icon.plus /> Add
+      </button>
+    </div>
   )
 }
 
