@@ -70,23 +70,45 @@ export default function PlanMeal({
 
   /** Same item at a new weight; macros are a snapshot per gram, so they scale. */
   const rescale = (it: PlannedItem, grams: number): PlannedItem => {
-    const f = it.grams > 0 ? grams / it.grams : 0
+    // From the fixed per-100 if we have it; only otherwise from the snapshot,
+    // which cannot recover once it is zero.
+    const basis =
+      it.per100 ??
+      (it.grams > 0
+        ? {
+            kcal: (it.kcal / it.grams) * 100,
+            protein: (it.protein / it.grams) * 100,
+            carbs: (it.carbs / it.grams) * 100,
+            fat: (it.fat / it.grams) * 100,
+            fiber: (it.fiber / it.grams) * 100,
+          }
+        : { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 })
+    const f = grams / 100
     const r = (v: number) => Math.round(v * f * 10) / 10
     return {
       ...it,
       grams,
-      kcal: Math.round(it.kcal * f),
-      protein: r(it.protein),
-      carbs: r(it.carbs),
-      fat: r(it.fat),
-      fiber: r(it.fiber),
+      kcal: Math.round(basis.kcal * f),
+      protein: r(basis.protein),
+      carbs: r(basis.carbs),
+      fat: r(basis.fat),
+      fiber: r(basis.fiber),
+      per100: basis,
     }
   }
 
   const addFood = (food: Food, grams: number, label: string) =>
     setItems((xs) => [
       ...xs,
-      { foodId: food.id, name: food.name, brand: food.brand, grams, amountLabel: label, ...scale(food, grams) },
+      {
+        foodId: food.id,
+        name: food.name,
+        brand: food.brand,
+        grams,
+        amountLabel: label,
+        ...scale(food, grams),
+        per100: { kcal: food.kcal, protein: food.protein, carbs: food.carbs, fat: food.fat, fiber: food.fiber },
+      },
     ])
 
   const totals = items.reduce(
@@ -178,6 +200,13 @@ export default function PlanMeal({
                 carbs: r(rec.p.carbs),
                 fat: r(rec.p.fat),
                 fiber: r(rec.p.fiber),
+                per100: {
+                  kcal: rec.p.kcal,
+                  protein: rec.p.protein,
+                  carbs: rec.p.carbs,
+                  fat: rec.p.fat,
+                  fiber: rec.p.fiber,
+                },
               },
             ])
             setPickingRecipe(null)

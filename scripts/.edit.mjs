@@ -167,6 +167,57 @@ function change(data) {
     touch(tray);
     notes.push("pesto tray: cook loss 25% -> 29%, from each ingredient rather than one guess");
   }
+  const per100Of = (rec) => {
+    const raw = rec.items.reduce(
+      (t, i) => ({
+        g: t.g + i.grams,
+        kcal: t.kcal + i.kcal,
+        protein: t.protein + i.protein,
+        carbs: t.carbs + i.carbs,
+        fat: t.fat + i.fat,
+        fiber: t.fiber + i.fiber
+      }),
+      { g: 0, kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }
+    );
+    const finished = rec.cookedG > 0 ? rec.cookedG : raw.g * (1 - (rec.cookLossPct ?? 0) / 100);
+    const f = finished > 0 ? 100 / finished : 0;
+    return {
+      kcal: raw.kcal * f,
+      protein: raw.protein * f,
+      carbs: raw.carbs * f,
+      fat: raw.fat * f,
+      fiber: raw.fiber * f
+    };
+  };
+  for (const pm of data.plannedMeals ?? []) {
+    let touched = false;
+    for (const it of pm.items) {
+      let basis = null;
+      if (it.foodId != null) {
+        const food = (data.foods ?? []).find((f) => f.id === it.foodId);
+        if (food) basis = { kcal: food.kcal, protein: food.protein, carbs: food.carbs, fat: food.fat, fiber: food.fiber };
+      } else if (it.recipeId != null) {
+        const rec = (data.recipes ?? []).find((r) => r.id === it.recipeId);
+        if (rec) basis = per100Of(rec);
+      }
+      if (!basis) continue;
+      const before = it.kcal;
+      const fac = (it.grams ?? 0) / 100;
+      const round1 = (v) => Math.round(v * fac * 10) / 10;
+      it.kcal = Math.round(basis.kcal * fac);
+      it.protein = round1(basis.protein);
+      it.carbs = round1(basis.carbs);
+      it.fat = round1(basis.fat);
+      it.fiber = round1(basis.fiber);
+      it.per100 = basis;
+      if (before !== it.kcal) touched = true;
+    }
+    if (touched) {
+      touch(pm);
+      const tot = pm.items.reduce((t, i) => t + i.kcal, 0);
+      notes.push(`repaired planned meal "${pm.meal}" \u2014 ${pm.items.length} items now total ${tot} kcal`);
+    }
+  }
   return notes;
 }
 async function main() {

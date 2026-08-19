@@ -262,6 +262,14 @@ export interface PlannedItem {
   carbs: number
   fat: number
   fiber: number
+  /**
+   * Macros per 100 g, kept so a weight change rescales from a fixed basis
+   * rather than from the current snapshot. Multiplying the snapshot works
+   * until the snapshot is zero, at which point no factor can bring it back —
+   * which is exactly how two items once saved empty. Optional because rows
+   * written before this fall back to the snapshot.
+   */
+  per100?: { kcal: number; protein: number; carbs: number; fat: number; fiber: number }
 }
 
 export interface PlannedMeal {
