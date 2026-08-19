@@ -53,6 +53,8 @@ export default function BoxBuilder({
   // Only shares describe how full the box is. A weighed or eyeballed part
   // says nothing about volume, so counting it would make the reading a lie.
   const shares = parts.filter((p) => p.mode === 'share')
+  const settings = useLiveQuery(() => db.settings.get('settings'), [])
+  const defaultMode = settings?.boxMode ?? 'share'
   const filled = Math.round(shares.reduce((t, p) => t + p.pct, 0))
   const allShares = shares.length === parts.length
 
@@ -114,7 +116,7 @@ export default function BoxBuilder({
             measured: r.density != null,
             per100: per100(r),
             recipeId: r.id,
-            mode: 'share',
+            mode: defaultMode,
           })
         }
         onPickFood={async (f) => {
@@ -137,7 +139,7 @@ export default function BoxBuilder({
             measured: !!densityFromPortions(f.portions ?? []),
             per100: { kcal: f.kcal, protein: f.protein, carbs: f.carbs, fat: f.fat, fiber: f.fiber },
             foodId: id,
-            mode: 'share',
+            mode: defaultMode,
           })
         }}
       />
@@ -146,9 +148,17 @@ export default function BoxBuilder({
 
   return (
     <>
-      <Field label="Your container" hint="the box you fill, not the food">
-        <NumberInput value={boxMl} unit="ml" onChange={(v) => onBoxMl(v ?? 0)} />
-      </Field>
+      {/* Only volume needs a volume. With everything on the scale the box
+          could be any shape at all, and asking its size is a question with no
+          bearing on the answer. */}
+      {(parts.length === 0 || shares.length > 0) && (
+        <Field
+          label="Your container"
+          hint={shares.length > 0 ? 'the box you fill, not the food' : 'only needed for the parts you estimate by eye'}
+        >
+          <NumberInput value={boxMl} unit="ml" onChange={(v) => onBoxMl(v ?? 0)} />
+        </Field>
+      )}
 
       <div className="card tight">
         <div className="card-head">
@@ -228,12 +238,13 @@ export default function BoxBuilder({
                     key={mode}
                     className="chip"
                     aria-pressed={p.mode === mode}
-                    onClick={() =>
+                    onClick={() => {
+                      void db.settings.update('settings', { boxMode: mode })
                       update(p.key, {
                         mode,
                         grams: p.grams ?? (partGrams(p, boxMl) || undefined),
                       })
-                    }
+                    }}
                   >
                     {label}
                   </button>

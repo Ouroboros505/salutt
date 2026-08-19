@@ -320,6 +320,15 @@ export interface Settings {
    */
   fibreCeilingG?: number
   /**
+   * How the box was filled in last time.
+   *
+   * Once a scale exists, weighing is the accurate route and estimating by
+   * volume is the fallback — but which one is the fallback depends on whether
+   * a scale is to hand, which changes week to week. So it follows what was
+   * actually done rather than being decided here.
+   */
+  boxMode?: 'share' | 'weighed' | 'hand'
+  /**
    * Interval rounds as he actually runs them, in seconds, keyed by exercise.
    * The plan's prescription is a starting suggestion; once it is changed, the
    * change is the default, because nobody wants to retype it every session.
