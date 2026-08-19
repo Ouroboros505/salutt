@@ -67,48 +67,74 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Priano pesto, from the label.
+  // Chicken and pork pesto with roasted vegetables.
   //
-  // The serving on the jar is a quarter cup — 210 kcal, which is a meal's
-  // worth of energy in a condiment. Nobody eats pesto by the quarter cup and
-  // the default portion should not imply they do, so a tablespoon leads and
-  // the jar's own serving is offered further down for the rare day it is true.
+  // The written recipe counts in pounds, pints and "2 zucchini", so every line
+  // is converted to grams here; the conversions are named next to each one so
+  // a wrong assumption is visible rather than buried in a total.
   //
-  // 0.4 g of protein per 100 kcal, the lowest of anything in the library. This
-  // is flavour, not food, and it earns its place by making a bowl of couscous
-  // worth eating rather than by feeding him.
-  if (!(data.foods ?? []).some((f) => /pesto/i.test(f.name))) {
-    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
-    ;(data.foods ??= []).push(
+  // Salt is left out on purpose. It is the only ingredient contributing no
+  // energy at all, and there is no honest row for it in the database — the
+  // nearest match by name is a margarine spread. Its sodium is real and goes
+  // untracked either way.
+  //
+  // Cook loss is a guess at 25%: a sheet-pan roast is uncovered, the meat
+  // gives up about a quarter of its weight and the vegetables a good deal
+  // more. It is the largest error left in the dish and the scale can delete it
+  // — weigh the tray when it comes out and put the number in.
+  const OZ = 453.592
+  const RECIPE = [
+    // name in the database                                           grams  where the number came from
+    ['Chicken, broiler or fryers, breast, skinless, boneless, meat only, raw', 2.75 * OZ, [120, 22.5, 0, 2.62, 0]],
+    ['Pork, fresh, loin, center loin (chops), boneless, separable lean and fat, raw', 1.5 * OZ, [201, 21.1, 0, 13.0, 0]],
+    ['Pesto alla Genovese', 6 * 11.75, [446.8, 4.255, 6.383, 44.68, 1.064]], // 6 tbsp, jar is 47 g per 4 tbsp
+    ['Squash, summer, zucchini, includes skin, raw', 2 * 196, [17, 1.21, 3.11, 0.32, 1.0]], // 2 medium
+    ['Broccoli, raw', 340, [31, 2.57, 6.27, 0.34, 2.4]], // the bag says so
+    ['Peppers, sweet, red, raw', 3 * 119, [26, 0.99, 6.03, 0.3, 2.1]], // 3 medium
+    ['Mushrooms, white, raw', 227, [22, 3.09, 3.26, 0.34, 1.0]], // the pack says so
+    ['Onions, raw', 110, [40, 1.1, 9.34, 0.1, 1.7]], // 1 medium
+    ['Tomatoes, red, ripe, raw, year round average', 283, [18, 0.88, 3.89, 0.2, 1.2]], // 1 pint
+    ['Lemon juice, raw', 90, [22, 0.35, 6.9, 0.24, 0.3]], // juice of 2, not the whole fruit
+    ['Olive oil', 5 * 13.5, [900, 0, 0, 100, 0]], // 5 tbsp
+    ['Spices, pepper, black', 2.3, [251, 10.4, 64.0, 3.26, 25.3]], // 1 tsp
+    ['Spices, garlic powder', 4.2, [331, 16.6, 72.7, 0.73, 9.0]], // 1.5 tsp
+    ['Cheese, parmesan, hard', 50, [392, 35.8, 3.22, 25.0, 0]],
+  ] as [string, number, number[]][]
+
+  if (!(data.recipes ?? []).some((r) => /pesto/i.test(r.name))) {
+    const items = RECIPE.map(([name, grams, per100]) => {
+      const g = Math.round(grams * 10) / 10
+      const f = (i: number) => Math.round(((per100[i] * g) / 100) * 10) / 10
+      return {
+        name,
+        grams: g,
+        kcal: Math.round((per100[0] * g) / 100),
+        protein: f(1),
+        carbs: f(2),
+        fat: f(3),
+        fiber: f(4),
+      }
+    })
+    const raw = items.reduce((t, i) => t + i.grams, 0)
+    const nextId = Math.max(0, ...(data.recipes ?? []).map((r) => r.id ?? 0)) + 1
+    ;(data.recipes ??= []).push(
       touch({
         id: nextId,
-        name: 'Pesto alla Genovese',
-        brand: 'Priano, Aldi',
-        // 1/4 cup (47 g): 210 kcal, 21 g fat (3 sat), 3 g carb, <1 g fibre,
-        // 2 g protein, 560 mg sodium. Jar is 190 g, about four servings.
-        kcal: 446.8,
-        protein: 4.255,
-        carbs: 6.383,
-        fat: 44.68,
-        // "<1 g" declared; taken as half a gram rather than none, which is
-        // the honest reading of a number the label declined to give.
-        fiber: 1.064,
-        portions: [
-          { label: '1 tbsp (12 g)', grams: 12 },
-          { label: '2 tbsp (24 g)', grams: 24 },
-          { label: '1 serving, 1/4 cup (47 g)', grams: 47 },
-          { label: 'the whole jar (190 g)', grams: 190 },
-        ],
-        defaultPortion: 0,
-        liquid: false,
-        source: 'manual',
-        favorite: false,
+        name: 'Chicken and pork pesto with roasted veg',
+        items,
+        cookedG: 0, // weigh the tray and this stops being a guess
+        cookLossPct: 25,
+        servings: undefined,
+        notes: '2 tsp salt not listed — no energy, and no honest row for it. Cook loss is estimated at 25%; weigh the finished tray to replace it.',
         useCount: 0,
         lastUsed: 0,
         createdAt: Date.now(),
       }),
     )
-    notes.push('added Pesto alla Genovese (Priano, Aldi) — 1 tbsp = 54 kcal')
+    const kcal = items.reduce((t, i) => t + i.kcal, 0)
+    notes.push(
+      `added recipe "Chicken and pork pesto with roasted veg" — ${items.length} ingredients, ${Math.round(raw)} g raw, ${kcal} kcal`,
+    )
   }
 
   // --- example, currently a no-op -------------------------------------------
