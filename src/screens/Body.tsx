@@ -328,9 +328,22 @@ function WeighInSheet({ onClose, toast }: { onClose: () => void; toast: (m: stri
   const [offProtocol, setOffProtocol] = useState(false)
   // Tri-state on purpose: not recorded is its own answer, and guessing at it
   // would poison the very average it is meant to measure.
-  const [stool, setStool] = useState<boolean | undefined>(undefined)
+  const [afterStool, setAfterStool] = useState<boolean | undefined>(undefined)
 
   const existing = useLiveQuery(() => db.weighIns.where('date').equals(date).first(), [date])
+
+  // Open on a day already recorded and the form shows what is there, so this
+  // is an edit rather than a blank slate that overwrites by omission. Without
+  // it, correcting a flag meant retyping the weight and losing the body
+  // composition that came with it.
+  useEffect(() => {
+    if (!existing) return
+    setKg(String(existing.kg))
+    setBfp(existing.bodyFatPct != null ? String(existing.bodyFatPct) : '')
+    setOffProtocol(!!existing.offProtocol)
+    setAfterStool(existing.afterStool)
+  }, [existing?.id])
+
   const value = parseFloat(kg)
 
   return (
@@ -340,7 +353,11 @@ function WeighInSheet({ onClose, toast }: { onClose: () => void; toast: (m: stri
       </Field>
       <Field
         label="Weight (kg)"
-        hint={existing ? `Replaces the ${existing.kg} kg already logged for this day.` : undefined}
+        hint={
+          existing
+            ? `Editing the ${existing.kg} kg already logged${existing.source === 'scale' ? ' by the scale — its body composition is kept' : ''}.`
+            : undefined
+        }
       >
         <NumberInput
           autoFocus
@@ -364,10 +381,10 @@ function WeighInSheet({ onClose, toast }: { onClose: () => void; toast: (m: stri
           sides the offset is measurable and can be subtracted. */}
       <Field label="Been to the toilet?" hint="Optional — but answer it often and the trend gets sharper.">
         <div className="scroll-x">
-          <button className="chip" aria-pressed={stool === true} onClick={() => setStool(stool === true ? undefined : true)}>
+          <button className="chip" aria-pressed={afterStool === true} onClick={() => setAfterStool(afterStool === true ? undefined : true)}>
             Yes, emptied
           </button>
-          <button className="chip" aria-pressed={stool === false} onClick={() => setStool(stool === false ? undefined : false)}>
+          <button className="chip" aria-pressed={afterStool === false} onClick={() => setAfterStool(afterStool === false ? undefined : false)}>
             Not yet
           </button>
         </div>
@@ -398,16 +415,24 @@ function WeighInSheet({ onClose, toast }: { onClose: () => void; toast: (m: stri
         className="btn primary block"
         disabled={!(value > 20 && value < 400)}
         onClick={async () => {
-          await db.weighIns.put({
-            ...(existing?.id ? { id: existing.id } : {}),
+          // Patch the fields this form owns and leave the rest alone. A
+          // scale reading carries impedance, muscle, water, bone and visceral
+          // figures that this form never asks about; replacing the row to
+          // change a flag threw all of it away without saying so.
+          const patch = {
             date,
             kg: value,
-            bodyFatPct: bfp ? parseFloat(bfp) : undefined,
+            bodyFatPct: bfp ? parseFloat(bfp) : existing?.bodyFatPct,
             offProtocol: offProtocol || undefined,
-            afterStool: stool,
-            source: 'manual',
-            createdAt: Date.now(),
-          })
+            afterStool,
+          }
+          if (existing?.id != null) await db.weighIns.update(existing.id, patch)
+          else
+            await db.weighIns.add({
+              ...patch,
+              source: 'manual',
+              createdAt: Date.now(),
+            })
           toast('Weight saved')
           onClose()
         }}
