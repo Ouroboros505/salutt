@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, MEAL_SUGGESTIONS, type Food, type ISODate, type PlannedItem, type PlannedMeal } from '../db/db'
-import { healPlannedItems, scale } from '../db/ops'
+import { healPlannedItems, saveFood, scale } from '../db/ops'
+import { loadFoodDb, searchFoodDb } from '../lib/foodDb'
+import type { FoodHit } from '../lib/foodApi'
 import { per100 } from '../lib/recipes'
 import { Field, Icon, NumberInput, Sheet } from './ui'
 
@@ -50,10 +52,36 @@ export default function PlanMeal({
   const recipes = useLiveQuery(() => db.recipes.orderBy('lastUsed').reverse().toArray(), []) ?? []
   const templates = useLiveQuery(() => db.mealTemplates.orderBy('lastUsed').reverse().toArray(), []) ?? []
 
-  // Deliberately his library only — the whole bundled database was noise when
-  // weighing a meal he eats every week. New foods are created in the Foods tab.
+  // The bundled database is searched too, but sorted into groups so his own
+  // things come first and restaurant leftovers have their own place. Eating
+  // out is worth surfacing — a box of yesterday's takeaway is a real lunch.
+  const entries = useRef<Awaited<ReturnType<typeof loadFoodDb>> | null>(null)
+  const [dbReady, setDbReady] = useState(false)
+  const [fromDb, setFromDb] = useState<FoodHit[]>([])
+  useEffect(() => {
+    let alive = true
+    void loadFoodDb()
+      .then((e) => {
+        if (!alive) return
+        entries.current = e
+        setDbReady(true)
+      })
+      .catch(() => setDbReady(false))
+    return () => {
+      alive = false
+    }
+  }, [])
+  useEffect(() => {
+    if (!entries.current) return
+    setFromDb(query.trim().length >= 2 ? searchFoodDb(query, entries.current, 20) : [])
+  }, [query, dbReady])
+
   const q = query.trim().toLowerCase()
   const myTemplates = q ? templates.filter((t) => t.name.toLowerCase().includes(q)) : templates.slice(0, 4)
+  // USDA labels its cooked-out foods "Restaurant, …" and "Fast foods, …".
+  const isOutside = (name: string) => /^(restaurant|fast ?foods?)[,\s]/i.test(name)
+  const dbOutside = fromDb.filter((h) => isOutside(h.name))
+  const dbRest = fromDb.filter((h) => !isOutside(h.name))
   const mine = q
     ? foods
         .filter((f) => f.name.toLowerCase().includes(q) || (f.brand ?? '').toLowerCase().includes(q))
@@ -260,7 +288,7 @@ export default function PlanMeal({
 
           {myTemplates.length > 0 && (
             <div className="stack tight">
-              <div className="tiny muted">Saved meals — tap to drop the whole thing in</div>
+              <h3>Saved meals</h3>
               {myTemplates.map((t) => (
                 <button key={`t${t.id}`} className="item" onClick={() => void addTemplate(t)}>
                   <div className="grow">
@@ -277,6 +305,7 @@ export default function PlanMeal({
             </div>
           )}
 
+          {myRecipes.length > 0 && <h3>Meal preps</h3>}
           {myRecipes.map((r) => {
             const p = per100(r)
             return (
@@ -299,6 +328,7 @@ export default function PlanMeal({
             )
           })}
 
+          {mine.length > 0 && <h3>My foods</h3>}
           {mine.map((f) => (
             <button key={f.id} className="item" onClick={() => setPicking(f)}>
               <div className="grow">
@@ -314,6 +344,48 @@ export default function PlanMeal({
             </button>
           ))}
 
+
+          {dbOutside.length > 0 && <h3>Eating out</h3>}
+          {dbOutside.map((h, i) => (
+            <button
+              key={`o${i}`}
+              className="item"
+              onClick={async () => {
+                const id = await saveFood(h)
+                const saved = await db.foods.get(id)
+                if (saved) setPicking(saved)
+              }}
+            >
+              <div className="grow">
+                <div className="item-title truncate">{h.name}</div>
+                <div className="tiny muted truncate num">restaurant · {Math.round(h.kcal)} kcal/100 g</div>
+              </div>
+              <span className="muted">
+                <Icon.plus />
+              </span>
+            </button>
+          ))}
+
+          {dbRest.length > 0 && <h3>Food database</h3>}
+          {dbRest.map((h, i) => (
+            <button
+              key={`d${i}`}
+              className="item"
+              onClick={async () => {
+                const id = await saveFood(h)
+                const saved = await db.foods.get(id)
+                if (saved) setPicking(saved)
+              }}
+            >
+              <div className="grow">
+                <div className="item-title truncate">{h.name}</div>
+                <div className="tiny muted truncate num">database · {Math.round(h.kcal)} kcal/100 g</div>
+              </div>
+              <span className="muted">
+                <Icon.plus />
+              </span>
+            </button>
+          ))}
         </>
       )}
 
