@@ -67,6 +67,38 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
+  // Simms Zero Sugar Original beef jerky — the leaner, no-carb sibling: more
+  // protein (14 vs 10), no sugar, a touch more fat. Its own row.
+  if (!(data.foods ?? []).some((f) => /zero sugar/i.test(f.name))) {
+    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
+    const SRV = 28
+    ;(data.foods ??= []).push(
+      touch({
+        id: nextId,
+        name: 'Beef jerky, Original Zero Sugar',
+        brand: 'Simms',
+        // 1 oz (28 g): 80 kcal, 2 g fat, 0 carb, 0 fibre, 14 g protein, 470 mg sodium.
+        kcal: Math.round((80 / SRV) * 1000) / 10,
+        protein: Math.round((14 / SRV) * 1000) / 10,
+        carbs: 0,
+        fat: Math.round((2 / SRV) * 1000) / 10,
+        fiber: 0,
+        portions: [
+          { label: '1 oz serving (28 g)', grams: SRV },
+          { label: 'half a serving', grams: 14 },
+        ],
+        defaultPortion: 0,
+        liquid: false,
+        source: 'manual',
+        favorite: false,
+        useCount: 0,
+        lastUsed: 0,
+        createdAt: Date.now(),
+      }),
+    )
+    notes.push('added Beef jerky, Original Zero Sugar (Simms) — 1 oz = 80 kcal, 14 g protein')
+  }
+
   // Simms Original beef jerky (Aldi), per its 1 oz serving. Named with the
   // flavour so it sits apart from the other Simms jerky in the library.
   if (!(data.foods ?? []).some((f) => /jerky, original/i.test(f.name))) {
