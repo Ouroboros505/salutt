@@ -6,6 +6,7 @@ import {
   GROUPS,
   byName,
   describeSession,
+  altFor,
   isProtocol,
   isTimed,
   withHold,
@@ -211,6 +212,29 @@ export default function SessionSheet({
   const detail = (name: string) => byName(name)
 
   /**
+   * Trade an exercise for its stand-in when the machine is taken.
+   *
+   * The sets reset, because the alternative is a different lift at a different
+   * load — carrying the old numbers over would log a rope pushdown's weight
+   * against a dumbbell. The slot keeps its place in the order.
+   */
+  const swapForAlt = (key: string) =>
+    setItems((xs) =>
+      xs.map((it) => {
+        if (it.key !== key) return it
+        const alt = altFor(it.name)
+        if (!alt) return it
+        const ex = byName(alt)
+        return {
+          key: `${alt}-${key}`,
+          name: alt,
+          sets: ex ? startingSets(ex) : [{ reps: 0 }],
+          minutes: ex?.byMinutes ? ex.sets : undefined,
+        }
+      }),
+    )
+
+  /**
    * The exercise as actually performed. The catalogue writes down one shape of
    * round; the machine and the mood produce another, and the energy has to
    * follow what was done rather than what was suggested.
@@ -399,6 +423,16 @@ export default function SessionSheet({
                     )
                   })()}
                 </div>
+                {altFor(i.name) && (
+                  <button
+                    className="iconbtn"
+                    aria-label={`Machine busy — switch ${i.name} for ${altFor(i.name)}`}
+                    title={`Machine busy? Do ${altFor(i.name)} instead`}
+                    onClick={() => swapForAlt(i.key)}
+                  >
+                    <Icon.swap />
+                  </button>
+                )}
                 <button
                   className="iconbtn"
                   aria-label={`Remove ${i.name}`}

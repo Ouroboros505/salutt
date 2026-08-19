@@ -218,6 +218,13 @@ function change(data) {
       notes.push(`repaired planned meal "${pm.meal}" \u2014 ${pm.items.length} items now total ${tot} kcal`);
     }
   }
+  const cfg = (data.settings ?? []).find((x) => x.id === "settings");
+  if (cfg && (cfg.programStartDate !== "2026-08-17" || cfg.programWeeks !== 8)) {
+    cfg.programStartDate = "2026-08-17";
+    cfg.programWeeks = 8;
+    touch(cfg);
+    notes.push("training block: starts 2026-08-17, reminder at week 8 (2026-10-05)");
+  }
   return notes;
 }
 async function main() {

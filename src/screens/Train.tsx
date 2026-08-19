@@ -5,7 +5,7 @@ import { formatDay, todayISO } from '../lib/date'
 import { Field, Icon, NumberInput, Segmented, Sheet } from '../components/ui'
 import RideSheet from '../components/RideSheet'
 import SessionSheet from '../components/SessionSheet'
-import { planFor, toDisplayWeight, fromDisplayWeight } from '../lib/program'
+import { planFor, toDisplayWeight, fromDisplayWeight, programWeek } from '../lib/program'
 import { ageFrom, bmrMifflin } from '../lib/metrics'
 
 const KINDS = [
@@ -56,8 +56,22 @@ export default function Train({
     .filter((w) => w.date > shiftDays(todayISO(), -7))
     .reduce((t, w) => t + w.sets.reduce((s, x) => s + x.reps * x.weightKg, 0), 0)
 
+  const blockWeeks = settings.programWeeks ?? 8
+  const week = programWeek(settings.programStartDate, todayISO())
+
   return (
     <div className="screen">
+      {week != null && week >= blockWeeks && (
+        <div className="card" style={{ borderColor: 'var(--warning)' }}>
+          <h3 style={{ color: 'var(--warning)' }}>Week {week} — time to change the routine</h3>
+          <div className="small">
+            You have run this block {week} weeks. Plan a new set of exercises for next week — keep
+            what is still progressing, swap what has stalled or gone stale. Tell me and I will build
+            it, then reset the counter.
+          </div>
+        </div>
+      )}
+
       {/* The same day navigation as Today, and the same direction of travel. */}
       <div className="row between">
         <button

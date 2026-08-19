@@ -336,6 +336,10 @@ export interface Settings {
    * actually done rather than being decided here.
    */
   boxMode?: 'share' | 'weighed' | 'hand'
+  /** Monday of week 1 of the current training block, for the change reminder. */
+  programStartDate?: ISODate
+  /** How many weeks to run a block before prompting a rethink. */
+  programWeeks?: number
   /**
    * Interval rounds as he actually runs them, in seconds, keyed by exercise.
    * The plan's prescription is a starting suggestion; once it is changed, the

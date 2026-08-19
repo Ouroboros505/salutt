@@ -516,6 +516,50 @@ export const WEEK: DayPlan[] = [
   },
 ]
 
+/** Which week of the block a date falls in, 1-based; null if before it starts. */
+export function programWeek(startISO: string | undefined, dateISO: string): number | null {
+  if (!startISO) return null
+  const [ys, ms, ds] = startISO.split('-').map(Number)
+  const [yd, md, dd] = dateISO.split('-').map(Number)
+  const start = Date.UTC(ys, ms - 1, ds)
+  const day = Date.UTC(yd, md - 1, dd)
+  if (day < start) return null
+  return Math.floor((day - start) / (7 * 86400000)) + 1
+}
+
+/**
+ * A same-muscle stand-in for when the machine is taken.
+ *
+ * Fall semester fills the CoRec, and a cable station can be occupied for
+ * twenty minutes. Each of these swaps the equipment, not the target: a rope
+ * pushdown becomes an overhead dumbbell extension, both triceps; a leg
+ * extension becomes a goblet squat, both quads. The number resets, because it
+ * is a different lift — the point is to keep training, not to keep the log.
+ */
+export const ALT_BY_NAME: Record<string, string> = {
+  'Lat Pulldown': 'Single-Arm DB Row',
+  'Seated Cable Row': 'Chest-Supported Row',
+  'Cable Fly': 'Push-Ups',
+  'Face Pulls': 'Rear Delt Fly',
+  'Triceps Rope Pushdown': 'Overhead Triceps Extension (dumbbell)',
+  'Overhead Triceps Extension (cable)': 'Overhead Triceps Extension (dumbbell)',
+  'Leg Curl': 'Romanian Deadlift',
+  'Leg Extension': 'Goblet Squat',
+  'Leg Press': 'Goblet Squat',
+  'Cable Crunch': 'Hanging Knee Raise',
+  'Pallof Press': 'Side Plank',
+  'Captain\u2019s Chair Leg Raise': 'Hanging Knee Raise',
+  'Machine Chest Press': 'Flat DB Bench Press',
+  'Straight-Arm Pulldown': 'Single-Arm DB Row',
+  'Cable Curl': 'DB Bicep Curl',
+  'Preacher Curl': 'DB Bicep Curl',
+}
+
+/** The stand-in exercise for a busy machine, if there is one. */
+export function altFor(name: string): string | null {
+  return ALT_BY_NAME[name] ?? null
+}
+
 export function planFor(date: string): DayPlan | null {
   // Parsed as local midnight, so the weekday is the one you would say out loud.
   const [y, m, d] = date.split('-').map(Number)

@@ -152,6 +152,16 @@ function change(data: Data): string[] {
     }
   }
 
+  // Stamp the training block's start so the week-8 reminder has an anchor.
+  // Monday of the week he started, 2026-08-17; eight weeks lands on 2026-10-05.
+  const cfg = (data.settings ?? []).find((x) => x.id === 'settings')
+  if (cfg && (cfg.programStartDate !== '2026-08-17' || cfg.programWeeks !== 8)) {
+    cfg.programStartDate = '2026-08-17'
+    cfg.programWeeks = 8
+    touch(cfg)
+    notes.push('training block: starts 2026-08-17, reminder at week 8 (2026-10-05)')
+  }
+
   // --- WAITING ON REAL WEIGHTS ---------------------------------------------
   //
   // He weighs every ingredient on the next meal prep, both recipes. When those
