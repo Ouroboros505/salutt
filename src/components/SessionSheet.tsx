@@ -781,16 +781,23 @@ export default function SessionSheet({
           <span className="stat-value num" style={{ color: 'inherit' }}>
             {holdUntil != null ? clock(holdUntil - now) : clock(now - (restSince ?? now))}
           </span>
-          <button
-            className="btn sm ghost"
-            style={{ color: 'inherit' }}
-            onClick={() => {
-              if (holdUntil != null) setHoldUntil(null)
-              else setRestSince(Date.now())
-            }}
-          >
-            {holdUntil != null ? 'Stop' : 'Reset'}
-          </button>
+          {holdUntil != null ? (
+            <button className="btn sm ghost" style={{ color: 'inherit' }} onClick={() => setHoldUntil(null)}>
+              Stop
+            </button>
+          ) : (
+            <div className="row" style={{ gap: 4 }}>
+              {/* Reset restarts the count; "Lifting" stops it — the same clean
+                  rest/work split a plank gets from its hold timer, but for any
+                  weighted set that has no duration of its own. */}
+              <button className="btn sm ghost" onClick={() => setRestSince(Date.now())}>
+                Reset
+              </button>
+              <button className="btn sm" onClick={() => setRestSince(null)}>
+                Lifting →
+              </button>
+            </div>
+          )}
         </div>
       )}
 
