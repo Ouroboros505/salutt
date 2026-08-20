@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type ISODate, type SetEntry, type Settings, type Workout } from '../db/db'
 import { formatDay, todayISO } from '../lib/date'
 import { Field, Icon, NumberInput, Segmented, Sheet } from '../components/ui'
 import RideSheet from '../components/RideSheet'
+import { getLiveRide, clearLiveRide, liveMinutes, type LiveRide } from '../lib/liveRide'
 import SessionSheet from '../components/SessionSheet'
 import { planFor, toDisplayWeight, fromDisplayWeight, programWeek } from '../lib/program'
 import { ageFrom, bmrMifflin } from '../lib/metrics'
@@ -28,6 +29,27 @@ export default function Train({
 }) {
   const [editing, setEditing] = useState<Workout | 'new' | null>(null)
   const [riding, setRiding] = useState(false)
+  // A ride timing in your pocket. Read from storage, and a slow tick keeps the
+  // minutes fresh while the screen is open; the value itself is clock-based, so
+  // it stays right even if the app was closed the whole ride.
+  const [live, setLive] = useState<LiveRide | null>(() => getLiveRide())
+  const [nowTick, setNowTick] = useState(() => Date.now())
+  const [finishing, setFinishing] = useState<LiveRide | null>(null)
+  useEffect(() => {
+    if (!live) return
+    const id = setInterval(() => setNowTick(Date.now()), 5000)
+    return () => clearInterval(id)
+  }, [live])
+  // Pick the ride back up whenever the screen returns to the front — this is
+  // the moment after a ride when the stored start is read and shown.
+  useEffect(() => {
+    const refresh = () => {
+      setLive(getLiveRide())
+      setNowTick(Date.now())
+    }
+    document.addEventListener('visibilitychange', refresh)
+    return () => document.removeEventListener('visibilitychange', refresh)
+  }, [])
   const [session, setSession] = useState(false)
   // Corrections to a logged session go through the same sheet that wrote it,
   // so the catalogue and the per-set rows are all there.
@@ -61,6 +83,41 @@ export default function Train({
 
   return (
     <div className="screen">
+      {live && (
+        <div className="card" style={{ borderColor: 'var(--accent)' }}>
+          <div className="row between">
+            <div>
+              <h3 style={{ color: 'var(--accent)' }}>
+                Riding{live.place ? ` to ${live.place}` : ''}
+              </h3>
+              <div className="stat-value num">{liveMinutes(live, nowTick)} min</div>
+              <div className="tiny muted">started {new Date(live.startedAt).toLocaleTimeString()}</div>
+            </div>
+            <div className="stack tight">
+              <button
+                className="btn primary sm"
+                onClick={() => {
+                  setFinishing(live)
+                  setLive(null)
+                }}
+              >
+                Finish &amp; log
+              </button>
+              <button
+                className="btn ghost sm muted"
+                onClick={() => {
+                  clearLiveRide()
+                  setLive(null)
+                  toast('Ride discarded')
+                }}
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {week != null && week >= blockWeeks && (
         <div className="card" style={{ borderColor: 'var(--warning)' }}>
           <h3 style={{ color: 'var(--warning)' }}>Week {week} — time to change the routine</h3>
@@ -203,6 +260,26 @@ export default function Train({
             bmrMifflin(latest?.kg ?? 70, settings.heightCm, ageFrom(settings.birthDate), settings.sex) / 1440
           }
           onClose={() => setRiding(false)}
+          toast={toast}
+        />
+      )}
+
+      {finishing && (
+        <RideSheet
+          date={date}
+          kg={latest?.kg ?? 70}
+          bmrPerMin={
+            bmrMifflin(latest?.kg ?? 70, settings.heightCm, ageFrom(settings.birthDate), settings.sex) / 1440
+          }
+          initial={{
+            place: finishing.place,
+            km: finishing.km,
+            climbM: finishing.climbM,
+            loadKg: finishing.loadKg,
+            routeId: finishing.routeId ?? null,
+            minutes: liveMinutes(finishing, Date.now()),
+          }}
+          onClose={() => setFinishing(null)}
           toast={toast}
         />
       )}

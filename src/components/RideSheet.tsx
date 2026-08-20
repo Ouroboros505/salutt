@@ -10,6 +10,7 @@ import {
   type RideStyle,
 } from '../lib/ride'
 import { Field, Icon, NumberInput, Sheet } from './ui'
+import { setLiveRide, clearLiveRide } from '../lib/liveRide'
 
 /**
  * Logging one trip.
@@ -23,10 +24,20 @@ export default function RideSheet({
   date,
   kg,
   bmrPerMin,
+  initial,
   onClose,
   toast,
 }: {
   date: ISODate
+  /** When finishing a timed ride: the route and the measured minutes. */
+  initial?: {
+    place?: string
+    km?: number
+    climbM?: number
+    loadKg?: number
+    routeId?: number | null
+    minutes?: number
+  }
   /** Body weight, since the energy cost scales with what is being moved. */
   kg: number
   /** Resting cost per minute, which runs whether you pedal or not. */
@@ -34,9 +45,9 @@ export default function RideSheet({
   onClose: () => void
   toast: (m: string) => void
 }) {
-  const [place, setPlace] = useState('')
-  const [minutes, setMinutes] = useState<number | undefined>(15)
-  const [km, setKm] = useState<number | undefined>(undefined)
+  const [place, setPlace] = useState(initial?.place ?? '')
+  const [minutes, setMinutes] = useState<number | undefined>(initial?.minutes ?? 15)
+  const [km, setKm] = useState<number | undefined>(initial?.km)
   const [effort, setEffort] = useState(RIDE_EFFORTS[1])
   // One way by default: the ride home is rarely the ride out. A full
   // backpack, a different route, a headwind, or simply being tired all make
@@ -44,15 +55,15 @@ export default function RideSheet({
   // so the energy — honest for each direction.
   const [returnTrip, setReturnTrip] = useState(false)
   const [style, setStyle] = useState<RideStyle>('commute')
-  const [climbM, setClimbM] = useState<number | undefined>(undefined)
+  const [climbM, setClimbM] = useState<number | undefined>(initial?.climbM)
   // Shopping, a laptop, whatever is on your back. It is mass like any other
   // and the rolling resistance and the climbing both scale with it.
-  const [loadKg, setLoadKg] = useState<number | undefined>(undefined)
+  const [loadKg, setLoadKg] = useState<number | undefined>(initial?.loadKg)
 
   // The journeys you actually make, most-used first. A distance looked up
   // once on a map is worth keeping forever.
   const routes = useLiveQuery(() => db.routes.orderBy('lastUsed').reverse().toArray(), []) ?? []
-  const [routeId, setRouteId] = useState<number | null>(null)
+  const [routeId, setRouteId] = useState<number | null>(initial?.routeId ?? null)
 
   const pick = (r: Route) => {
     setPlace(r.name)
@@ -243,12 +254,36 @@ export default function RideSheet({
               })
             }
           }
+          clearLiveRide()
           toast(`${totalMin} min logged`)
           onClose()
         }}
       >
         Log {totalMin} min
       </button>
+
+      {/* Start it now and let the clock run in your pocket. The time is a
+          stored start moment, so locking the phone or the app being closed
+          mid-ride loses nothing — you finish it when you arrive. */}
+      {!initial && (
+        <button
+          className="btn block"
+          onClick={() => {
+            setLiveRide({
+              startedAt: Date.now(),
+              place: place.trim() || undefined,
+              routeId: routeId ?? undefined,
+              km,
+              climbM,
+              loadKg,
+            })
+            toast(place.trim() ? `Timing your ride to ${place.trim()}` : 'Ride started')
+            onClose()
+          }}
+        >
+          <Icon.play /> Start &amp; time it — finish when you arrive
+        </button>
+      )}
     </Sheet>
   )
 }
