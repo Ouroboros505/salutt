@@ -199,6 +199,28 @@ export default function SessionSheet({
   const [adding, setAdding] = useState<MuscleGroup | null>(null)
   const [saving, setSaving] = useState(false)
   const [demoName, setDemoName] = useState<string | null>(null)
+  // The rest clock starts the moment a set is ticked — that is when rest
+  // begins — and a hold clock counts a timed exercise down to a buzz. Only one
+  // runs at a time, so the bar never shows two things at once.
+  const [restSince, setRestSince] = useState<number | null>(null)
+  const [holdUntil, setHoldUntil] = useState<number | null>(null)
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (restSince == null && holdUntil == null) return
+    const id = setInterval(() => setNow(Date.now()), 250)
+    return () => clearInterval(id)
+  }, [restSince, holdUntil])
+  // Buzz once when a hold reaches zero, then clear it.
+  useEffect(() => {
+    if (holdUntil != null && now >= holdUntil) {
+      try {
+        navigator.vibrate?.([200, 80, 200])
+      } catch {
+        /* no vibration API, the visual 0:00 is enough */
+      }
+      setHoldUntil(null)
+    }
+  }, [now, holdUntil])
 
   /**
    * What you did last time, per exercise.
@@ -340,12 +362,26 @@ export default function SessionSheet({
   const update = (key: string, patch: Partial<Done>) =>
     setItems((xs) => xs.map((x) => (x.key === key ? { ...x, ...patch } : x)))
 
-  const setSet = (key: string, idx: number, patch: Partial<SetRow>) =>
+  const setSet = (key: string, idx: number, patch: Partial<SetRow>) => {
+    // Ticking a set off is the start of the rest that follows it; unticking
+    // clears the clock, since the set is back in progress.
+    if (patch.done === true) {
+      setRestSince(Date.now())
+      setHoldUntil(null)
+    } else if (patch.done === false) {
+      setRestSince(null)
+    }
     setItems((xs) =>
       xs.map((x) =>
         x.key === key ? { ...x, sets: x.sets.map((s, j) => (j === idx ? { ...s, ...patch } : s)) } : x,
       ),
     )
+  }
+
+  const clock = (ms: number) => {
+    const t = Math.max(0, Math.round(ms / 1000))
+    return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`
+  }
 
   const catalogue = useMemo(
     () => (adding ? CATALOGUE.filter((e) => e.group === adding) : []),
@@ -626,13 +662,28 @@ export default function SessionSheet({
                           </div>
                         </>
                       ) : (
-                        <div style={{ width: 92, flex: 'none' }}>
-                          <NumberInput
-                            value={set.reps || undefined}
-                            unit={ex ? repLabel(ex.reps) : 'reps'}
-                            onChange={(v) => setSet(i.key, idx, { reps: v ?? 0 })}
-                          />
-                        </div>
+                        <>
+                          <div style={{ width: 92, flex: 'none' }}>
+                            <NumberInput
+                              value={set.reps || undefined}
+                              unit={ex ? repLabel(ex.reps) : 'reps'}
+                              onChange={(v) => setSet(i.key, idx, { reps: v ?? 0 })}
+                            />
+                          </div>
+                          {ex && isTimed(ex) && (set.reps ?? 0) > 0 && (
+                            <button
+                              className="iconbtn"
+                              aria-label={`Time the ${set.reps}s hold`}
+                              title={`Count down ${set.reps}s`}
+                              onClick={() => {
+                                setRestSince(null)
+                                setHoldUntil(Date.now() + (set.reps ?? 0) * 1000)
+                              }}
+                            >
+                              <Icon.play />
+                            </button>
+                          )}
+                        </>
                       )}
                       {ex && usesBand(ex) ? (
                         <div className="scroll-x" style={{ gap: 4, flex: 1, minWidth: 0 }}>
@@ -709,6 +760,39 @@ export default function SessionSheet({
           ))}
         </div>
       </div>
+
+      {(restSince != null || holdUntil != null) && (
+        <div
+          className="row between"
+          style={{
+            position: 'sticky',
+            bottom: 0,
+            zIndex: 5,
+            padding: '10px 12px',
+            borderRadius: 12,
+            background: holdUntil != null ? 'var(--accent)' : 'var(--surface-1)',
+            color: holdUntil != null ? 'var(--accent-ink)' : 'inherit',
+            border: '1px solid var(--border)',
+          }}
+        >
+          <span className="stat-label" style={{ color: 'inherit' }}>
+            {holdUntil != null ? 'Hold' : 'Resting'}
+          </span>
+          <span className="stat-value num" style={{ color: 'inherit' }}>
+            {holdUntil != null ? clock(holdUntil - now) : clock(now - (restSince ?? now))}
+          </span>
+          <button
+            className="btn sm ghost"
+            style={{ color: 'inherit' }}
+            onClick={() => {
+              if (holdUntil != null) setHoldUntil(null)
+              else setRestSince(Date.now())
+            }}
+          >
+            {holdUntil != null ? 'Stop' : 'Reset'}
+          </button>
+        </div>
+      )}
 
       <div className="card tight">
         <div className="row between">
