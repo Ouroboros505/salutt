@@ -521,7 +521,10 @@ export const WEEK: DayPlan[] = [
       // that differs between them is a difference to be explained rather than
       // a choice. The yoga is literally the same exercise, so it follows along
       // on its own.
-      'Bike Intervals', 'Easy pace ramp / cool-down', 'Plank', 'Side Plank',
+      // Rowing, not the bike: an hour of commuting already covers cycling, so
+      // this day trains the posterior chain and upper back instead — a
+      // different pattern that rests the legs the commute and Tuesday hammer.
+      'Rower Intervals', 'Easy pace ramp / cool-down', 'Plank', 'Side Plank',
       'Bird Dog', 'Mountain Climbers', 'Yoga Flow',
     ],
   },
