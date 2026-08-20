@@ -576,6 +576,10 @@ export const ALT_BY_NAME: Record<string, string> = {
   'Straight-Arm Pulldown': 'Single-Arm DB Row',
   'Cable Curl': 'DB Bicep Curl',
   'Preacher Curl': 'DB Bicep Curl',
+  // Cardio machines stand in for each other when one is taken.
+  'Bike Intervals': 'Rower Intervals',
+  'Rower Intervals': 'Bike Intervals',
+  'StairMaster Intervals': 'Rower Intervals',
 }
 
 /** The stand-in exercise for a busy machine, if there is one. */

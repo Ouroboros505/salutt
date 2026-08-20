@@ -90,6 +90,22 @@ function loadDraft(date: ISODate): Done[] | null {
   }
 }
 
+/**
+ * Whether a draft holds in-progress work worth restoring.
+ *
+ * Only a set ticked off, a weight typed, or a band picked counts — those are
+ * things you did that a rebuild would lose. Interval hard/easy seconds do NOT
+ * count: the plan seeds those onto every round, so they are present in an
+ * untouched draft too. Without real work the draft is just a snapshot of the
+ * plan when it opened, so a plan change since (bike swapped for row) makes it
+ * stale, and rebuilding from the current plan is right.
+ */
+function draftHasWork(items: Done[]): boolean {
+  return items.some((i) =>
+    i.sets.some((s) => s.done || s.weightKg != null || s.band != null),
+  )
+}
+
 function startingSets(ex: Exercise, saved?: { hard: number; easy: number }): SetRow[] {
   if (ex.byMinutes) return []
   // A protocol round has no count of its own; parsing one out of the text
@@ -159,11 +175,17 @@ export default function SessionSheet({
   const setUnit = (u: 'kg' | 'lb') => void db.settings.update('settings', { liftUnit: u })
   const plan = planFor(date)
 
-  const [restored] = useState(() => !workout && !!loadDraft(date))
+  const [restored] = useState(() => {
+    if (workout) return false
+    const saved = loadDraft(date)
+    return !!saved && draftHasWork(saved)
+  })
   const [items, setItems] = useState<Done[]>(() => {
     if (workout) return fromWorkout(workout)
     const saved = loadDraft(date)
-    if (saved) return saved
+    // Keep a draft only if it holds real work; otherwise let the current plan
+    // seed, so a plan change (like the Thursday bike -> row swap) takes effect.
+    if (saved && draftHasWork(saved)) return saved
     return (plan?.exercises ?? [])
       .map(byName)
       .filter((e): e is Exercise => !!e)
