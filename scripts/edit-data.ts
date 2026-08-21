@@ -67,14 +67,15 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // The places behind the ride routes, geocoded once. House/CoRec/Office were
-  // seeded earlier; Aldi is added here so the two Aldi routes link to a real
-  // point too. Coordinates from Google's geocoder. Rename in the Places sheet.
+  // Re-seed the four everyday places after an old-app sync wiped them (the old
+  // version had no places table, so its backup pushed them away). Guarded by
+  // name, so this is a no-op once they exist. Deb's house, added on the phone,
+  // is left alone. Coordinates from Google's geocoder.
   const PLACES = [
-    { name: 'House',  address: '100 Main St, Lafayette, IN 47901',                                  formatted: '100 Main St, Lafayette, IN 47901, USA',       lat: 40.416700,  lng: -86.875300 },
-    { name: 'CoRec',  address: 'France A. Cordova Recreational Sports Center, West Lafayette, IN',      formatted: '355 N Martin Jischke Dr, West Lafayette, IN 47906, USA', lat: 40.4282417, lng: -86.9223556 },
-    { name: 'Office', address: 'Lilly Hall of Life Sciences, West Lafayette, IN',                       formatted: '915 Mitch Daniels Blvd, West Lafayette, IN 47907, USA',  lat: 40.423476,  lng: -86.9180072 },
-    { name: 'Aldi',   address: 'Aldi, 957 Sagamore Pkwy S, Lafayette, IN 47905',                        formatted: '957 Sagamore Pkwy S, Lafayette, IN 47905, USA', lat: 40.406048,  lng: -86.856639 },
+    { name: 'House',  address: '100 Main St, Lafayette, IN 47901',                             formatted: '100 Main St, Lafayette, IN 47901, USA',       lat: 40.416700,  lng: -86.875300 },
+    { name: 'CoRec',  address: 'France A. Cordova Recreational Sports Center, West Lafayette, IN', formatted: '355 N Martin Jischke Dr, West Lafayette, IN 47906, USA', lat: 40.4282417, lng: -86.9223556 },
+    { name: 'Office', address: 'Lilly Hall of Life Sciences, West Lafayette, IN',                  formatted: '915 Mitch Daniels Blvd, West Lafayette, IN 47907, USA',  lat: 40.423476,  lng: -86.9180072 },
+    { name: 'Aldi',   address: 'Aldi, 957 Sagamore Pkwy S, Lafayette, IN 47905',                   formatted: '957 Sagamore Pkwy S, Lafayette, IN 47905, USA', lat: 40.406048,  lng: -86.856639 },
   ]
   for (const place of PLACES) {
     if ((data.places ?? []).some((p) => p.name.toLowerCase() === place.name.toLowerCase())) continue
@@ -82,33 +83,33 @@ function change(data: Data): string[] {
     ;(data.places ??= []).push(
       touch({ id: nextId, ...place, useCount: 0, lastUsed: Date.now(), createdAt: Date.now() }),
     )
-    notes.push(`added place ${place.name} (${place.formatted})`)
+    notes.push(`added place ${place.name} (id ${nextId})`)
   }
 
-  // Replace the hand-entered distance and climb on the six existing routes with
-  // Google's measured values, and link each to its two places. Minutes and any
-  // carried load are left as they are: the minutes come from real rides and are
-  // truer for this rider than a generic 15 km/h estimate.
+  // Re-link the six routes to the correct place ids (the old ones were wiped
+  // with the places). Only the two id fields and the source tag are touched;
+  // distance, climb, minutes and load are left exactly as they are.
   const nameToId = new Map<string, number>()
   for (const p of data.places ?? []) if (p.id != null) nameToId.set(p.name.toLowerCase(), p.id)
-  const ROUTE_UPDATES = [
-    { name: 'Home → campus', from: 'House',  to: 'Office', km: 4.18, climbM: 36 },
-    { name: 'Campus → home', from: 'Office', to: 'House',  km: 4.15, climbM: 54 },
-    { name: 'Home → CoRec',  from: 'House',  to: 'CoRec',  km: 4.93, climbM: 38 },
-    { name: 'CoRec → home',  from: 'CoRec',  to: 'House',  km: 4.91, climbM: 57 },
-    { name: 'Home → Aldi',   from: 'House',  to: 'Aldi',   km: 2.71, climbM: 8 },
-    { name: 'Aldi → home',   from: 'Aldi',   to: 'House',  km: 2.66, climbM: 10 },
+  const LINKS = [
+    { name: 'Home → campus', from: 'House',  to: 'Office' },
+    { name: 'Campus → home', from: 'Office', to: 'House' },
+    { name: 'Home → CoRec',  from: 'House',  to: 'CoRec' },
+    { name: 'CoRec → home',  from: 'CoRec',  to: 'House' },
+    { name: 'Home → Aldi',   from: 'House',  to: 'Aldi' },
+    { name: 'Aldi → home',   from: 'Aldi',   to: 'House' },
   ]
-  for (const u of ROUTE_UPDATES) {
-    const r = (data.routes ?? []).find((x) => x.name === u.name)
-    if (!r) { notes.push(`route "${u.name}" not found — skipped`); continue }
-    r.km = u.km
-    r.climbM = u.climbM
-    r.fromPlaceId = nameToId.get(u.from.toLowerCase())
-    r.toPlaceId = nameToId.get(u.to.toLowerCase())
+  for (const l of LINKS) {
+    const r = (data.routes ?? []).find((x) => x.name === l.name)
+    if (!r) { notes.push(`route "${l.name}" not found — skipped`); continue }
+    const f = nameToId.get(l.from.toLowerCase())
+    const t = nameToId.get(l.to.toLowerCase())
+    if (r.fromPlaceId === f && r.toPlaceId === t && r.source === 'google') continue
+    r.fromPlaceId = f
+    r.toPlaceId = t
     r.source = 'google'
     touch(r)
-    notes.push(`updated "${u.name}" -> ${u.km} km, climb ${u.climbM} m`)
+    notes.push(`re-linked "${l.name}" -> ${l.from}(${f})->${l.to}(${t})`)
   }
 
   return notes
