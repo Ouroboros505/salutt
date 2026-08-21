@@ -1,19 +1,24 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
-import { planRoute, NoSyncError, type PlannedRoute } from '../lib/maps'
-import { Icon, Sheet } from './ui'
+import { geocode, planRoute, NoSyncError, type PlannedRoute } from '../lib/maps'
+import { Field, Icon, Sheet } from './ui'
 import PlacesSheet from './PlacesSheet'
 
 /**
- * Plan a new route once, from two saved places, and keep it.
+ * Plan a new route once and keep it.
  *
- * The whole reason this exists is to spend a routing call exactly once per
- * journey: measure House → the new restaurant today, save it, and every ride
- * there afterwards is a tap with a real distance and a real climb behind it.
+ * The start is always a saved place. The destination can be a saved place too,
+ * or a brand-new address typed right here — which is the common case, since a
+ * new route usually means a new somewhere (a friend's, a restaurant). Typing it
+ * geocodes and saves it as a place in the same step, so "ride to Deb's" is one
+ * flow, not "first go and add Deb's, then come back and plan it".
+ *
  * The daily flow never comes here — it picks a saved route and goes. This is
- * the setup step, which is why it sits at the bottom of the ride sheet.
+ * setup, which is why it lives at the bottom of the ride sheet.
  */
+const NEW = '__new__'
+
 export default function RoutePlannerSheet({
   onClose,
   toast,
@@ -23,27 +28,63 @@ export default function RoutePlannerSheet({
 }) {
   const places = useLiveQuery(() => db.places.orderBy('name').toArray(), []) ?? []
   const [fromId, setFromId] = useState<number | null>(null)
-  const [toId, setToId] = useState<number | null>(null)
+  // The destination is either a saved place id, or the sentinel NEW to type one.
+  const [toChoice, setToChoice] = useState<string>('')
+  const [newName, setNewName] = useState('')
+  const [newAddress, setNewAddress] = useState('')
+
   const [result, setResult] = useState<PlannedRoute | null>(null)
-  const [name, setName] = useState('')
+  const [routeName, setRouteName] = useState('')
   const [busy, setBusy] = useState(false)
   const [managing, setManaging] = useState(false)
 
   const from = places.find((p) => p.id === fromId)
-  const to = places.find((p) => p.id === toId)
+  const savedTo = toChoice && toChoice !== NEW ? places.find((p) => p.id === Number(toChoice)) : undefined
+  const addingNew = toChoice === NEW
+
+  const canMeasure =
+    !!from && (savedTo ? true : addingNew ? newName.trim() !== '' && newAddress.trim() !== '' : false)
 
   const measure = async () => {
-    if (!from || !to) return
+    if (!from) return
     setBusy(true)
     setResult(null)
     try {
-      const r = await planRoute({ lat: from.lat, lng: from.lng }, { lat: to.lat, lng: to.lng })
+      // Resolve the destination: an existing place, or geocode + save a new one.
+      let toPlace = savedTo
+      let toName = savedTo?.name ?? ''
+      if (addingNew) {
+        const g = await geocode(newAddress.trim())
+        if (!g) {
+          toast(`Couldn't find "${newAddress.trim()}"`)
+          return
+        }
+        const id = await db.places.add({
+          name: newName.trim(),
+          address: newAddress.trim(),
+          formatted: g.formatted,
+          lat: g.lat,
+          lng: g.lng,
+          useCount: 0,
+          lastUsed: Date.now(),
+          createdAt: Date.now(),
+        })
+        toPlace = { id: id as number, name: newName.trim(), address: newAddress.trim(), formatted: g.formatted, lat: g.lat, lng: g.lng, useCount: 0, lastUsed: Date.now(), createdAt: Date.now() }
+        toName = newName.trim()
+        // Keep it selected as a saved place now that it exists.
+        setToChoice(String(id))
+        setNewName('')
+        setNewAddress('')
+      }
+      if (!toPlace) return
+
+      const r = await planRoute({ lat: from.lat, lng: from.lng }, { lat: toPlace.lat, lng: toPlace.lng })
       if (!r) {
         toast('No route found between those places')
         return
       }
       setResult(r)
-      setName(`${from.name} → ${to.name}`)
+      setRouteName(`${from.name} → ${toName}`)
       if (r.mode === 'driving') toast('No cycling route there — showing the driving distance')
     } catch (e) {
       toast(e instanceof NoSyncError ? 'Set up sync first (Settings) to plan routes' : 'Route lookup failed')
@@ -53,79 +94,94 @@ export default function RoutePlannerSheet({
   }
 
   const save = async () => {
-    if (!result || !from || !to) return
+    if (!result || !from) return
+    const toPlace = places.find((p) => p.id === Number(toChoice))
     await db.routes.add({
-      name: name.trim() || `${from.name} → ${to.name}`,
+      name: routeName.trim() || `${from.name} → ${toPlace?.name ?? ''}`,
       km: result.km,
-      // Google's time is a generic pace; your own rides overwrite it once you
-      // ride this and the ride sheet updates the stored minutes.
       minutes: result.minutes,
       climbM: result.climbM,
       fromPlaceId: from.id,
-      toPlaceId: to.id,
+      toPlaceId: toPlace?.id,
       source: 'google',
       polyline: result.polyline,
       useCount: 0,
       lastUsed: Date.now(),
       createdAt: Date.now(),
     })
-    // Nudge the places up the used-order so the pair is easy to pick again.
     await db.places.update(from.id!, { useCount: from.useCount + 1, lastUsed: Date.now() })
-    await db.places.update(to.id!, { useCount: to.useCount + 1, lastUsed: Date.now() })
-    toast(`${name.trim() || 'Route'} saved — ${result.km} km`)
+    if (toPlace?.id) await db.places.update(toPlace.id, { useCount: toPlace.useCount + 1, lastUsed: Date.now() })
+    toast(`${routeName.trim() || 'Route'} saved — ${result.km} km`)
     onClose()
   }
-
-  const picker = (selected: number | null, set: (id: number) => void, exclude: number | null) => (
-    <div className="scroll-x">
-      {places
-        .filter((p) => p.id !== exclude)
-        .map((p) => (
-          <button
-            key={p.id}
-            className="chip"
-            aria-pressed={selected === p.id}
-            onClick={() => {
-              set(p.id!)
-              setResult(null)
-            }}
-          >
-            {p.name}
-          </button>
-        ))}
-    </div>
-  )
 
   if (managing) return <PlacesSheet onClose={() => setManaging(false)} toast={toast} />
 
   return (
     <Sheet title="Plan a route" onClose={onClose}>
-      {places.length < 2 ? (
+      {places.length === 0 ? (
         <div className="card">
-          <div className="small">
-            Save at least two places first — a start and a destination — then measure the ride
-            between them.
-          </div>
+          <div className="small">Save a starting place first — your house, say — then plan rides from it.</div>
           <button className="btn primary block" onClick={() => setManaging(true)}>
             <Icon.plus /> Add places
           </button>
         </div>
       ) : (
         <>
-          <label className="tiny muted">From</label>
-          {picker(fromId, setFromId, toId)}
-          <label className="tiny muted" style={{ marginTop: 8 }}>
-            To
-          </label>
-          {picker(toId, setToId, fromId)}
+          <Field label="From">
+            <select
+              value={fromId ?? ''}
+              onChange={(e) => {
+                setFromId(e.target.value ? Number(e.target.value) : null)
+                setResult(null)
+              }}
+            >
+              <option value="">Choose a starting place…</option>
+              {places.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </Field>
 
-          <button
-            className="btn primary block"
-            disabled={!from || !to || busy}
-            onClick={measure}
-            style={{ marginTop: 12 }}
-          >
-            {busy ? 'Measuring…' : 'Get distance & climb'}
+          <Field label="To">
+            <select
+              value={toChoice}
+              onChange={(e) => {
+                setToChoice(e.target.value)
+                setResult(null)
+              }}
+            >
+              <option value="">Choose a destination…</option>
+              {places
+                .filter((p) => p.id !== fromId)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              <option value={NEW}>＋ New address…</option>
+            </select>
+          </Field>
+
+          {addingNew && (
+            <div className="card tight">
+              <Field label="Name it" hint="what you'll call this place — Deb's, the gym, work">
+                <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Deb's" />
+              </Field>
+              <Field label="Address" hint="street and city — saved so you never type it again">
+                <input
+                  value={newAddress}
+                  onChange={(e) => setNewAddress(e.target.value)}
+                  placeholder="1200 Main St, Lafayette, IN"
+                />
+              </Field>
+            </div>
+          )}
+
+          <button className="btn primary block" disabled={!canMeasure || busy} onClick={measure}>
+            {busy ? 'Measuring…' : addingNew ? 'Save place & measure' : 'Get distance & climb'}
           </button>
 
           {result && (
@@ -137,10 +193,9 @@ export default function RoutePlannerSheet({
                 </span>
                 {result.mode === 'driving' && <span className="tiny muted">driving est.</span>}
               </div>
-              <div className="field" style={{ marginTop: 8 }}>
-                <label>Name</label>
-                <input value={name} onChange={(e) => setName(e.target.value)} />
-              </div>
+              <Field label="Route name">
+                <input value={routeName} onChange={(e) => setRouteName(e.target.value)} />
+              </Field>
               <button className="btn primary block" onClick={save}>
                 <Icon.check /> Save route
               </button>

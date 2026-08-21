@@ -12,6 +12,7 @@ import {
 import { Field, Icon, NumberInput, Sheet } from './ui'
 import { setLiveRide, clearLiveRide } from '../lib/liveRide'
 import RoutePlannerSheet from './RoutePlannerSheet'
+import PlacesSheet from './PlacesSheet'
 import { mapsUsage, type MapsUsage } from '../lib/maps'
 
 /**
@@ -70,6 +71,7 @@ export default function RideSheet({
   // of the daily path. Usage is fetched once and quietly; failing (no sync yet)
   // just hides the line.
   const [planning, setPlanning] = useState(false)
+  const [managingPlaces, setManagingPlaces] = useState(false)
   const [usage, setUsage] = useState<MapsUsage | null>(null)
   useEffect(() => {
     let live = true
@@ -108,18 +110,27 @@ export default function RideSheet({
   return (
     <Sheet title="Log a ride" onClose={onClose}>
       {routes.length > 0 && (
-        <div className="scroll-x">
-          {routes.map((r) => (
-            <button key={r.id} className="chip" aria-pressed={routeId === r.id} onClick={() => pick(r)}>
-              {r.name} <span className="muted num">{r.km} km</span>
-            </button>
-          ))}
-        </div>
+        <Field label="Saved route" hint="pick one and the distance, climb and last time fill in">
+          <select
+            value={routeId ?? ''}
+            onChange={(e) => {
+              const r = routes.find((x) => x.id === Number(e.target.value))
+              if (r) pick(r)
+              else setRouteId(null)
+            }}
+          >
+            <option value="">Pick a saved route…</option>
+            {routes.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name} — {r.km} km
+              </option>
+            ))}
+          </select>
+        </Field>
       )}
 
-      <Field label="Where to">
+      <Field label={routes.length ? 'Or a quick one-off' : 'Where to'} hint={routes.length ? 'a ride with no saved route — just give it a label' : undefined}>
         <input
-          autoFocus
           value={place}
           onChange={(e) => setPlace(e.target.value)}
           placeholder="Campus, the shops, a friend's…"
@@ -304,8 +315,11 @@ export default function RideSheet({
       {/* Setup, not daily use: planning a brand-new journey with the map, kept
           at the bottom so picking a saved route above stays the fast path. */}
       <div style={{ borderTop: '1px solid var(--border)', margin: '16px 0 4px' }} />
-      <button className="btn ghost block muted" onClick={() => setPlanning(true)}>
+      <button className="btn ghost block" onClick={() => setPlanning(true)}>
         <Icon.plus /> Plan a new route
+      </button>
+      <button className="btn ghost block muted" onClick={() => setManagingPlaces(true)}>
+        Manage places
       </button>
       {usage && (
         <div className="tiny muted num" style={{ textAlign: 'center', marginTop: 6 }}>
@@ -314,6 +328,7 @@ export default function RideSheet({
       )}
 
       {planning && <RoutePlannerSheet onClose={() => setPlanning(false)} toast={toast} />}
+      {managingPlaces && <PlacesSheet onClose={() => setManagingPlaces(false)} toast={toast} />}
     </Sheet>
   )
 }
