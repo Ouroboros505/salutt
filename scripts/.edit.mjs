@@ -161,41 +161,42 @@ var summarise = (data) => Object.entries(data).filter(([, rows]) => Array.isArra
 function change(data) {
   const notes = [];
   const PLACES = [
-    {
-      name: "House",
-      address: "100 Main St, Lafayette, IN 47901",
-      formatted: "100 Main St, Lafayette, IN 47901, USA",
-      lat: 40.416700,
-      lng: -86.875300
-    },
-    {
-      name: "CoRec",
-      address: "France A. Cordova Recreational Sports Center, West Lafayette, IN",
-      formatted: "355 N Martin Jischke Dr, West Lafayette, IN 47906, USA",
-      lat: 40.4282417,
-      lng: -86.9223556
-    },
-    {
-      name: "Office",
-      address: "Lilly Hall of Life Sciences, West Lafayette, IN",
-      formatted: "915 Mitch Daniels Blvd, West Lafayette, IN 47907, USA",
-      lat: 40.423476,
-      lng: -86.9180072
-    }
+    { name: "House", address: "100 Main St, Lafayette, IN 47901", formatted: "100 Main St, Lafayette, IN 47901, USA", lat: 40.416700, lng: -86.875300 },
+    { name: "CoRec", address: "France A. Cordova Recreational Sports Center, West Lafayette, IN", formatted: "355 N Martin Jischke Dr, West Lafayette, IN 47906, USA", lat: 40.4282417, lng: -86.9223556 },
+    { name: "Office", address: "Lilly Hall of Life Sciences, West Lafayette, IN", formatted: "915 Mitch Daniels Blvd, West Lafayette, IN 47907, USA", lat: 40.423476, lng: -86.9180072 },
+    { name: "Aldi", address: "Aldi, 957 Sagamore Pkwy S, Lafayette, IN 47905", formatted: "957 Sagamore Pkwy S, Lafayette, IN 47905, USA", lat: 40.406048, lng: -86.856639 }
   ];
   for (const place of PLACES) {
     if ((data.places ?? []).some((p) => p.name.toLowerCase() === place.name.toLowerCase())) continue;
     const nextId = Math.max(0, ...(data.places ?? []).map((p) => p.id ?? 0)) + 1;
     (data.places ??= []).push(
-      touch({
-        id: nextId,
-        ...place,
-        useCount: 0,
-        lastUsed: Date.now(),
-        createdAt: Date.now()
-      })
+      touch({ id: nextId, ...place, useCount: 0, lastUsed: Date.now(), createdAt: Date.now() })
     );
     notes.push(`added place ${place.name} (${place.formatted})`);
+  }
+  const nameToId = /* @__PURE__ */ new Map();
+  for (const p of data.places ?? []) if (p.id != null) nameToId.set(p.name.toLowerCase(), p.id);
+  const ROUTE_UPDATES = [
+    { name: "Home \u2192 campus", from: "House", to: "Office", km: 4.18, climbM: 36 },
+    { name: "Campus \u2192 home", from: "Office", to: "House", km: 4.15, climbM: 54 },
+    { name: "Home \u2192 CoRec", from: "House", to: "CoRec", km: 4.93, climbM: 38 },
+    { name: "CoRec \u2192 home", from: "CoRec", to: "House", km: 4.91, climbM: 57 },
+    { name: "Home \u2192 Aldi", from: "House", to: "Aldi", km: 2.71, climbM: 8 },
+    { name: "Aldi \u2192 home", from: "Aldi", to: "House", km: 2.66, climbM: 10 }
+  ];
+  for (const u of ROUTE_UPDATES) {
+    const r = (data.routes ?? []).find((x) => x.name === u.name);
+    if (!r) {
+      notes.push(`route "${u.name}" not found \u2014 skipped`);
+      continue;
+    }
+    r.km = u.km;
+    r.climbM = u.climbM;
+    r.fromPlaceId = nameToId.get(u.from.toLowerCase());
+    r.toPlaceId = nameToId.get(u.to.toLowerCase());
+    r.source = "google";
+    touch(r);
+    notes.push(`updated "${u.name}" -> ${u.km} km, climb ${u.climbM} m`);
   }
   return notes;
 }
