@@ -701,3 +701,49 @@ details.card[open] > summary svg {
   outline: 2px solid currentColor;
   outline-offset: 1px;
 }
+
+/* Body-composition small multiples, each with its ±1 SD noise band. */
+.comp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr));
+  gap: 10px;
+}
+.comp-card {
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.2));
+  border-radius: 12px;
+  padding: 9px 10px 7px;
+  background: var(--surface-1);
+}
+.comp-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+.comp-label { font-size: 12.5px; font-weight: 600; }
+.comp-val { font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
+.comp-val small { font-weight: 500; font-size: 10px; color: var(--text-muted); margin-left: 1px; }
+.comp-foot { margin-top: 2px; }
+.comp-delta { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--text-muted); }
+.comp-delta.good { color: var(--success-text); }
+.comp-delta.bad { color: var(--warning); }
+.comp-delta.muted { color: var(--text-muted); }
+.linkbtn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.note-block {
+  background: var(--surface-1);
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.2));
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}

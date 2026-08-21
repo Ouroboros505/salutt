@@ -12,6 +12,7 @@ import {
   weightTrend,
 } from '../lib/metrics'
 import { TrendChart } from '../components/charts'
+import { CompositionCharts } from '../components/Composition'
 import { Field, Icon, NumberInput, Segmented, Sheet } from '../components/ui'
 import type { ListenerState } from '../lib/useScaleListener'
 import type { ScaleReading } from '../lib/scale'
@@ -53,6 +54,7 @@ export default function Body({
   scaleLive: ScaleReading | null
 }) {
   const [range, setRange] = useState('90')
+  const [compRange, setCompRange] = useState('90')
   const [weighing, setWeighing] = useState(false)
   const [measuring, setMeasuring] = useState(false)
 
@@ -70,6 +72,7 @@ export default function Body({
   // The chart shows every reading; every number below it uses only the ones
   // the trend was allowed to learn from.
   const from = range === 'all' ? '0000-00-00' : addDays(todayISO(), -Number(range))
+  const compFrom = compRange === 'all' ? '0000-00-00' : addDays(todayISO(), -Number(compRange))
   const shown = weightSeries(weighIns, settings.trendHalfLifeDays).filter((p) => p.date >= from)
 
   const latest = full.at(-1)
@@ -164,6 +167,14 @@ export default function Body({
             corrected by that much, so a day you have not been does not read as a gain.
           </div>
         )}
+      </div>
+
+      <div className="card">
+        <div className="card-head">
+          <h2>Body composition</h2>
+        </div>
+        <Segmented value={compRange} options={RANGES} onChange={setCompRange} />
+        <CompositionCharts weighIns={weighIns} fromDate={compFrom} />
       </div>
 
       <div className="card">

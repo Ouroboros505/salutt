@@ -172,31 +172,32 @@ function change(data) {
     (data.places ??= []).push(
       touch({ id: nextId, ...place, useCount: 0, lastUsed: Date.now(), createdAt: Date.now() })
     );
-    notes.push(`added place ${place.name} (${place.formatted})`);
+    notes.push(`added place ${place.name} (id ${nextId})`);
   }
   const nameToId = /* @__PURE__ */ new Map();
   for (const p of data.places ?? []) if (p.id != null) nameToId.set(p.name.toLowerCase(), p.id);
-  const ROUTE_UPDATES = [
-    { name: "Home \u2192 campus", from: "House", to: "Office", km: 4.18, climbM: 36 },
-    { name: "Campus \u2192 home", from: "Office", to: "House", km: 4.15, climbM: 54 },
-    { name: "Home \u2192 CoRec", from: "House", to: "CoRec", km: 4.93, climbM: 38 },
-    { name: "CoRec \u2192 home", from: "CoRec", to: "House", km: 4.91, climbM: 57 },
-    { name: "Home \u2192 Aldi", from: "House", to: "Aldi", km: 2.71, climbM: 8 },
-    { name: "Aldi \u2192 home", from: "Aldi", to: "House", km: 2.66, climbM: 10 }
+  const LINKS = [
+    { name: "Home \u2192 campus", from: "House", to: "Office" },
+    { name: "Campus \u2192 home", from: "Office", to: "House" },
+    { name: "Home \u2192 CoRec", from: "House", to: "CoRec" },
+    { name: "CoRec \u2192 home", from: "CoRec", to: "House" },
+    { name: "Home \u2192 Aldi", from: "House", to: "Aldi" },
+    { name: "Aldi \u2192 home", from: "Aldi", to: "House" }
   ];
-  for (const u of ROUTE_UPDATES) {
-    const r = (data.routes ?? []).find((x) => x.name === u.name);
+  for (const l of LINKS) {
+    const r = (data.routes ?? []).find((x) => x.name === l.name);
     if (!r) {
-      notes.push(`route "${u.name}" not found \u2014 skipped`);
+      notes.push(`route "${l.name}" not found \u2014 skipped`);
       continue;
     }
-    r.km = u.km;
-    r.climbM = u.climbM;
-    r.fromPlaceId = nameToId.get(u.from.toLowerCase());
-    r.toPlaceId = nameToId.get(u.to.toLowerCase());
+    const f = nameToId.get(l.from.toLowerCase());
+    const t = nameToId.get(l.to.toLowerCase());
+    if (r.fromPlaceId === f && r.toPlaceId === t && r.source === "google") continue;
+    r.fromPlaceId = f;
+    r.toPlaceId = t;
     r.source = "google";
     touch(r);
-    notes.push(`updated "${u.name}" -> ${u.km} km, climb ${u.climbM} m`);
+    notes.push(`re-linked "${l.name}" -> ${l.from}(${f})->${l.to}(${t})`);
   }
   return notes;
 }
