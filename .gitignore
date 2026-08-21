@@ -15,3 +15,6 @@ android/
 twa-manifest.json
 SECRETS.local.md
 scripts/.peek.mjs
+
+# Google Cloud service-account key for the usage reader (Monitoring Viewer only)
+gcp-usage-sa.json
