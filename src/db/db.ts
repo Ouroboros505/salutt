@@ -407,6 +407,38 @@ export interface Route {
    * scales with the mass being moved.
    */
   loadKg?: number
+  /** The saved place this ride starts from, when planned from the map. */
+  fromPlaceId?: number
+  /** The saved place this ride goes to. */
+  toPlaceId?: number
+  /** Where the distance came from: typed by hand, or measured by Google Maps. */
+  source?: 'manual' | 'google'
+  /** Google's encoded overview polyline, kept so the line can be redrawn or
+   *  re-measured for climb without spending another routing call. */
+  polyline?: string
+  useCount: number
+  lastUsed: number
+  createdAt: number
+}
+
+/**
+ * A named address you travel to or from — home, the CoRec, the office.
+ *
+ * Kept so a route can be planned once from real coordinates and then reused by
+ * name forever. The address is geocoded to a point the first time it is saved;
+ * from then on the lat/lng is what routing uses, so a route to "Office" never
+ * has to be looked up again.
+ */
+export interface Place {
+  id?: number
+  /** What you call it: "House", "Campus", "CoRec", "Restaurant Nine". */
+  name: string
+  /** The address as typed, kept so it can be re-geocoded or edited later. */
+  address: string
+  /** As Google returned it — the canonical form, for confidence it matched. */
+  formatted?: string
+  lat: number
+  lng: number
   useCount: number
   lastUsed: number
   createdAt: number
@@ -422,6 +454,7 @@ export const SYNCED_TABLES = [
   'mealTemplates',
   'recipes',
   'routes',
+  'places',
   'plannedMeals',
 ] as const
 
@@ -445,6 +478,7 @@ class SaluttDB extends Dexie {
   mealTemplates!: Table<MealTemplate, number>
   recipes!: Table<Recipe, number>
   routes!: Table<Route, number>
+  places!: Table<Place, number>
   plannedMeals!: Table<PlannedMeal, number>
   settings!: Table<Settings, string>
   tombstones!: Table<Tombstone, number>
@@ -491,6 +525,9 @@ class SaluttDB extends Dexie {
 
     // Meals weighed ahead of being eaten.
     this.version(5).stores({ plannedMeals: '++id, date, [date+meal]' })
+
+    // Named addresses, so a route can be planned once and reused by name.
+    this.version(6).stores({ places: '++id, name, lastUsed' })
 
     // Stamp every write, so no call site has to remember to. Dexie types the
     // three hooks as separate overloads, which a loop cannot satisfy.

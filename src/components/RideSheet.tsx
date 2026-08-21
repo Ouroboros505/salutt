@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type ISODate, type Route } from '../db/db'
 import {
@@ -11,6 +11,8 @@ import {
 } from '../lib/ride'
 import { Field, Icon, NumberInput, Sheet } from './ui'
 import { setLiveRide, clearLiveRide } from '../lib/liveRide'
+import RoutePlannerSheet from './RoutePlannerSheet'
+import { mapsUsage, type MapsUsage } from '../lib/maps'
 
 /**
  * Logging one trip.
@@ -64,6 +66,20 @@ export default function RideSheet({
   // once on a map is worth keeping forever.
   const routes = useLiveQuery(() => db.routes.orderBy('lastUsed').reverse().toArray(), []) ?? []
   const [routeId, setRouteId] = useState<number | null>(initial?.routeId ?? null)
+  // The route-planning setup and its cost meter live at the very bottom, out
+  // of the daily path. Usage is fetched once and quietly; failing (no sync yet)
+  // just hides the line.
+  const [planning, setPlanning] = useState(false)
+  const [usage, setUsage] = useState<MapsUsage | null>(null)
+  useEffect(() => {
+    let live = true
+    mapsUsage()
+      .then((u) => live && setUsage(u))
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [])
 
   const pick = (r: Route) => {
     setPlace(r.name)
@@ -284,6 +300,20 @@ export default function RideSheet({
           <Icon.play /> Start &amp; time it — finish when you arrive
         </button>
       )}
+
+      {/* Setup, not daily use: planning a brand-new journey with the map, kept
+          at the bottom so picking a saved route above stays the fast path. */}
+      <div style={{ borderTop: '1px solid var(--border)', margin: '16px 0 4px' }} />
+      <button className="btn ghost block muted" onClick={() => setPlanning(true)}>
+        <Icon.plus /> Plan a new route
+      </button>
+      {usage && (
+        <div className="tiny muted num" style={{ textAlign: 'center', marginTop: 6 }}>
+          Google usage: {usage.calls} call{usage.calls === 1 ? '' : 's'} · ~${usage.estUsd.toFixed(2)}
+        </div>
+      )}
+
+      {planning && <RoutePlannerSheet onClose={() => setPlanning(false)} toast={toast} />}
     </Sheet>
   )
 }
