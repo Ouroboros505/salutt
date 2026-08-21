@@ -15,7 +15,7 @@ export function useWidth<T extends HTMLElement>() {
   return [ref, w] as const
 }
 
-function niceTicks(min: number, max: number, count = 4): number[] {
+export function niceTicks(min: number, max: number, count = 4): number[] {
   if (!isFinite(min) || !isFinite(max) || min === max) return [min]
   const raw = (max - min) / count
   const mag = Math.pow(10, Math.floor(Math.log10(raw)))
