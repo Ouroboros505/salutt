@@ -67,49 +67,31 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Re-seed the four everyday places after an old-app sync wiped them (the old
-  // version had no places table, so its backup pushed them away). Guarded by
-  // name, so this is a no-op once they exist. Deb's house, added on the phone,
-  // is left alone. Coordinates from Google's geocoder.
-  const PLACES = [
-    { name: 'House',  address: '100 Main St, Lafayette, IN 47901',                             formatted: '100 Main St, Lafayette, IN 47901, USA',       lat: 40.416700,  lng: -86.875300 },
-    { name: 'CoRec',  address: 'France A. Cordova Recreational Sports Center, West Lafayette, IN', formatted: '355 N Martin Jischke Dr, West Lafayette, IN 47906, USA', lat: 40.4282417, lng: -86.9223556 },
-    { name: 'Office', address: 'Lilly Hall of Life Sciences, West Lafayette, IN',                  formatted: '915 Mitch Daniels Blvd, West Lafayette, IN 47907, USA',  lat: 40.423476,  lng: -86.9180072 },
-    { name: 'Aldi',   address: 'Aldi, 957 Sagamore Pkwy S, Lafayette, IN 47905',                   formatted: '957 Sagamore Pkwy S, Lafayette, IN 47905, USA', lat: 40.406048,  lng: -86.856639 },
-  ]
-  for (const place of PLACES) {
-    if ((data.places ?? []).some((p) => p.name.toLowerCase() === place.name.toLowerCase())) continue
-    const nextId = Math.max(0, ...(data.places ?? []).map((p) => p.id ?? 0)) + 1
-    ;(data.places ??= []).push(
-      touch({ id: nextId, ...place, useCount: 0, lastUsed: Date.now(), createdAt: Date.now() }),
+  // Boiled plantain, per 100 g (USDA, cooked/boiled). Logged by weight — Alex
+  // weighs each piece on the scale, so it defaults to grams with no household
+  // portions to second-guess the size.
+  if (!(data.foods ?? []).some((f) => /^plantain, boiled/i.test(f.name))) {
+    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
+    ;(data.foods ??= []).push(
+      touch({
+        id: nextId,
+        name: 'Plantain, boiled',
+        kcal: 120,
+        protein: 1.3,
+        carbs: 32,
+        fat: 0.2,
+        fiber: 2.3,
+        portions: [],
+        defaultPortion: -1,
+        liquid: false,
+        source: 'manual',
+        favorite: false,
+        useCount: 0,
+        lastUsed: 0,
+        createdAt: Date.now(),
+      }),
     )
-    notes.push(`added place ${place.name} (id ${nextId})`)
-  }
-
-  // Re-link the six routes to the correct place ids (the old ones were wiped
-  // with the places). Only the two id fields and the source tag are touched;
-  // distance, climb, minutes and load are left exactly as they are.
-  const nameToId = new Map<string, number>()
-  for (const p of data.places ?? []) if (p.id != null) nameToId.set(p.name.toLowerCase(), p.id)
-  const LINKS = [
-    { name: 'Home → campus', from: 'House',  to: 'Office' },
-    { name: 'Campus → home', from: 'Office', to: 'House' },
-    { name: 'Home → CoRec',  from: 'House',  to: 'CoRec' },
-    { name: 'CoRec → home',  from: 'CoRec',  to: 'House' },
-    { name: 'Home → Aldi',   from: 'House',  to: 'Aldi' },
-    { name: 'Aldi → home',   from: 'Aldi',   to: 'House' },
-  ]
-  for (const l of LINKS) {
-    const r = (data.routes ?? []).find((x) => x.name === l.name)
-    if (!r) { notes.push(`route "${l.name}" not found — skipped`); continue }
-    const f = nameToId.get(l.from.toLowerCase())
-    const t = nameToId.get(l.to.toLowerCase())
-    if (r.fromPlaceId === f && r.toPlaceId === t && r.source === 'google') continue
-    r.fromPlaceId = f
-    r.toPlaceId = t
-    r.source = 'google'
-    touch(r)
-    notes.push(`re-linked "${l.name}" -> ${l.from}(${f})->${l.to}(${t})`)
+    notes.push('added Plantain, boiled (per 100 g: 120 kcal, 1.3 P, 32 C, 0.2 F, 2.3 fibre)')
   }
 
   return notes
