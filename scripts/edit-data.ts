@@ -67,21 +67,33 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Correct boiled plantain to the exact USDA SR Legacy figures
-  // (#168216 "Plantains, green, boiled", per 100 g). Logged by weight.
-  const pl = (data.foods ?? []).find((f) => /^plantain, boiled/i.test(f.name))
-  if (pl) {
-    pl.kcal = 121
-    pl.protein = 1.1
-    pl.carbs = 29.2
-    pl.fat = 0.1
-    pl.fiber = 2.6
-    pl.source = 'usda'
-    pl.sourceId = '168216'
-    touch(pl)
-    notes.push('corrected Plantain, boiled to USDA #168216 (121 kcal, 1.1 P, 29.2 C, 0.1 F, 2.6 fibre)')
-  } else {
-    notes.push('plantain not found — nothing changed')
+  // Little Yellows (The Little Potato Co.), from the package label. Label
+  // serving is 110 g (4-5 potatoes) = 80 kcal; stored per 100 g. These are the
+  // raw/package numbers — weigh raw (or boiled, which is near-identical per
+  // gram); roasting concentrates them, so weigh those before cooking.
+  if (!(data.foods ?? []).some((f) => /little yellow/i.test(f.name))) {
+    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
+    ;(data.foods ??= []).push(
+      touch({
+        id: nextId,
+        name: 'Potato, little yellow',
+        brand: 'The Little Potato Co.',
+        kcal: 73,          // 80 / 110 g * 100
+        protein: 1.8,
+        carbs: 14.5,
+        fat: 0,
+        fiber: 1.8,
+        portions: [{ label: 'serving, 4-5 potatoes (110 g)', grams: 110 }],
+        defaultPortion: -1,   // grams by default — Alex weighs them
+        liquid: false,
+        source: 'manual',
+        favorite: false,
+        useCount: 0,
+        lastUsed: 0,
+        createdAt: Date.now(),
+      }),
+    )
+    notes.push('added Potato, little yellow (The Little Potato Co.) — per 100 g: 73 kcal, 1.8 P, 14.5 C, 0 F, 1.8 fibre')
   }
 
   return notes
