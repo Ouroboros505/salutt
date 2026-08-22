@@ -67,31 +67,21 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Boiled plantain, per 100 g (USDA, cooked/boiled). Logged by weight — Alex
-  // weighs each piece on the scale, so it defaults to grams with no household
-  // portions to second-guess the size.
-  if (!(data.foods ?? []).some((f) => /^plantain, boiled/i.test(f.name))) {
-    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
-    ;(data.foods ??= []).push(
-      touch({
-        id: nextId,
-        name: 'Plantain, boiled',
-        kcal: 120,
-        protein: 1.3,
-        carbs: 32,
-        fat: 0.2,
-        fiber: 2.3,
-        portions: [],
-        defaultPortion: -1,
-        liquid: false,
-        source: 'manual',
-        favorite: false,
-        useCount: 0,
-        lastUsed: 0,
-        createdAt: Date.now(),
-      }),
-    )
-    notes.push('added Plantain, boiled (per 100 g: 120 kcal, 1.3 P, 32 C, 0.2 F, 2.3 fibre)')
+  // Correct boiled plantain to the exact USDA SR Legacy figures
+  // (#168216 "Plantains, green, boiled", per 100 g). Logged by weight.
+  const pl = (data.foods ?? []).find((f) => /^plantain, boiled/i.test(f.name))
+  if (pl) {
+    pl.kcal = 121
+    pl.protein = 1.1
+    pl.carbs = 29.2
+    pl.fat = 0.1
+    pl.fiber = 2.6
+    pl.source = 'usda'
+    pl.sourceId = '168216'
+    touch(pl)
+    notes.push('corrected Plantain, boiled to USDA #168216 (121 kcal, 1.1 P, 29.2 C, 0.1 F, 2.6 fibre)')
+  } else {
+    notes.push('plantain not found — nothing changed')
   }
 
   return notes
