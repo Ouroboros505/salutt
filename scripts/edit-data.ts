@@ -67,24 +67,24 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Little Yellows (The Little Potato Co.), from the package label. Label
-  // serving is 110 g (4-5 potatoes) = 80 kcal; stored per 100 g. These are the
-  // raw/package numbers — weigh raw (or boiled, which is near-identical per
-  // gram); roasting concentrates them, so weigh those before cooking.
-  if (!(data.foods ?? []).some((f) => /little yellow/i.test(f.name))) {
+  // Applewood bacon-wrapped top sirloin (Aldi), from the package label. Serving
+  // = 1 filet (142 g) = 310 kcal; stored per 100 g. Enhanced/injected product
+  // (up to 20% added water) with a bacon wrap, so it is fatty (64% of kcal from
+  // fat) and salty (630 mg sodium/filet) — a treat, not a lean meal-prep base.
+  if (!(data.foods ?? []).some((f) => /bacon.wrapped top sirloin/i.test(f.name))) {
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
     ;(data.foods ??= []).push(
       touch({
         id: nextId,
-        name: 'Potato, little yellow',
-        brand: 'The Little Potato Co.',
-        kcal: 73,          // 80 / 110 g * 100
-        protein: 1.8,
-        carbs: 14.5,
-        fat: 0,
-        fiber: 1.8,
-        portions: [{ label: 'serving, 4-5 potatoes (110 g)', grams: 110 }],
-        defaultPortion: -1,   // grams by default — Alex weighs them
+        name: 'Bacon-wrapped top sirloin',
+        brand: 'Aldi',
+        kcal: 218,       // 310 / 142 g * 100
+        protein: 16.9,
+        carbs: 2.1,
+        fat: 15.5,
+        fiber: 0,
+        portions: [{ label: '1 filet (142 g)', grams: 142 }],
+        defaultPortion: -1,   // grams by default — weighed
         liquid: false,
         source: 'manual',
         favorite: false,
@@ -93,7 +93,7 @@ function change(data: Data): string[] {
         createdAt: Date.now(),
       }),
     )
-    notes.push('added Potato, little yellow (The Little Potato Co.) — per 100 g: 73 kcal, 1.8 P, 14.5 C, 0 F, 1.8 fibre')
+    notes.push('added Bacon-wrapped top sirloin (Aldi) — per 100 g: 218 kcal, 16.9 P, 2.1 C, 15.5 F')
   }
 
   return notes
