@@ -67,24 +67,37 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Correct the Aldi chicken strips to the real label: 3 oz (85 g) = 110 kcal,
-  // 19 g protein, 2.5 g fat, 2 g carb, 750 mg sodium. The earlier row guessed
-  // the protein high from a typical product; this is the panel.
-  const c = (data.foods ?? []).find((f) => /seasoned chicken breast strips/i.test(f.name))
-  if (c) {
-    c.kcal = 129      // 110 / 85 g * 100
-    c.protein = 22.4  // 19 / 85 * 100
-    c.carbs = 2.4
-    c.fat = 2.9
-    c.fiber = 0
-    c.portions = [
-      { label: '3 oz serving (85 g)', grams: 85 },
-      { label: 'whole pack (454 g)', grams: 454 },
-    ]
-    touch(c)
-    notes.push('corrected Seasoned chicken breast strips to label: per 100 g 129 kcal, 22.4 P, 2.4 C, 2.9 F')
-  } else {
-    notes.push('chicken strips not found — nothing changed')
+  // Season's Choice riced cauliflower, garlic & herbs (Aldi, frozen). Label:
+  // 3/4 cup (85 g) = 20 kcal, 0 fat, 4 g carb, 2 g fibre, 2 g protein,
+  // 20 mg sodium. Near-free calories and very filling — a good rice substitute.
+  // Contains garlic, and cauliflower is high in mannitol; both are open
+  // questions for his gut, so it is one to eat outside a test window.
+  if (!(data.foods ?? []).some((f) => /riced cauliflower/i.test(f.name))) {
+    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
+    ;(data.foods ??= []).push(
+      touch({
+        id: nextId,
+        name: 'Riced cauliflower, garlic & herbs',
+        brand: "Season's Choice (Aldi)",
+        kcal: 24,        // 20 / 85 g * 100
+        protein: 2.4,
+        carbs: 4.7,
+        fat: 0,
+        fiber: 2.4,
+        portions: [
+          { label: '3/4 cup (85 g)', grams: 85 },
+          { label: 'whole bag (340 g)', grams: 340 },
+        ],
+        defaultPortion: -1,
+        liquid: false,
+        source: 'manual',
+        favorite: false,
+        useCount: 0,
+        lastUsed: 0,
+        createdAt: Date.now(),
+      }),
+    )
+    notes.push('added Riced cauliflower, garlic & herbs (Aldi) — per 100 g: 24 kcal, 2.4 P, 4.7 C, 0 F, 2.4 fibre')
   }
 
   return notes
