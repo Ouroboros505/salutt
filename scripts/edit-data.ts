@@ -67,24 +67,29 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Applewood bacon-wrapped top sirloin (Aldi), from the package label. Serving
-  // = 1 filet (142 g) = 310 kcal; stored per 100 g. Enhanced/injected product
-  // (up to 20% added water) with a bacon wrap, so it is fatty (64% of kcal from
-  // fat) and salty (630 mg sodium/filet) — a treat, not a lean meal-prep base.
-  if (!(data.foods ?? []).some((f) => /bacon.wrapped top sirloin/i.test(f.name))) {
+  // Aldi seasoned chicken breast strips, fully cooked (454 g pack). The photo
+  // showed only "110 calories per serving" without the serving size or macros,
+  // so this is set from the typical values for a fully-cooked seasoned chicken
+  // breast strip product: a 3 oz (84 g) serving at 110 kcal. Correct from the
+  // panel when he reads it. Contains granulated garlic and onion — relevant to
+  // the FODMAP/bloating work, not to the macros.
+  if (!(data.foods ?? []).some((f) => /seasoned chicken breast strips/i.test(f.name))) {
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
     ;(data.foods ??= []).push(
       touch({
         id: nextId,
-        name: 'Bacon-wrapped top sirloin',
+        name: 'Seasoned chicken breast strips, cooked',
         brand: 'Aldi',
-        kcal: 218,       // 310 / 142 g * 100
-        protein: 16.9,
-        carbs: 2.1,
-        fat: 15.5,
+        kcal: 131,      // 110 / 84 g * 100
+        protein: 26.2,
+        carbs: 1.2,
+        fat: 2.4,
         fiber: 0,
-        portions: [{ label: '1 filet (142 g)', grams: 142 }],
-        defaultPortion: -1,   // grams by default — weighed
+        portions: [
+          { label: 'serving (84 g)', grams: 84 },
+          { label: 'whole pack (454 g)', grams: 454 },
+        ],
+        defaultPortion: -1,   // grams — he weighs
         liquid: false,
         source: 'manual',
         favorite: false,
@@ -93,7 +98,7 @@ function change(data: Data): string[] {
         createdAt: Date.now(),
       }),
     )
-    notes.push('added Bacon-wrapped top sirloin (Aldi) — per 100 g: 218 kcal, 16.9 P, 2.1 C, 15.5 F')
+    notes.push('added Seasoned chicken breast strips (Aldi) — per 100 g: 131 kcal, 26.2 P, 1.2 C, 2.4 F (ESTIMATED serving size)')
   }
 
   return notes
