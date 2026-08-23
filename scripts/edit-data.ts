@@ -67,38 +67,24 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Aldi seasoned chicken breast strips, fully cooked (454 g pack). The photo
-  // showed only "110 calories per serving" without the serving size or macros,
-  // so this is set from the typical values for a fully-cooked seasoned chicken
-  // breast strip product: a 3 oz (84 g) serving at 110 kcal. Correct from the
-  // panel when he reads it. Contains granulated garlic and onion — relevant to
-  // the FODMAP/bloating work, not to the macros.
-  if (!(data.foods ?? []).some((f) => /seasoned chicken breast strips/i.test(f.name))) {
-    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
-    ;(data.foods ??= []).push(
-      touch({
-        id: nextId,
-        name: 'Seasoned chicken breast strips, cooked',
-        brand: 'Aldi',
-        kcal: 131,      // 110 / 84 g * 100
-        protein: 26.2,
-        carbs: 1.2,
-        fat: 2.4,
-        fiber: 0,
-        portions: [
-          { label: 'serving (84 g)', grams: 84 },
-          { label: 'whole pack (454 g)', grams: 454 },
-        ],
-        defaultPortion: -1,   // grams — he weighs
-        liquid: false,
-        source: 'manual',
-        favorite: false,
-        useCount: 0,
-        lastUsed: 0,
-        createdAt: Date.now(),
-      }),
-    )
-    notes.push('added Seasoned chicken breast strips (Aldi) — per 100 g: 131 kcal, 26.2 P, 1.2 C, 2.4 F (ESTIMATED serving size)')
+  // Correct the Aldi chicken strips to the real label: 3 oz (85 g) = 110 kcal,
+  // 19 g protein, 2.5 g fat, 2 g carb, 750 mg sodium. The earlier row guessed
+  // the protein high from a typical product; this is the panel.
+  const c = (data.foods ?? []).find((f) => /seasoned chicken breast strips/i.test(f.name))
+  if (c) {
+    c.kcal = 129      // 110 / 85 g * 100
+    c.protein = 22.4  // 19 / 85 * 100
+    c.carbs = 2.4
+    c.fat = 2.9
+    c.fiber = 0
+    c.portions = [
+      { label: '3 oz serving (85 g)', grams: 85 },
+      { label: 'whole pack (454 g)', grams: 454 },
+    ]
+    touch(c)
+    notes.push('corrected Seasoned chicken breast strips to label: per 100 g 129 kcal, 22.4 P, 2.4 C, 2.9 F')
+  } else {
+    notes.push('chicken strips not found — nothing changed')
   }
 
   return notes
