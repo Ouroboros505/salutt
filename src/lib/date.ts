@@ -46,3 +46,19 @@ export function formatDay(s: ISODate): string {
 export function formatShort(s: ISODate): string {
   return fromISODate(s).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
 }
+
+/**
+ * The Monday that begins the week a date falls in.
+ *
+ * A rolling seven days and a week are different questions. "Sessions this
+ * week" asked on a Monday morning should be about the week that just began,
+ * not about the seven days ending today — which still hold most of last week
+ * and make a fresh week open with four sessions already on it.
+ */
+export function startOfWeek(s: ISODate): ISODate {
+  const d = fromISODate(s)
+  // getDay() is 0 on Sunday, which belongs to the week that started six days
+  // earlier rather than the one about to start.
+  const back = (d.getDay() + 6) % 7
+  return addDays(s, -back)
+}

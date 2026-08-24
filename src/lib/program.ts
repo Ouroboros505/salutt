@@ -605,9 +605,20 @@ const RENAMED: Record<string, string> = {
   'Overhead Triceps Extension': 'Overhead Triceps Extension (cable)',
 }
 
+/**
+ * The name an exercise goes by now, given any name it has ever gone by.
+ *
+ * Anything matching history against the current plan has to go through this,
+ * or a rename quietly loses the record: last week's sets were written under
+ * the old name, this week's plan asks under the new one, and the weight you
+ * lifted seven days ago stops being offered exactly when you want it.
+ */
+export function canonicalName(name: string): string {
+  return RENAMED[name] ?? name
+}
+
 export function byName(name: string): Exercise | undefined {
-  const current = RENAMED[name] ?? name
-  return CATALOGUE.find((e) => e.name === current)
+  return CATALOGUE.find((e) => e.name === canonicalName(name))
 }
 
 /**

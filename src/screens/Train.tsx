@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type ISODate, type SetEntry, type Settings, type Workout } from '../db/db'
-import { formatDay, todayISO } from '../lib/date'
+import { formatDay, todayISO, startOfWeek } from '../lib/date'
 import { Field, Icon, NumberInput, Segmented, Sheet } from '../components/ui'
 import RideSheet from '../components/RideSheet'
 import { getLiveRide, clearLiveRide, liveMinutes, type LiveRide } from '../lib/liveRide'
@@ -64,7 +64,12 @@ export default function Train({
   // history underneath makes it hard to see whether today has happened.
   const today = workouts.filter((w) => w.date === date)
 
-  const recent = workouts.filter((w) => w.date > shiftDays(todayISO(), -7))
+  // The week the day being looked at belongs to, Monday to Sunday. A rolling
+  // seven days answers a different question, and answers it confusingly on a
+  // Monday: a week that has just begun would open carrying most of the last.
+  const weekStart = startOfWeek(date)
+  const weekEnd = shiftDays(weekStart, 6)
+  const recent = workouts.filter((w) => w.date >= weekStart && w.date <= weekEnd)
   const thisWeek = recent.filter((w) => w.kind !== 'ride').length
   const rides = recent.filter((w) => w.kind === 'ride')
   // A plan is not a record: nothing exists until it is logged. A draft sits
@@ -74,9 +79,10 @@ export default function Train({
   const rideMin = rides.reduce((t, w) => t + (w.durationMin ?? 0), 0)
   const rideKm = rides.reduce((t, w) => t + (w.distanceKm ?? 0), 0)
   const unit = settings.liftUnit ?? 'lb'
-  const volume = workouts
-    .filter((w) => w.date > shiftDays(todayISO(), -7))
-    .reduce((t, w) => t + w.sets.reduce((s, x) => s + x.reps * x.weightKg, 0), 0)
+  const volume = recent.reduce(
+    (t, w) => t + w.sets.reduce((s, x) => s + x.reps * x.weightKg, 0),
+    0,
+  )
 
   const blockWeeks = settings.programWeeks ?? 8
   const week = programWeek(settings.programStartDate, todayISO())
@@ -151,7 +157,7 @@ export default function Train({
       <div className="card">
         <div className="row between">
           <div>
-            <div className="stat-label">Last 7 days</div>
+            <div className="stat-label">This week</div>
             <div className="hero num">
               {thisWeek} <span className="hero-unit">session{thisWeek === 1 ? '' : 's'}</span>
             </div>

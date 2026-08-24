@@ -24,6 +24,7 @@ import {
   totalLoadKg,
   type Exercise,
   type MuscleGroup,
+  canonicalName,
 } from '../lib/program'
 import { Icon, Meter, NumberInput, Sheet } from './ui'
 import { formatShort } from '../lib/date'
@@ -241,8 +242,11 @@ export default function SessionSheet({
     // first time the exercise was ever done.
     for (const w of [...(history ?? [])].reverse()) {
       for (const s of w.sets) {
-        const entry = out.get(s.exercise)
-        if (!entry) out.set(s.exercise, { date: w.date, sets: [{ reps: s.reps, weightKg: s.weightKg, band: s.band }] })
+        // Keyed by the current name, so a session logged before an exercise
+        // was renamed still answers when this week's plan asks for it.
+        const key = canonicalName(s.exercise)
+        const entry = out.get(key)
+        if (!entry) out.set(key, { date: w.date, sets: [{ reps: s.reps, weightKg: s.weightKg, band: s.band }] })
         // Only the one session, not every session it has ever appeared in.
         else if (entry.date === w.date) entry.sets.push({ reps: s.reps, weightKg: s.weightKg, band: s.band })
       }
@@ -378,7 +382,16 @@ export default function SessionSheet({
     )
   }
 
-  const clock = (ms: number) => {
+  /**
+ * A single lift's weight, keeping the half a plate makes.
+ *
+ * Rounding to whole numbers turned 12.5 lb into 13 and 17.5 into 18, which is
+ * not the weight on the machine — and the half is exactly the increment the
+ * stack moves in, so it is the part worth reading.
+ */
+const fmtWeight = (n: number): string => (Number.isInteger(n) ? String(n) : n.toFixed(1))
+
+const clock = (ms: number) => {
     const t = Math.max(0, Math.round(ms / 1000))
     return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`
   }
@@ -476,7 +489,7 @@ export default function SessionSheet({
                     {ex && usesBand(ex) ? ' · pick the band level' : ex?.load && !ex.byMinutes && takesLoad(ex) ? ` · weight = ${ex.load.label}` : ''}
                   </div>
                   {(() => {
-                    const prev = lastTime.get(i.name)
+                    const prev = lastTime.get(canonicalName(i.name))
                     if (!prev || prev.sets.length === 0 || i.minutes != null) return null
                     return (
                       <div className="tiny num" style={{ color: 'var(--text-muted)', opacity: 0.75 }}>
@@ -486,7 +499,7 @@ export default function SessionSheet({
                             s2.band != null
                               ? `${BAND_LEVELS[s2.band]?.label ?? '?'} band`
                               : s2.weightKg
-                                ? `${s2.reps}×${Math.round(toDisplayWeight(s2.weightKg, unit) ?? 0)}`
+                                ? `${s2.reps}×${fmtWeight(toDisplayWeight(s2.weightKg, unit) ?? 0)}`
                                 : `${s2.reps}`,
                           )
                           .join(' · ')}
@@ -721,7 +734,7 @@ export default function SessionSheet({
                       )}
                       <span className="tiny muted grow num truncate">
                         {set.weightKg && ex?.load && (ex.load.factor > 1 || ex.load.barKg)
-                          ? `= ${Math.round(toDisplayWeight(totalLoadKg(set.weightKg, ex.load), unit) ?? 0)} ${unit}${
+                          ? `= ${fmtWeight(toDisplayWeight(totalLoadKg(set.weightKg, ex.load), unit) ?? 0)} ${unit}${
                               ex.load.barKg ? ' with the bar' : ' total'
                             }`
                           : ''}
