@@ -67,37 +67,16 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Season's Choice riced cauliflower, garlic & herbs (Aldi, frozen). Label:
-  // 3/4 cup (85 g) = 20 kcal, 0 fat, 4 g carb, 2 g fibre, 2 g protein,
-  // 20 mg sodium. Near-free calories and very filling — a good rice substitute.
-  // Contains garlic, and cauliflower is high in mannitol; both are open
-  // questions for his gut, so it is one to eat outside a test window.
-  if (!(data.foods ?? []).some((f) => /riced cauliflower/i.test(f.name))) {
-    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
-    ;(data.foods ??= []).push(
-      touch({
-        id: nextId,
-        name: 'Riced cauliflower, garlic & herbs',
-        brand: "Season's Choice (Aldi)",
-        kcal: 24,        // 20 / 85 g * 100
-        protein: 2.4,
-        carbs: 4.7,
-        fat: 0,
-        fiber: 2.4,
-        portions: [
-          { label: '3/4 cup (85 g)', grams: 85 },
-          { label: 'whole bag (340 g)', grams: 340 },
-        ],
-        defaultPortion: -1,
-        liquid: false,
-        source: 'manual',
-        favorite: false,
-        useCount: 0,
-        lastUsed: 0,
-        createdAt: Date.now(),
-      }),
-    )
-    notes.push('added Riced cauliflower, garlic & herbs (Aldi) — per 100 g: 24 kcal, 2.4 P, 4.7 C, 0 F, 2.4 fibre')
+  // Re-weighed on 2026-08-24 and the scale read 68.45; correct the morning's
+  // reading. Only the weight changes — the composition fields came from the
+  // same scale session and are left as they are.
+  const w = (data.weighIns ?? []).find((x) => x.date === '2026-08-24')
+  if (w) {
+    notes.push(`corrected 2026-08-24 weight ${w.kg} -> 68.45 kg`)
+    w.kg = 68.45
+    touch(w)
+  } else {
+    notes.push('no 2026-08-24 weigh-in found — nothing changed')
   }
 
   return notes
