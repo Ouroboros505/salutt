@@ -67,16 +67,24 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Re-weighed on 2026-08-24 and the scale read 68.45; correct the morning's
-  // reading. Only the weight changes — the composition fields came from the
-  // same scale session and are left as they are.
-  const w = (data.weighIns ?? []).find((x) => x.date === '2026-08-24')
-  if (w) {
-    notes.push(`corrected 2026-08-24 weight ${w.kg} -> 68.45 kg`)
-    w.kg = 68.45
-    touch(w)
+  // He went again after weighing, so the morning's reading was not the empty
+  // one after all. Remove it so he can re-weigh; a tombstone goes with it, or
+  // the next sync from the phone would restore the row.
+  const i = (data.weighIns ?? []).findIndex((x) => x.date === '2026-08-24')
+  if (i >= 0) {
+    const [row] = data.weighIns.splice(i, 1)
+    if (row.id != null) {
+      const nextId = Math.max(0, ...(data.tombstones ?? []).map((t) => t.id ?? 0)) + 1
+      ;(data.tombstones ??= []).push({
+        id: nextId,
+        table: 'weighIns',
+        key: row.id,
+        at: Date.now(),
+      })
+    }
+    notes.push(`deleted 2026-08-24 weigh-in (${row.kg} kg) + tombstone — re-weigh when ready`)
   } else {
-    notes.push('no 2026-08-24 weigh-in found — nothing changed')
+    notes.push('no 2026-08-24 weigh-in found — nothing to delete')
   }
 
   return notes
