@@ -135,8 +135,10 @@ export function TrendChart({
   let lo = Math.min(...values)
   let hi = Math.max(...values)
   const span = hi - lo || 1
-  lo -= span * 0.12
-  hi += span * 0.12
+  // Enough room that the highest and lowest readings sit inside the plot with
+  // their marks clear of the axis, rather than half-buried in it.
+  lo -= span * 0.2
+  hi += span * 0.16
 
   // A goal far below current weight would flatten the data into a sliver at the
   // top of the plot, so it only joins the scale once it is within reach. Out of

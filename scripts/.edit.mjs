@@ -160,44 +160,21 @@ function touch(row) {
 var summarise = (data) => Object.entries(data).filter(([, rows]) => Array.isArray(rows) && rows.length).map(([t, rows]) => `${t}=${rows.length}`).join(" ");
 function change(data) {
   const notes = [];
-  const PLACES = [
-    { name: "House", address: "100 Main St, Lafayette, IN 47901", formatted: "100 Main St, Lafayette, IN 47901, USA", lat: 40.416700, lng: -86.875300 },
-    { name: "CoRec", address: "France A. Cordova Recreational Sports Center, West Lafayette, IN", formatted: "355 N Martin Jischke Dr, West Lafayette, IN 47906, USA", lat: 40.4282417, lng: -86.9223556 },
-    { name: "Office", address: "Lilly Hall of Life Sciences, West Lafayette, IN", formatted: "915 Mitch Daniels Blvd, West Lafayette, IN 47907, USA", lat: 40.423476, lng: -86.9180072 },
-    { name: "Aldi", address: "Aldi, 957 Sagamore Pkwy S, Lafayette, IN 47905", formatted: "957 Sagamore Pkwy S, Lafayette, IN 47905, USA", lat: 40.406048, lng: -86.856639 }
-  ];
-  for (const place of PLACES) {
-    if ((data.places ?? []).some((p) => p.name.toLowerCase() === place.name.toLowerCase())) continue;
-    const nextId = Math.max(0, ...(data.places ?? []).map((p) => p.id ?? 0)) + 1;
-    (data.places ??= []).push(
-      touch({ id: nextId, ...place, useCount: 0, lastUsed: Date.now(), createdAt: Date.now() })
-    );
-    notes.push(`added place ${place.name} (id ${nextId})`);
-  }
-  const nameToId = /* @__PURE__ */ new Map();
-  for (const p of data.places ?? []) if (p.id != null) nameToId.set(p.name.toLowerCase(), p.id);
-  const LINKS = [
-    { name: "Home \u2192 campus", from: "House", to: "Office" },
-    { name: "Campus \u2192 home", from: "Office", to: "House" },
-    { name: "Home \u2192 CoRec", from: "House", to: "CoRec" },
-    { name: "CoRec \u2192 home", from: "CoRec", to: "House" },
-    { name: "Home \u2192 Aldi", from: "House", to: "Aldi" },
-    { name: "Aldi \u2192 home", from: "Aldi", to: "House" }
-  ];
-  for (const l of LINKS) {
-    const r = (data.routes ?? []).find((x) => x.name === l.name);
-    if (!r) {
-      notes.push(`route "${l.name}" not found \u2014 skipped`);
-      continue;
+  const i = (data.weighIns ?? []).findIndex((x) => x.date === "2026-08-24");
+  if (i >= 0) {
+    const [row] = data.weighIns.splice(i, 1);
+    if (row.id != null) {
+      const nextId = Math.max(0, ...(data.tombstones ?? []).map((t) => t.id ?? 0)) + 1;
+      (data.tombstones ??= []).push({
+        id: nextId,
+        table: "weighIns",
+        key: row.id,
+        at: Date.now()
+      });
     }
-    const f = nameToId.get(l.from.toLowerCase());
-    const t = nameToId.get(l.to.toLowerCase());
-    if (r.fromPlaceId === f && r.toPlaceId === t && r.source === "google") continue;
-    r.fromPlaceId = f;
-    r.toPlaceId = t;
-    r.source = "google";
-    touch(r);
-    notes.push(`re-linked "${l.name}" -> ${l.from}(${f})->${l.to}(${t})`);
+    notes.push(`deleted 2026-08-24 weigh-in (${row.kg} kg) + tombstone \u2014 re-weigh when ready`);
+  } else {
+    notes.push("no 2026-08-24 weigh-in found \u2014 nothing to delete");
   }
   return notes;
 }

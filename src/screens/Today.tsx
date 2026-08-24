@@ -217,7 +217,16 @@ export default function Today({
             <span className="stat-label">Since you started, {progress.days} days ago</span>
             <span
               className="stat-value num"
-              style={{ color: progress.changeKg <= 0 ? 'var(--success-text)' : 'var(--serious)' }}
+              /* Under a fortnight the figure is mostly water, and the card
+                 says so underneath — so it is shown plainly rather than in
+                 the colour reserved for a real gain. */
+              style={{
+                color: !progress.settled
+                  ? 'var(--text-secondary)'
+                  : progress.changeKg <= 0
+                    ? 'var(--success-text)'
+                    : 'var(--serious)',
+              }}
             >
               {progress.changeKg <= 0 ? '' : '+'}
               {(progress.changeKg * 1000).toFixed(0)} g

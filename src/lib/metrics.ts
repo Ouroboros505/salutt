@@ -143,9 +143,19 @@ export function weightTrend(weighIns: WeighIn[], halfLifeDays: number): TrendPoi
   // slope, an inconsistent one does not. Readings with no flag are left as
   // they are rather than guessed at.
   const off = stoolOffset(weighIns)
-  const adjusted = !off
-    ? sorted
-    : sorted.map((w) => (w.afterStool === false ? { ...w, kg: w.kg - off.kg } : w))
+  let adjusted: WeighIn[]
+  if (off) {
+    adjusted = sorted.map((w) => (w.afterStool === false ? { ...w, kg: w.kg - off.kg } : w))
+  } else {
+    // No offset measured yet, so a reading taken on a full colon cannot be
+    // corrected — only recognised. Smoothing it in with the rest is the same
+    // mistake as counting an off-protocol reading: it measures something else,
+    // and a couple of them early on bend the whole line. Left out entirely
+    // while there are still enough comparable readings to describe the trend;
+    // below that, a bent line beats no line.
+    const comparable = sorted.filter((w) => w.afterStool !== false)
+    adjusted = comparable.length >= 3 ? comparable : sorted
+  }
 
   const out: TrendPoint[] = []
   let s1 = adjusted[0].kg
@@ -540,18 +550,33 @@ export interface Progress {
   settled: boolean
 }
 
+/**
+ * How far the weight has moved since logging began.
+ *
+ * The baseline is the mean of the first few readings, not the first one. The
+ * smoother has nothing behind it on day one, so its first point is simply that
+ * morning's number — and a single morning carries the full day-to-day swing,
+ * which here is most of a kilogram. Comparing that raw number against a
+ * smoothed one at the other end is not comparing like with like: an unusually
+ * light first reading books a gain that never happened. Averaging the first
+ * few puts both ends of the comparison on the same footing.
+ */
+const BASELINE_READINGS = 3
+
 export function progressSoFar(trend: TrendPoint[]): Progress | null {
   if (trend.length < 2) return null
   const first = trend[0]
   const last = trend[trend.length - 1]
+  const head = trend.slice(0, Math.min(BASELINE_READINGS, trend.length))
+  const baseline = head.reduce((a, p) => a + (p.raw ?? p.trend), 0) / head.length
   const days = Math.round(
     (new Date(last.date).getTime() - new Date(first.date).getTime()) / 86_400_000,
   )
   if (days < 1) return null
   return {
-    changeKg: last.trend - first.trend,
+    changeKg: last.trend - baseline,
     days,
-    fromKg: first.trend,
+    fromKg: baseline,
     toKg: last.trend,
     settled: days >= 14,
   }
