@@ -188,9 +188,20 @@ export function weightTrend(weighIns: WeighIn[], halfLifeDays: number): TrendPoi
  * are flagged `off` so the chart can draw them apart from the real series, and
  * this function is deliberately not what the statistics run on.
  */
+/**
+ * Every reading, whether or not the trend was allowed to learn from it.
+ *
+ * The chart and the trend answer different questions. The trend leaves out
+ * anything measured under different conditions; the chart must still show it,
+ * because you stood on the scale and the number is real. So the exclusion list
+ * is taken from what the trend actually used rather than restated here — when
+ * the trend learns a new reason to set a reading aside, that reading keeps
+ * appearing on the chart instead of silently vanishing from the app.
+ */
 export function weightSeries(weighIns: WeighIn[], halfLifeDays: number): TrendPoint[] {
   const counted = weightTrend(weighIns, halfLifeDays)
-  const skipped = weighIns.filter((w) => w.offProtocol)
+  const used = new Set(counted.map((p) => p.date))
+  const skipped = weighIns.filter((w) => !used.has(w.date))
   if (skipped.length === 0) return counted
 
   const byDate = new Map(counted.map((p) => [p.date, p]))

@@ -76,6 +76,14 @@ export default function Body({
   const shown = weightSeries(weighIns, settings.trendHalfLifeDays).filter((p) => p.date >= from)
 
   const latest = full.at(-1)
+  // The newest reading there is, counted or not. The trend deliberately leaves
+  // some readings out, but "last reading" means the last time you stood on the
+  // scale — saying otherwise reads as the app having lost this morning's.
+  const lastReading = weighIns.reduce<(typeof weighIns)[number] | undefined>(
+    (best, w) => (best == null || w.date > best.date ? w : best),
+    undefined,
+  )
+  const lastCounted = lastReading != null && full.some((p) => p.date === lastReading.date)
   const rate = trendSlopeKgPerWeek(full)
   const last = measurements[0]
 
@@ -105,9 +113,10 @@ export default function Body({
             <div className="hero num">
               {latest ? latest.trend.toFixed(1) : '—'} <span className="hero-unit">kg</span>
             </div>
-            {latest?.raw != null && (
+            {lastReading != null && (
               <div className="tiny muted num">
-                last reading {latest.raw.toFixed(2)} kg · {formatShort(latest.date)}
+                last reading {lastReading.kg.toFixed(2)} kg · {formatShort(lastReading.date)}
+                {!lastCounted && <span className="tiny muted"> · not in the trend</span>}
               </div>
             )}
           </div>
@@ -450,6 +459,22 @@ function WeighInSheet({ onClose, toast }: { onClose: () => void; toast: (m: stri
       >
         Save
       </button>
+
+      {/* Weighing again is the usual reason to want this: you stepped off,
+          went to the toilet, and the reading you kept is no longer the one you
+          meant. One row per day, so the way to replace it is to remove it. */}
+      {existing?.id != null && (
+        <button
+          className="btn danger block"
+          onClick={async () => {
+            await db.weighIns.delete(existing.id!)
+            toast(`${formatShort(existing.date)} weigh-in deleted`)
+            onClose()
+          }}
+        >
+          <Icon.trash /> Delete this weigh-in
+        </button>
+      )}
 
       <div className="tiny muted">
         Weigh at the same time each day — first thing, after the bathroom, before eating. Consistency

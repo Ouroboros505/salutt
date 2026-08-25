@@ -32,7 +32,7 @@ export async function saveReading(
   const date = todayISO()
   const existing = await db.weighIns.where('date').equals(date).first()
 
-  const row: WeighIn = {
+  const row: WeighIn & { updatedAt?: number } = {
     ...(existing?.id ? { id: existing.id } : {}),
     offProtocol: offProtocol || undefined,
     afterStool,
@@ -41,6 +41,10 @@ export async function saveReading(
     impedance: r.impedance,
     source: 'scale',
     createdAt: Date.now(),
+    // Stamped here rather than left to the table hook. This is a whole-object
+    // put over an existing row, and a reading that reaches the server without
+    // a stamp loses every merge it is ever part of.
+    updatedAt: Date.now(),
     ...(comp
       ? {
           bodyFatPct: comp.bodyFatPct,

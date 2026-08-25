@@ -182,7 +182,7 @@ export function TrendChart({
         d.label,
         `Trend ${d.trend.toFixed(1)} ${unit}`,
         ...(d.raw != null ? [`Scale ${d.raw.toFixed(2)} ${unit}`] : []),
-        ...(d.off ? ['Off protocol — not counted in the trend'] : []),
+        ...(d.off ? ['Not counted in the trend'] : []),
       ],
     })
   }
@@ -333,7 +333,7 @@ export function TrendChart({
             <svg width="12" height="8" aria-hidden="true">
               <circle cx="6" cy="4" r="3.4" fill="var(--surface-1)" stroke="var(--text-muted)" strokeWidth="1.4" />
             </svg>
-            Off protocol
+            Not in trend
           </span>
         )}
       </div>
