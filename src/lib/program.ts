@@ -229,10 +229,12 @@ export const CATALOGUE: Exercise[] = [
   E('Walking Lunges', 'Legs', 3, '12/leg', 6, 120, 'Dumbbells'),
 
   // ----------------------------------------------------------------- Core
+  // A timed hold's secPerSet is the hold plus 45s of rest after it — checked
+  // against what he actually rests, not assumed: Plank already landed there.
   E('Plank', 'Core', 3, '30-45s', 3.8, 75, 'Floor', true),
-  E('Side Plank', 'Core', 2, '30s/side', 3.8, 80, 'Floor', true),
+  E('Side Plank', 'Core', 2, '30s/side', 3.8, 105, 'Floor', true),
   E('Bird Dog', 'Core', 2, '10/side', 3, 75, 'Floor', true),
-  E('Mountain Climbers', 'Core', 3, '20s', 6, 60, 'Floor', true),
+  E('Mountain Climbers', 'Core', 3, '20s', 6, 65, 'Floor', true),
   E('Pallof Press', 'Core', 2, '10-12/side', 3.5, 90, 'Cable machine', true),
   E('Dead Bug', 'Core', 3, '10/side', 3, 75, 'Floor'),
   E('Hanging Knee Raise', 'Core', 3, '12', 4, 90, 'Pull-up bar'),
@@ -241,7 +243,7 @@ export const CATALOGUE: Exercise[] = [
   E('Captain’s Chair Leg Raise', 'Core', 3, '12', 4.5, 95, 'Captain’s chair / power tower'),
   E('Captain’s Chair Knee Raise', 'Core', 3, '15', 4, 90, 'Captain’s chair / power tower'),
   E('Cable Crunch', 'Core', 3, '15', 4, 90, 'Cable machine'),
-  E('Hollow Hold', 'Core', 3, '30s', 4, 70, 'Floor'),
+  E('Hollow Hold', 'Core', 3, '30s', 4, 75, 'Floor'),
 
   // --------------------------------------------------------------- Cardio
   // Intervals keep their round structure; everything else is minutes.
