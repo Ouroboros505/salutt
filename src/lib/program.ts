@@ -633,6 +633,27 @@ export function exerciseKcal(ex: Exercise, count: number, kg: number): number {
   return Math.round((ex.met * kg * (count * ex.secPerSet)) / 3600)
 }
 
+/**
+ * Time an exercise costs beyond its own sets.
+ *
+ * The catalogue's `secPerSet` covers the work and the rest between sets, and
+ * nothing else — so a session's estimate was the time spent lifting, not the
+ * time spent in the gym. Walking to the next machine, waiting for someone to
+ * finish on it, changing the pins and plates, and reading what comes next are
+ * all real minutes, and they scale with the number of exercises rather than
+ * the number of sets.
+ *
+ * Two minutes each, which is what two logged sessions came out at: a 46-minute
+ * estimate over seven exercises took an hour, and a 53-minute estimate over ten
+ * took an hour and a quarter.
+ */
+export const CHANGEOVER_SEC = 120
+
+/** A session's real length: the work, plus getting between the exercises. */
+export function sessionMinutes(workMinutes: number, exercises: number): number {
+  return Math.round(workMinutes + (exercises * CHANGEOVER_SEC) / 60)
+}
+
 export function exerciseMinutes(ex: Exercise, count: number): number {
   return Math.round((count * ex.secPerSet) / 60)
 }

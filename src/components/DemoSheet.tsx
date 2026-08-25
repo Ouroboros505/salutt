@@ -72,7 +72,17 @@ export default function DemoSheet({ name, onClose }: { name: string; onClose: ()
                 src={src}
                 alt={`${clean} — ${i === 0 ? 'start' : 'finish'}`}
                 loading="lazy"
-                style={{ height: 170, borderRadius: 10, flex: 'none', background: 'var(--plane)' }}
+                /* White behind every image, not the page colour. The lifting
+                   photos are opaque so it makes no difference to them, but the
+                   yoga poses are line drawings on a transparent background —
+                   black ink on a dark page, which is to say invisible. */
+                style={{
+                  height: 170,
+                  borderRadius: 10,
+                  flex: 'none',
+                  background: '#fff',
+                  padding: 4,
+                }}
               />
             ))}
           </div>

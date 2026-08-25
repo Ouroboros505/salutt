@@ -25,6 +25,7 @@ import {
   type Exercise,
   type MuscleGroup,
   canonicalName,
+  sessionMinutes,
 } from '../lib/program'
 import { Icon, Meter, NumberInput, Sheet } from './ui'
 import { formatShort } from '../lib/date'
@@ -353,7 +354,10 @@ export default function SessionSheet({
   const totalSets = items.reduce((t, i) => t + i.sets.length, 0)
   const doneSets = items.reduce((t, i) => t + i.sets.filter((x) => x.done).length, 0)
   const kcal = items.reduce((t, i) => t + kcalOf(i), 0)
-  const minutes = items.reduce((t, i) => t + minutesOf(i), 0)
+  // What the exercises themselves take, and then what the session takes: the
+  // second is the first plus the walking, waiting and setting up between them.
+  const workMinutes = items.reduce((t, i) => t + minutesOf(i), 0)
+  const minutes = sessionMinutes(workMinutes, items.length)
   // Time actually spent on a cardio machine, which is what you need when you
   // are standing on one deciding whether to get off. The session total is a
   // different question: it counts planks and yoga you do on the floor after.
@@ -821,6 +825,11 @@ const clock = (ms: number) => {
           </span>
           <span className="stat-value num">{kcal} kcal</span>
         </div>
+        {minutes > workMinutes && (
+          <div className="tiny muted num">
+            {workMinutes} min working · {minutes - workMinutes} min between exercises
+          </div>
+        )}
         {cardio.length > 1 && (
           <div className="row between tiny muted num">
             <span>on the machines — {cardio.map((i) => `${minutesOf(i)}`).join(' + ')} min</span>
