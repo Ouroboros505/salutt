@@ -379,6 +379,9 @@ export interface DayEnergy {
 /** Roughly a tenth of intake goes on digesting it, across a mixed diet. */
 const TEF_FRACTION = 0.1
 
+/** How far a single day's target may sit from the week's base figure. */
+const MAX_DAILY_SWING = 300
+
 export function dayEnergy(
   settings: Settings,
   kg: number,
@@ -485,7 +488,8 @@ export function computeTargets(
 ): Targets {
   const kg = currentKg ?? 75
   const age = ageFrom(settings.birthDate)
-  const formulaTDEE = bmrMifflin(kg, settings.heightCm, age, settings.sex) * settings.activity
+  const bmr = bmrMifflin(kg, settings.heightCm, age, settings.sex)
+  const formulaTDEE = bmr * settings.activity
 
   // The adaptive number is only trusted once there is enough data behind it.
   const useAdaptive = adaptive && adaptive.confidence !== 'low'
@@ -510,12 +514,39 @@ export function computeTargets(
     const deficit = settings.kcalTargetOverride
       ? tdee - settings.kcalTargetOverride
       : -(settings.goalKgPerWeek * KCAL_PER_KG) / 7
-    const computed = energy.total - deficit
+    /**
+     * The deficit is held as a share of the day, not as a flat number.
+     *
+     * Subtracting the same 585 kcal from every day sounds fair and is not: it
+     * is 22% of a long training day and 29% of a quiet one, which quietly
+     * makes rest days the harshest of the week. That is backwards — rest is
+     * when the repair happens, and the literature on losing weight without
+     * losing muscle puts the useful ceiling near 500 kcal a day rather than
+     * near a percentage that drifts with whatever you happened to do.
+     */
+    const share = tdee > 0 ? Math.min(0.4, deficit / tdee) : 0
+    const computed = energy.total * (1 - share)
     kcal = baseKcal + energy.trust * (computed - baseKcal)
+    /**
+     * And the day is not allowed to wander far from the base.
+     *
+     * Training and rest days are meant to differ by roughly 300-600 kcal, the
+     * difference coming out of carbohydrate. Left uncapped this arithmetic
+     * produced a 644 kcal spread between a couch day and a heavy one, which is
+     * further than the evidence supports and further than anyone can eat to
+     * without the low days feeling like punishment.
+     */
+    kcal = Math.min(baseKcal + MAX_DAILY_SWING, Math.max(baseKcal - MAX_DAILY_SWING, kcal))
   }
 
-  // Floor the target: aggressive deficits cost muscle and adherence.
-  const floor = settings.sex === 'male' ? 1500 : 1200
+  /**
+   * Never below resting metabolism.
+   *
+   * A flat 1500 was under this body's own BMR, so the safety net sat lower
+   * than the floor it was meant to be protecting. Eating beneath what you burn
+   * lying still is not a deficit worth having on any day of the week.
+   */
+  const floor = Math.max(settings.sex === 'male' ? 1500 : 1200, Math.round(bmr))
   kcal = Math.max(floor, Math.round(kcal))
 
   const protein =
