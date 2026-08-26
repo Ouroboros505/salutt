@@ -67,16 +67,27 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Peeled one and weighed the flesh: 39 g, from a 48 g fruit. That is a 19%
-  // peel, not the 26% the USDA's refuse figure for mandarins assumes — so use
-  // his scale rather than the table.
-  const c = (data.foods ?? []).find((f) => /clementine/i.test(f.name))
-  if (c) {
-    c.portions = [{ label: '1 fruit (39 g peeled)', grams: 39 }]
-    touch(c)
-    notes.push('clementine portion -> 39 g peeled (weighed), ~18 kcal a fruit')
-  } else {
-    notes.push('clementine not found — nothing changed')
+  // Today's two clementines were logged against the old portion — one at the
+  // USDA's 74 g standard fruit, one at 45 g whole. Both are the same fruit,
+  // and he has now weighed its flesh at 39 g. Entries snapshot their macros at
+  // log time by design, so correcting the food record left these behind;
+  // rewrite them from the per-100 g figures.
+  const PER100 = { kcal: 47, protein: 0.85, carbs: 12, fat: 0.15, fiber: 1.7 }
+  const G = 39
+  const r2 = (n: number) => Math.round(n * 100) / 100
+  for (const e of (data.entries ?? []).filter(
+    (x) => x.date === '2026-08-26' && /clementine/i.test(x.name),
+  )) {
+    const was = Math.round(e.kcal)
+    e.grams = G
+    e.amountLabel = '1 fruit (39 g peeled)'
+    e.kcal = r2((PER100.kcal * G) / 100)
+    e.protein = r2((PER100.protein * G) / 100)
+    e.carbs = r2((PER100.carbs * G) / 100)
+    e.fat = r2((PER100.fat * G) / 100)
+    e.fiber = r2((PER100.fiber * G) / 100)
+    touch(e)
+    notes.push(`entry ${e.id}: clementine ${was} -> ${Math.round(e.kcal)} kcal (${G} g peeled)`)
   }
 
   return notes
