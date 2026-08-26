@@ -67,16 +67,14 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // His clementines weigh 48 g whole (he weighed a batch: mostly 50 g, a few
-  // 45 g). USDA fruit figures are per 100 g of edible flesh, and mandarin peel
-  // is about a quarter of the whole fruit — so 48 g whole is ~35 g eaten, not
-  // the 74 g the USDA's standard-sized fruit portion assumed. That portion was
-  // costing him 35 kcal a clementine instead of 17.
+  // Peeled one and weighed the flesh: 39 g, from a 48 g fruit. That is a 19%
+  // peel, not the 26% the USDA's refuse figure for mandarins assumes — so use
+  // his scale rather than the table.
   const c = (data.foods ?? []).find((f) => /clementine/i.test(f.name))
   if (c) {
-    c.portions = [{ label: '1 fruit (48 g whole)', grams: 35 }]
+    c.portions = [{ label: '1 fruit (39 g peeled)', grams: 39 }]
     touch(c)
-    notes.push('clementine portion 74 g -> 35 g edible (48 g whole), ~17 kcal a fruit')
+    notes.push('clementine portion -> 39 g peeled (weighed), ~18 kcal a fruit')
   } else {
     notes.push('clementine not found — nothing changed')
   }
