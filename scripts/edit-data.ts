@@ -67,24 +67,18 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // He went again after weighing, so the morning's reading was not the empty
-  // one after all. Remove it so he can re-weigh; a tombstone goes with it, or
-  // the next sync from the phone would restore the row.
-  const i = (data.weighIns ?? []).findIndex((x) => x.date === '2026-08-24')
-  if (i >= 0) {
-    const [row] = data.weighIns.splice(i, 1)
-    if (row.id != null) {
-      const nextId = Math.max(0, ...(data.tombstones ?? []).map((t) => t.id ?? 0)) + 1
-      ;(data.tombstones ??= []).push({
-        id: nextId,
-        table: 'weighIns',
-        key: row.id,
-        at: Date.now(),
-      })
-    }
-    notes.push(`deleted 2026-08-24 weigh-in (${row.kg} kg) + tombstone — re-weigh when ready`)
+  // His clementines weigh 48 g whole (he weighed a batch: mostly 50 g, a few
+  // 45 g). USDA fruit figures are per 100 g of edible flesh, and mandarin peel
+  // is about a quarter of the whole fruit — so 48 g whole is ~35 g eaten, not
+  // the 74 g the USDA's standard-sized fruit portion assumed. That portion was
+  // costing him 35 kcal a clementine instead of 17.
+  const c = (data.foods ?? []).find((f) => /clementine/i.test(f.name))
+  if (c) {
+    c.portions = [{ label: '1 fruit (48 g whole)', grams: 35 }]
+    touch(c)
+    notes.push('clementine portion 74 g -> 35 g edible (48 g whole), ~17 kcal a fruit')
   } else {
-    notes.push('no 2026-08-24 weigh-in found — nothing to delete')
+    notes.push('clementine not found — nothing changed')
   }
 
   return notes
