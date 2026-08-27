@@ -67,27 +67,36 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Today's two clementines were logged against the old portion — one at the
-  // USDA's 74 g standard fruit, one at 45 g whole. Both are the same fruit,
-  // and he has now weighed its flesh at 39 g. Entries snapshot their macros at
-  // log time by design, so correcting the food record left these behind;
-  // rewrite them from the per-100 g figures.
-  const PER100 = { kcal: 47, protein: 0.85, carbs: 12, fat: 0.15, fiber: 1.7 }
-  const G = 39
-  const r2 = (n: number) => Math.round(n * 100) / 100
-  for (const e of (data.entries ?? []).filter(
-    (x) => x.date === '2026-08-26' && /clementine/i.test(x.name),
-  )) {
-    const was = Math.round(e.kcal)
-    e.grams = G
-    e.amountLabel = '1 fruit (39 g peeled)'
-    e.kcal = r2((PER100.kcal * G) / 100)
-    e.protein = r2((PER100.protein * G) / 100)
-    e.carbs = r2((PER100.carbs * G) / 100)
-    e.fat = r2((PER100.fat * G) / 100)
-    e.fiber = r2((PER100.fiber * G) / 100)
-    touch(e)
-    notes.push(`entry ${e.id}: clementine ${was} -> ${Math.round(e.kcal)} kcal (${G} g peeled)`)
+  // Green kiwi, USDA SR Legacy #168153, per 100 g. Two a day is the dose the
+  // constipation trials used. Logged by weight: the skin is edible and roughly
+  // doubles the fibre, so weighing whole or peeled both need to work rather
+  // than a single fixed fruit portion.
+  if (!(data.foods ?? []).some((f) => /kiwi/i.test(f.name))) {
+    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
+    ;(data.foods ??= []).push(
+      touch({
+        id: nextId,
+        name: 'Kiwifruit, green, raw',
+        kcal: 61,
+        protein: 1.14,
+        carbs: 14.7,
+        fat: 0.52,
+        fiber: 3,
+        portions: [
+          { label: '1 fruit, peeled (~82 g)', grams: 82 },
+          { label: '1 fruit, whole with skin (96 g)', grams: 96 },
+        ],
+        defaultPortion: -1,
+        liquid: false,
+        source: 'usda',
+        sourceId: '168153',
+        favorite: false,
+        useCount: 0,
+        lastUsed: 0,
+        createdAt: Date.now(),
+      }),
+    )
+    notes.push('added Kiwifruit, green, raw (USDA #168153) — per 100 g: 61 kcal, 1.1 P, 14.7 C, 0.5 F, 3 fibre')
   }
 
   return notes
