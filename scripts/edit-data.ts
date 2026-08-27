@@ -67,51 +67,25 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // He never weighs raw chicken, so the raw row is only a way to undercount by
-  // a quarter. Replace it with the boiled figure.
-  //
-  // Derived from the bag (4 oz / 112 g raw = 110 kcal, 19 g protein, 4 g fat,
-  // 1 g carb) times the concentration cooking produces. USDA's own pair gives
-  // that factor without having to guess: plain breast is 120 kcal and 22.5 g
-  // protein raw against 165 and 31 roasted, which is 1.375 on energy, 1.378 on
-  // protein and 1.36 on fat — the same number three ways, so about a quarter
-  // of the weight is water leaving. Boiling loses a little less than roasting,
-  // and this bird is enhanced, whose phosphates hold some of the injected
-  // solution through cooking; the two pull opposite ways and roughly cancel.
-  // 1.35 is the figure used.
-  const i = (data.foods ?? []).findIndex((f) => /^chicken breast, garlic & herb seasoned$/i.test(f.name))
-  if (i >= 0) {
-    const [row] = data.foods.splice(i, 1)
-    if (row.id != null) {
-      const nextId = Math.max(0, ...(data.tombstones ?? []).map((t) => t.id ?? 0)) + 1
-      ;(data.tombstones ??= []).push({ id: nextId, table: 'foods', key: row.id, at: Date.now() })
-    }
-    notes.push('deleted the raw Kirkwood chicken row')
-  }
-
-  if (!(data.foods ?? []).some((f) => /garlic & herb, boiled/i.test(f.name))) {
-    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
-    ;(data.foods ??= []).push(
-      touch({
-        id: nextId,
-        name: 'Chicken breast, garlic & herb, boiled',
-        brand: 'Kirkwood (Aldi)',
-        kcal: 132,
-        protein: 23,
-        carbs: 1.2,
-        fat: 4.9,
-        fiber: 0,
-        portions: [],
-        defaultPortion: -1,
-        liquid: false,
-        source: 'manual',
-        favorite: false,
-        useCount: 0,
-        lastUsed: 0,
-        createdAt: Date.now(),
-      }),
-    )
-    notes.push('added Chicken breast, garlic & herb, BOILED — per 100 g: 132 kcal, 23 P, 1.2 C, 4.9 F')
+  // Measured rather than assumed: he weighed a batch at 540 g raw and 320 g
+  // boiled, a factor of 1.69. My earlier 1.35 came from the published loss for
+  // boiling, which is the gentlest method at 20-25% — but that figure is for
+  // plain chicken, and this bird carries up to 25% injected solution. Boiling
+  // submerges it and drives that brine straight back out, so the two losses
+  // stack. The model fits his scale almost exactly: 405 g of actual meat
+  // losing the standard 20% gives 324 g against the 320 g he measured, with
+  // the whole 135 g of solution gone. The ice he mentioned needs no allowance
+  // — the mechanism already accounts for the full loss without it.
+  const c = (data.foods ?? []).find((f) => /garlic & herb, boiled/i.test(f.name))
+  if (c) {
+    c.kcal = 165
+    c.protein = 28.7
+    c.carbs = 1.5
+    c.fat = 6.1
+    touch(c)
+    notes.push('Kirkwood chicken, boiled: 132 -> 165 kcal, 23 -> 28.7 P per 100 g (measured 1.69x)')
+  } else {
+    notes.push('boiled chicken row not found — nothing changed')
   }
 
   return notes
