@@ -67,27 +67,26 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Allow for the ice. The 540 g he weighed was frozen and visibly icy, and
-  // glaze is water rather than chicken — counting it as product inflates the
-  // concentration cooking appears to produce. Taking a middling 5% of the raw
-  // weight as ice leaves 513 g of actual product against 320 g cooked, a
-  // factor of 1.60 rather than the 1.69 the unadjusted weights gave.
-  //
-  // The band the evidence supports runs 156-165 kcal; this sits in the middle
-  // of it. Erring high would be the worse direction, since an entry that
-  // overstates what he ate nudges him to eat less, and he is already landing
-  // under his target most days. Settled properly next batch by thawing and
-  // draining before the raw weight is taken.
-  const c = (data.foods ?? []).find((f) => /garlic & herb, boiled/i.test(f.name))
-  if (c) {
-    c.kcal = 157
-    c.protein = 27.2
-    c.carbs = 1.4
-    c.fat = 5.8
-    touch(c)
-    notes.push('Kirkwood chicken, boiled: 165 -> 157 kcal, 28.7 -> 27.2 P per 100 g (5% ice allowed for)')
+  // He portions these boiled, never raw, so the package's raw figures are only
+  // a way to undercount. USDA's own pair gives the concentration boiling
+  // produces — 77 kcal raw against 86 boiled, a factor of 1.12 — and his own
+  // potatoes agree: the bag calls 4 to 5 of them 110 g, and one comes out
+  // around 20 g cooked, which at the five-per-serving end of that range is
+  // 22 g going in for a factor of 1.10. He confirms they are genuinely small,
+  // some as little as 16 g cooked, so the five end is the right one.
+  const p = (data.foods ?? []).find((f) => /^potato, little yellow$/i.test(f.name))
+  if (p) {
+    p.name = 'Potato, little yellow, boiled'
+    p.kcal = 81
+    p.protein = 2
+    p.carbs = 16.2
+    p.fat = 0
+    p.fiber = 2
+    p.portions = []
+    touch(p)
+    notes.push('Potato, little yellow -> boiled: 73 -> 81 kcal, 1.8 -> 2.0 P per 100 g (1.12x)')
   } else {
-    notes.push('boiled chicken row not found — nothing changed')
+    notes.push('potato row not found — nothing changed')
   }
 
   return notes
