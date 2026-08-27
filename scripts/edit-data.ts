@@ -67,37 +67,81 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Green kiwi, USDA SR Legacy #168153, per 100 g. Two a day is the dose the
-  // constipation trials used. Logged by weight: the skin is edible and roughly
-  // doubles the fibre, so weighing whole or peeled both need to work rather
-  // than a single fixed fruit portion.
-  if (!(data.foods ?? []).some((f) => /kiwi/i.test(f.name))) {
+  const add = (row: Row, note: string) => {
+    if ((data.foods ?? []).some((f) => f.name.toLowerCase() === String(row.name).toLowerCase())) return
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
     ;(data.foods ??= []).push(
       touch({
         id: nextId,
-        name: 'Kiwifruit, green, raw',
-        kcal: 61,
-        protein: 1.14,
-        carbs: 14.7,
-        fat: 0.52,
-        fiber: 3,
-        portions: [
-          { label: '1 fruit, peeled (~82 g)', grams: 82 },
-          { label: '1 fruit, whole with skin (96 g)', grams: 96 },
-        ],
+        carbs: 0,
+        fat: 0,
+        fiber: 0,
+        portions: [],
         defaultPortion: -1,
         liquid: false,
-        source: 'usda',
-        sourceId: '168153',
+        source: 'manual',
         favorite: false,
         useCount: 0,
         lastUsed: 0,
         createdAt: Date.now(),
+        ...row,
       }),
     )
-    notes.push('added Kiwifruit, green, raw (USDA #168153) — per 100 g: 61 kcal, 1.1 P, 14.7 C, 0.5 F, 3 fibre')
+    notes.push(note)
   }
+
+  // Kirkwood garlic & herb chicken breast (Aldi), from the label: 4 oz (112 g)
+  // = 110 kcal, 19 g protein, 4 g fat, 1 g carb, 490 mg sodium. Enhanced — up
+  // to 15% marinade plus a 10% broth coating — so it carries about a quarter
+  // less protein per gram than plain breast. Not a swap for the meal-prep
+  // chicken, which is USDA plain raw.
+  add(
+    {
+      name: 'Chicken breast, garlic & herb seasoned',
+      brand: 'Kirkwood (Aldi)',
+      kcal: 98,
+      protein: 17,
+      carbs: 0.9,
+      fat: 3.6,
+      portions: [{ label: '4 oz portion (112 g)', grams: 112 }],
+    },
+    'added Chicken breast, garlic & herb (Kirkwood) — per 100 g: 98 kcal, 17 P, 0.9 C, 3.6 F',
+  )
+
+  // Simply Nature organic quinoa (Aldi), dry, from the label: 1/4 cup (45 g) =
+  // 170 kcal, 6 g protein, 29 g carb, 3 g fibre, 2.5 g fat. Within a few per
+  // cent of USDA's uncooked figure, so the bag is honest.
+  add(
+    {
+      name: 'Quinoa, dry',
+      brand: 'Simply Nature (Aldi)',
+      kcal: 378,
+      protein: 13.3,
+      carbs: 64.4,
+      fat: 5.6,
+      fiber: 6.7,
+      portions: [{ label: '1/4 cup dry (45 g)', grams: 45 }],
+    },
+    'added Quinoa, dry (Simply Nature) — per 100 g: 378 kcal, 13.3 P, 64.4 C, 5.6 F, 6.7 fibre',
+  )
+
+  // And the cooked figure, USDA SR Legacy #168917, for weighing a portion out
+  // of a finished pot rather than measuring the grain before it goes in.
+  // Quinoa roughly triples in weight cooking, so the two are not
+  // interchangeable — weigh at one stage or the other and pick the matching row.
+  add(
+    {
+      name: 'Quinoa, cooked',
+      kcal: 120,
+      protein: 4.4,
+      carbs: 21.3,
+      fat: 1.92,
+      fiber: 2.8,
+      source: 'usda',
+      sourceId: '168917',
+    },
+    'added Quinoa, cooked (USDA #168917) — per 100 g: 120 kcal, 4.4 P, 21.3 C, 1.9 F, 2.8 fibre',
+  )
 
   return notes
 }
