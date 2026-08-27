@@ -67,23 +67,25 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Measured rather than assumed: he weighed a batch at 540 g raw and 320 g
-  // boiled, a factor of 1.69. My earlier 1.35 came from the published loss for
-  // boiling, which is the gentlest method at 20-25% — but that figure is for
-  // plain chicken, and this bird carries up to 25% injected solution. Boiling
-  // submerges it and drives that brine straight back out, so the two losses
-  // stack. The model fits his scale almost exactly: 405 g of actual meat
-  // losing the standard 20% gives 324 g against the 320 g he measured, with
-  // the whole 135 g of solution gone. The ice he mentioned needs no allowance
-  // — the mechanism already accounts for the full loss without it.
+  // Allow for the ice. The 540 g he weighed was frozen and visibly icy, and
+  // glaze is water rather than chicken — counting it as product inflates the
+  // concentration cooking appears to produce. Taking a middling 5% of the raw
+  // weight as ice leaves 513 g of actual product against 320 g cooked, a
+  // factor of 1.60 rather than the 1.69 the unadjusted weights gave.
+  //
+  // The band the evidence supports runs 156-165 kcal; this sits in the middle
+  // of it. Erring high would be the worse direction, since an entry that
+  // overstates what he ate nudges him to eat less, and he is already landing
+  // under his target most days. Settled properly next batch by thawing and
+  // draining before the raw weight is taken.
   const c = (data.foods ?? []).find((f) => /garlic & herb, boiled/i.test(f.name))
   if (c) {
-    c.kcal = 165
-    c.protein = 28.7
-    c.carbs = 1.5
-    c.fat = 6.1
+    c.kcal = 157
+    c.protein = 27.2
+    c.carbs = 1.4
+    c.fat = 5.8
     touch(c)
-    notes.push('Kirkwood chicken, boiled: 132 -> 165 kcal, 23 -> 28.7 P per 100 g (measured 1.69x)')
+    notes.push('Kirkwood chicken, boiled: 165 -> 157 kcal, 28.7 -> 27.2 P per 100 g (5% ice allowed for)')
   } else {
     notes.push('boiled chicken row not found — nothing changed')
   }
