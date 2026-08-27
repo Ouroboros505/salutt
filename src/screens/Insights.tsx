@@ -52,7 +52,10 @@ export default function Insights({ settings }: { settings: Settings }) {
     return { date, label: formatShort(date), sublabel: formatShort(date), value: v?.kcal ?? 0, protein: v?.protein ?? 0 }
   })
 
-  const logged = series.filter((s) => s.value > 200)
+  // Averages exclude today: it is still being eaten, so counting it drags every
+  // figure down all morning and reads as a fall in intake that has not happened.
+  // The chart still draws it — a part-day is worth seeing, just not averaging.
+  const logged = series.filter((s) => s.value > 200 && s.date < todayISO())
   const avgKcal = logged.length ? logged.reduce((t, s) => t + s.value, 0) / logged.length : 0
   const avgProtein = logged.length ? logged.reduce((t, s) => t + s.protein, 0) / logged.length : 0
   const adherence = Math.round((logged.length / days) * 100)
