@@ -16,7 +16,7 @@ import {
   ZERO,
   type PastMeal,
 } from '../db/ops'
-import { addDays, formatDay, formatShort, todayISO } from '../lib/date'
+import { addDays, formatDay, formatShort, todayISO, startOfWeek } from '../lib/date'
 import {
   adaptiveTDEE,
   computeTargets,
@@ -132,6 +132,29 @@ export default function Today({
     ? dayEnergy(settings, currentKg, totals.kcal, todayActivity, maintenance, usual, meanIntake)
     : null
   const targets = computeTargets(settings, currentKg, adaptive, energy)
+  /**
+   * How the week is going, which is the question the daily figure cannot
+   * answer.
+   *
+   * The target is worked out one day at a time and has no memory: three days
+   * under it in a row look exactly like none. But the rate of loss follows the
+   * week's average, not any single day, so a run of quiet days is worth seeing
+   * before deciding today should be quiet too. Days before today only —
+   * today is still in progress and would drag the average down all morning.
+   */
+  const weekStart = startOfWeek(date)
+  const weekIntake = (() => {
+    const byDay = new Map<ISODate, number>()
+    for (const e of allEntries) {
+      if (e.date >= weekStart && e.date < date) {
+        byDay.set(e.date, (byDay.get(e.date) ?? 0) + e.kcal)
+      }
+    }
+    const days = [...byDay.values()].filter((v) => v > 200)
+    if (days.length === 0) return null
+    return { mean: Math.round(days.reduce((a, b) => a + b, 0) / days.length), days: days.length }
+  })()
+
   const progress = progressSoFar(trend)
   const remaining = targets.kcal - totals.kcal
   const isToday = date === todayISO()
@@ -208,6 +231,24 @@ export default function Today({
         </div>
 
         <Meter value={totals.kcal} max={targets.kcal} color={remaining < 0 ? 'var(--critical)' : undefined} />
+
+        {weekIntake && (
+          <div className="tiny muted num">
+            This week so far: {weekIntake.mean.toLocaleString()} kcal a day over{' '}
+            {weekIntake.days} day{weekIntake.days === 1 ? '' : 's'}
+            {settings.kcalTargetOverride ? (
+              <>
+                {' '}
+                against {settings.kcalTargetOverride.toLocaleString()} —{' '}
+                {weekIntake.mean < settings.kcalTargetOverride - 40
+                  ? `${(settings.kcalTargetOverride - weekIntake.mean).toLocaleString()} under`
+                  : weekIntake.mean > settings.kcalTargetOverride + 40
+                    ? `${(weekIntake.mean - settings.kcalTargetOverride).toLocaleString()} over`
+                    : 'on it'}
+              </>
+            ) : null}
+          </div>
+        )}
 
       {/* What the scale says, which is the only measurement here. Paper
           deficits and the trend line disagree early on and converge later. */}
