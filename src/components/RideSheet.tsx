@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, type ISODate, type Route } from '../db/db'
+import { db, DEFAULT_SETTINGS, type ISODate, type Route } from '../db/db'
 import {
   RIDE_EFFORTS,
   RIDE_PLACES,
@@ -14,6 +14,7 @@ import { setLiveRide, clearLiveRide } from '../lib/liveRide'
 import RoutePlannerSheet from './RoutePlannerSheet'
 import PlacesSheet from './PlacesSheet'
 import { mapsUsage, type MapsUsage } from '../lib/maps'
+import { adaptiveTDEE, weightTrend } from '../lib/metrics'
 
 /**
  * Logging one trip.
@@ -82,6 +83,22 @@ export default function RideSheet({
       live = false
     }
   }, [])
+
+  /**
+   * Whether the day's target is anchored to a measured maintenance yet.
+   *
+   * It decides which of two true things to say below, and they are opposites.
+   * Once maintenance has been measured from intake against the weight trend,
+   * the unloggable part of the day is solved against it, so logging a ride
+   * moves energy between the parts of the estimate and leaves the total alone.
+   * Until then the total is built up from a formula, and a logged ride adds to
+   * it — which does raise what the day asks you to eat.
+   */
+  const settings = useLiveQuery(() => db.settings.get('settings'), []) ?? DEFAULT_SETTINGS
+  const weighIns = useLiveQuery(() => db.weighIns.orderBy('date').toArray(), []) ?? []
+  const entries = useLiveQuery(() => db.entries.toArray(), []) ?? []
+  const adaptive = adaptiveTDEE(entries, weightTrend(weighIns, settings.trendHalfLifeDays))
+  const anchored = !!adaptive && adaptive.confidence !== 'low'
 
   const pick = (r: Route) => {
     setPlace(r.name)
@@ -246,9 +263,21 @@ export default function RideSheet({
           <span className="stat-value num">{kcal} kcal</span>
         </div>
         <div className="tiny muted">
-          Not added to today's target. The target comes from what you eat measured against your
-          weight trend, and that was measured while you were already riding everywhere — adding it
-          back would count it twice and cancel the deficit.
+          {anchored ? (
+            <>
+              Not added to today's target. Your maintenance has been measured from what you eat
+              against your weight trend, and it was measured while you were already riding
+              everywhere — so logging this moves energy between the parts of the day rather than
+              handing its calories back.
+            </>
+          ) : (
+            <>
+              This does raise today's target. Until there is enough clean data to measure your
+              maintenance, the day is built up from a formula and a logged ride adds to it. Once
+              the measurement takes over, riding you do routinely will already be inside it and
+              logging will stop moving the number.
+            </>
+          )}
         </div>
       </div>
 

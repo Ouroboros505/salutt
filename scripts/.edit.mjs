@@ -160,21 +160,32 @@ function touch(row) {
 var summarise = (data) => Object.entries(data).filter(([, rows]) => Array.isArray(rows) && rows.length).map(([t, rows]) => `${t}=${rows.length}`).join(" ");
 function change(data) {
   const notes = [];
-  const i = (data.weighIns ?? []).findIndex((x) => x.date === "2026-08-24");
-  if (i >= 0) {
-    const [row] = data.weighIns.splice(i, 1);
-    if (row.id != null) {
-      const nextId = Math.max(0, ...(data.tombstones ?? []).map((t) => t.id ?? 0)) + 1;
-      (data.tombstones ??= []).push({
+  if (!(data.foods ?? []).some((f) => /kiwi/i.test(f.name))) {
+    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1;
+    (data.foods ??= []).push(
+      touch({
         id: nextId,
-        table: "weighIns",
-        key: row.id,
-        at: Date.now()
-      });
-    }
-    notes.push(`deleted 2026-08-24 weigh-in (${row.kg} kg) + tombstone \u2014 re-weigh when ready`);
-  } else {
-    notes.push("no 2026-08-24 weigh-in found \u2014 nothing to delete");
+        name: "Kiwifruit, green, raw",
+        kcal: 61,
+        protein: 1.14,
+        carbs: 14.7,
+        fat: 0.52,
+        fiber: 3,
+        portions: [
+          { label: "1 fruit, peeled (~82 g)", grams: 82 },
+          { label: "1 fruit, whole with skin (96 g)", grams: 96 }
+        ],
+        defaultPortion: -1,
+        liquid: false,
+        source: "usda",
+        sourceId: "168153",
+        favorite: false,
+        useCount: 0,
+        lastUsed: 0,
+        createdAt: Date.now()
+      })
+    );
+    notes.push("added Kiwifruit, green, raw (USDA #168153) \u2014 per 100 g: 61 kcal, 1.1 P, 14.7 C, 0.5 F, 3 fibre");
   }
   return notes;
 }
