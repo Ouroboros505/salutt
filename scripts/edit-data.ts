@@ -67,27 +67,61 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // He portions these boiled, never raw, so the package's raw figures are only
-  // a way to undercount. USDA's own pair gives the concentration boiling
-  // produces — 77 kcal raw against 86 boiled, a factor of 1.12 — and his own
-  // potatoes agree: the bag calls 4 to 5 of them 110 g, and one comes out
-  // around 20 g cooked, which at the five-per-serving end of that range is
-  // 22 g going in for a factor of 1.10. He confirms they are genuinely small,
-  // some as little as 16 g cooked, so the five end is the right one.
-  const p = (data.foods ?? []).find((f) => /^potato, little yellow$/i.test(f.name))
-  if (p) {
-    p.name = 'Potato, little yellow, boiled'
-    p.kcal = 81
-    p.protein = 2
-    p.carbs = 16.2
-    p.fat = 0
-    p.fiber = 2
-    p.portions = []
-    touch(p)
-    notes.push('Potato, little yellow -> boiled: 73 -> 81 kcal, 1.8 -> 2.0 P per 100 g (1.12x)')
-  } else {
-    notes.push('potato row not found — nothing changed')
+  const add = (row: Row, note: string) => {
+    if ((data.foods ?? []).some((f) => f.name.toLowerCase() === String(row.name).toLowerCase())) return
+    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
+    ;(data.foods ??= []).push(
+      touch({
+        id: nextId,
+        carbs: 0,
+        fat: 0,
+        fiber: 0,
+        portions: [],
+        defaultPortion: -1,
+        liquid: false,
+        source: 'manual',
+        favorite: false,
+        useCount: 0,
+        lastUsed: 0,
+        createdAt: Date.now(),
+        ...row,
+      }),
+    )
+    notes.push(note)
   }
+
+  // USDA SR Legacy #167680, "Restaurant, Italian, spaghetti with meat sauce" —
+  // the pasta and sauce together, which is the only way it can be judged on a
+  // plate someone else served. Weighing the two apart is not an option when
+  // eating out, and the combined figure already carries a typical sauce ratio.
+  add(
+    {
+      name: 'Spaghetti with meat sauce (eating out)',
+      kcal: 121,
+      protein: 5.8,
+      carbs: 16.4,
+      fat: 3.6,
+      fiber: 1.6,
+      source: 'usda',
+      sourceId: '167680',
+    },
+    'added Spaghetti with meat sauce (eating out) — per 100 g: 121 kcal, 5.8 P, 16.4 C, 3.6 F',
+  )
+
+  // Green beans boiled are 35 kcal (USDA #169141); roasting adds the oil they
+  // are tossed in, which is most of the energy. Reckoned at a teaspoon per
+  // 100 g of beans, which is what a glossy roasted side usually carries.
+  add(
+    {
+      name: 'Green beans, roasted',
+      kcal: 80,
+      protein: 1.9,
+      carbs: 7.9,
+      fat: 5.3,
+      fiber: 3.2,
+    },
+    'added Green beans, roasted — per 100 g: 80 kcal, 1.9 P, 7.9 C, 5.3 F, 3.2 fibre',
+  )
 
   return notes
 }
