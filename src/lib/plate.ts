@@ -72,6 +72,20 @@ const EXTRA_SIZES: HandSize[] = [
   { label: 'Covered in it', hint: 'sauced or fried', grams: 60 },
 ]
 
+/**
+ * A whole dish, measured against the plate it came on.
+ *
+ * Some meals cannot honestly be taken apart. A bolognese is pasta and sauce
+ * and mince in a ratio the kitchen chose, and guessing each separately
+ * multiplies three errors instead of making one. Where a combined figure
+ * exists it beats assembling the plate from its parts.
+ */
+const DISH_SIZES: HandSize[] = [
+  { label: 'Half a plate', hint: 'a modest serving', grams: 150 },
+  { label: 'A full plate', hint: 'the normal order', grams: 300 },
+  { label: 'A big plate', hint: 'piled high, or seconds', grams: 450 },
+]
+
 const SWEET_SIZES: HandSize[] = [
   { label: 'A bite', hint: 'a taste of what someone else had', grams: 25 },
   { label: 'A slice or a scoop', hint: 'the normal serving', grams: 80 },
@@ -88,6 +102,20 @@ const DRINK_SIZES: HandSize[] = [
 ]
 
 export const PLATE: PlateCategory[] = [
+  {
+    key: 'dish',
+    label: 'A whole dish, if it came as one',
+    sizes: DISH_SIZES,
+    choices: [
+      { label: 'Pasta with meat sauce', per100: t(121, 5.8, 16.4, 3.6, 1.6) },
+      { label: 'Rice with meat and vegetables', per100: t(150, 8, 18, 5, 1.5) },
+      { label: 'Stew, curry or casserole', per100: t(120, 8, 8, 6, 1.5) },
+      { label: 'Pizza', per100: t(266, 11, 33, 10, 2.3) },
+      { label: 'Burger or filled sandwich', per100: t(250, 13, 25, 11, 1.5) },
+      { label: 'Salad with meat or cheese', per100: t(120, 8, 6, 7, 2) },
+      { label: 'Soup', per100: t(55, 3, 6, 2, 1) },
+    ],
+  },
   {
     key: 'protein',
     label: 'Meat or fish',
