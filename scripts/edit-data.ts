@@ -67,61 +67,21 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  const add = (row: Row, note: string) => {
-    if ((data.foods ?? []).some((f) => f.name.toLowerCase() === String(row.name).toLowerCase())) return
-    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
-    ;(data.foods ??= []).push(
-      touch({
-        id: nextId,
-        carbs: 0,
-        fat: 0,
-        fiber: 0,
-        portions: [],
-        defaultPortion: -1,
-        liquid: false,
-        source: 'manual',
-        favorite: false,
-        useCount: 0,
-        lastUsed: 0,
-        createdAt: Date.now(),
-        ...row,
-      }),
-    )
-    notes.push(note)
+  // These are things eaten on somebody else's plate, not staples of his own,
+  // and saving them puts them in "My foods" where they do not belong. The app
+  // already has the right path for a meal like this — "Eating out — estimate a
+  // plate" — and the USDA rows behind them stay findable by search, where the
+  // restaurant naming files them under Eating out on its own.
+  for (const re of [/^spaghetti with meat sauce/i, /^green beans, roasted/i]) {
+    const i = (data.foods ?? []).findIndex((f) => re.test(f.name))
+    if (i < 0) continue
+    const [row] = data.foods.splice(i, 1)
+    if (row.id != null) {
+      const nextId = Math.max(0, ...(data.tombstones ?? []).map((t) => t.id ?? 0)) + 1
+      ;(data.tombstones ??= []).push({ id: nextId, table: 'foods', key: row.id, at: Date.now() })
+    }
+    notes.push(`deleted "${row.name}" from the library`)
   }
-
-  // USDA SR Legacy #167680, "Restaurant, Italian, spaghetti with meat sauce" —
-  // the pasta and sauce together, which is the only way it can be judged on a
-  // plate someone else served. Weighing the two apart is not an option when
-  // eating out, and the combined figure already carries a typical sauce ratio.
-  add(
-    {
-      name: 'Spaghetti with meat sauce (eating out)',
-      kcal: 121,
-      protein: 5.8,
-      carbs: 16.4,
-      fat: 3.6,
-      fiber: 1.6,
-      source: 'usda',
-      sourceId: '167680',
-    },
-    'added Spaghetti with meat sauce (eating out) — per 100 g: 121 kcal, 5.8 P, 16.4 C, 3.6 F',
-  )
-
-  // Green beans boiled are 35 kcal (USDA #169141); roasting adds the oil they
-  // are tossed in, which is most of the energy. Reckoned at a teaspoon per
-  // 100 g of beans, which is what a glossy roasted side usually carries.
-  add(
-    {
-      name: 'Green beans, roasted',
-      kcal: 80,
-      protein: 1.9,
-      carbs: 7.9,
-      fat: 5.3,
-      fiber: 3.2,
-    },
-    'added Green beans, roasted — per 100 g: 80 kcal, 1.9 P, 7.9 C, 5.3 F, 3.2 fibre',
-  )
 
   return notes
 }
