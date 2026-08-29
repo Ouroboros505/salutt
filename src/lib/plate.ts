@@ -24,6 +24,15 @@ export interface PlateChoice {
   label: string
   /** Per 100 g, from USDA generics for the commonest version of the thing. */
   per100: Totals
+  /**
+   * What someone would actually type looking for this.
+   *
+   * The list is deliberately generic — one entry stands in for every roasted
+   * vegetable there is — but nobody searches for "roasted or grilled
+   * vegetables". They search for the green beans on their plate. Spanish goes
+   * in too, since half of what he eats he would name in it.
+   */
+  keywords?: string[]
 }
 
 export interface PlateCategory {
@@ -107,13 +116,13 @@ export const PLATE: PlateCategory[] = [
     label: 'A whole dish, if it came as one',
     sizes: DISH_SIZES,
     choices: [
-      { label: 'Pasta with meat sauce', per100: t(121, 5.8, 16.4, 3.6, 1.6) },
-      { label: 'Rice with meat and vegetables', per100: t(150, 8, 18, 5, 1.5) },
-      { label: 'Stew, curry or casserole', per100: t(120, 8, 8, 6, 1.5) },
-      { label: 'Pizza', per100: t(266, 11, 33, 10, 2.3) },
-      { label: 'Burger or filled sandwich', per100: t(250, 13, 25, 11, 1.5) },
-      { label: 'Salad with meat or cheese', per100: t(120, 8, 6, 7, 2) },
-      { label: 'Soup', per100: t(55, 3, 6, 2, 1) },
+      { label: 'Pasta with meat sauce', per100: t(121, 5.8, 16.4, 3.6, 1.6) , keywords: 'spaghetti bolognese lasagne ragu meatballs noodles pasta'.split(' ') },
+      { label: 'Rice with meat and vegetables', per100: t(150, 8, 18, 5, 1.5) , keywords: 'stir fry fried rice paella biryani arroz risotto'.split(' ') },
+      { label: 'Stew, curry or casserole', per100: t(120, 8, 8, 6, 1.5) , keywords: 'chili curry goulash sancocho guiso stew casserole'.split(' ') },
+      { label: 'Pizza', per100: t(266, 11, 33, 10, 2.3) , keywords: 'pizza slice calzone'.split(' ') },
+      { label: 'Burger or filled sandwich', per100: t(250, 13, 25, 11, 1.5) , keywords: 'burger sandwich sub wrap panini hot dog taco burrito hamburguesa'.split(' ') },
+      { label: 'Salad with meat or cheese', per100: t(120, 8, 6, 7, 2) , keywords: 'caesar salad ensalada'.split(' ') },
+      { label: 'Soup', per100: t(55, 3, 6, 2, 1) , keywords: 'soup broth sopa ramen caldo'.split(' ') },
     ],
   },
   {
@@ -121,17 +130,17 @@ export const PLATE: PlateCategory[] = [
     label: 'Meat or fish',
     sizes: MEAT_SIZES,
     choices: [
-      { label: 'Chicken, lean', per100: t(165, 31, 0, 3.6, 0) },
-      { label: 'Chicken, with skin', per100: t(232, 23.3, 0, 14.7, 0) },
-      { label: 'Chicken, fried or breaded', per100: t(230, 23.5, 6, 12.4, 0.1) },
-      { label: 'Beef or pork', per100: t(240, 25.8, 0, 14.3, 0) },
-      { label: 'Fish', per100: t(206, 22.1, 0, 12.4, 0) },
-      { label: 'Prawns or shellfish', per100: t(99, 24, 0.2, 0.3, 0) },
-      { label: 'Egg', per100: t(196, 13.6, 0.8, 14.8, 0) },
-      { label: 'Sausage or chorizo', per100: t(300, 13, 2, 27, 0) },
-      { label: 'Ham or deli meat', per100: t(145, 18, 2, 7, 0) },
-      { label: 'Tofu', per100: t(144, 17.3, 2.8, 8.7, 2.3) },
-      { label: 'Beans or lentils', per100: t(132, 8.9, 23.7, 0.5, 8.7) },
+      { label: 'Chicken, lean', per100: t(165, 31, 0, 3.6, 0) , keywords: 'chicken breast grilled chicken pollo turkey pavo'.split(' ') },
+      { label: 'Chicken, with skin', per100: t(232, 23.3, 0, 14.7, 0) , keywords: 'chicken thigh wing roast chicken drumstick'.split(' ') },
+      { label: 'Chicken, fried or breaded', per100: t(230, 23.5, 6, 12.4, 0.1) , keywords: 'fried chicken nuggets schnitzel milanesa katsu breaded'.split(' ') },
+      { label: 'Beef or pork', per100: t(240, 25.8, 0, 14.3, 0) , keywords: 'beef steak pork mince ground beef lamb ribs carne cerdo res'.split(' ') },
+      { label: 'Fish', per100: t(206, 22.1, 0, 12.4, 0) , keywords: 'fish salmon tuna cod tilapia pescado atun'.split(' ') },
+      { label: 'Prawns or shellfish', per100: t(99, 24, 0.2, 0.3, 0) , keywords: 'prawns shrimp camaron crab mussels seafood marisco'.split(' ') },
+      { label: 'Egg', per100: t(196, 13.6, 0.8, 14.8, 0) , keywords: 'egg huevo omelette scrambled fried egg tortilla de huevo'.split(' ') },
+      { label: 'Sausage or chorizo', per100: t(300, 13, 2, 27, 0) , keywords: 'sausage chorizo bacon salami pepperoni hot dog salchicha'.split(' ') },
+      { label: 'Ham or deli meat', per100: t(145, 18, 2, 7, 0) , keywords: 'ham deli jamon turkey slices prosciutto'.split(' ') },
+      { label: 'Tofu', per100: t(144, 17.3, 2.8, 8.7, 2.3) , keywords: 'tofu tempeh soy'.split(' ') },
+      { label: 'Beans or lentils', per100: t(132, 8.9, 23.7, 0.5, 8.7) , keywords: 'beans lentils chickpeas frijoles black beans hummus garbanzos'.split(' ') },
     ],
   },
   {
@@ -139,17 +148,17 @@ export const PLATE: PlateCategory[] = [
     label: 'Rice, potato, bread',
     sizes: STARCH_SIZES,
     choices: [
-      { label: 'Rice', per100: t(130, 2.7, 28.2, 0.3, 0.4) },
-      { label: 'Pasta or noodles', per100: t(158, 5.8, 30.9, 0.9, 1.8) },
-      { label: 'Potato', per100: t(86, 1.7, 20, 0.1, 1.8) },
-      { label: 'Sweet potato', per100: t(90, 2, 20.7, 0.2, 3.3) },
-      { label: 'Bread', per100: t(270, 9.4, 49.2, 3.6, 2.3) },
-      { label: 'Arepa or tortilla', per100: t(219, 5.5, 37.1, 5.4, 2.6) },
-      { label: 'Plantain, fried', per100: t(309, 1.5, 49.2, 11.8, 3.5) },
-      { label: 'Plantain, boiled', per100: t(121, 1.1, 29.1, 0.1, 2.3) },
-      { label: 'Quinoa or couscous', per100: t(120, 4.4, 21.3, 1.9, 2.8) },
-      { label: 'Sweetcorn', per100: t(96, 3.4, 21, 1.5, 2.4) },
-      { label: 'Chips or fries', per100: t(312, 3.4, 41, 15, 3.8) },
+      { label: 'Rice', per100: t(130, 2.7, 28.2, 0.3, 0.4) , keywords: 'rice arroz white rice brown rice'.split(' ') },
+      { label: 'Pasta or noodles', per100: t(158, 5.8, 30.9, 0.9, 1.8) , keywords: 'pasta spaghetti macaroni noodles ramen fideos'.split(' ') },
+      { label: 'Potato', per100: t(86, 1.7, 20, 0.1, 1.8) , keywords: 'potato mashed boiled potato papa patata'.split(' ') },
+      { label: 'Sweet potato', per100: t(90, 2, 20.7, 0.2, 3.3) , keywords: 'sweet potato yam batata camote'.split(' ') },
+      { label: 'Bread', per100: t(270, 9.4, 49.2, 3.6, 2.3) , keywords: 'bread roll bun baguette toast pan'.split(' ') },
+      { label: 'Arepa or tortilla', per100: t(219, 5.5, 37.1, 5.4, 2.6) , keywords: 'arepa tortilla taco shell pita naan wrap flatbread'.split(' ') },
+      { label: 'Plantain, fried', per100: t(309, 1.5, 49.2, 11.8, 3.5) , keywords: 'plantain tostones patacones maduros platano frito'.split(' ') },
+      { label: 'Plantain, boiled', per100: t(121, 1.1, 29.1, 0.1, 2.3) , keywords: 'plantain platano cocido boiled plantain'.split(' ') },
+      { label: 'Quinoa or couscous', per100: t(120, 4.4, 21.3, 1.9, 2.8) , keywords: 'quinoa couscous bulgur barley'.split(' ') },
+      { label: 'Sweetcorn', per100: t(96, 3.4, 21, 1.5, 2.4) , keywords: 'corn sweetcorn maize elote choclo mazorca'.split(' ') },
+      { label: 'Chips or fries', per100: t(312, 3.4, 41, 15, 3.8) , keywords: 'chips fries crisps wedges hash brown papas fritas'.split(' ') },
     ],
   },
   {
@@ -157,10 +166,10 @@ export const PLATE: PlateCategory[] = [
     label: 'Vegetables',
     sizes: VEG_SIZES,
     choices: [
-      { label: 'Cooked vegetables', per100: t(65, 2.9, 13.1, 0.1, 4.4) },
-      { label: 'Roasted or grilled vegetables', per100: t(110, 2.5, 12, 6, 3.5) },
-      { label: 'Salad leaves', per100: t(17, 1.2, 3.2, 0.3, 1.8) },
-      { label: 'Raw vegetables', per100: t(30, 1.4, 6.5, 0.2, 2.2) },
+      { label: 'Cooked vegetables', per100: t(65, 2.9, 13.1, 0.1, 4.4) , keywords: 'green beans broccoli carrots peas spinach cauliflower courgette zucchini verduras vegetables'.split(' ') },
+      { label: 'Roasted or grilled vegetables', per100: t(110, 2.5, 12, 6, 3.5) , keywords: 'roasted green beans mushrooms peppers asparagus aubergine grilled vegetables champinones setas verduras asadas'.split(' ') },
+      { label: 'Salad leaves', per100: t(17, 1.2, 3.2, 0.3, 1.8) , keywords: 'salad lettuce rocket arugula spinach ensalada'.split(' ') },
+      { label: 'Raw vegetables', per100: t(30, 1.4, 6.5, 0.2, 2.2) , keywords: 'raw vegetables cucumber tomato carrot sticks crudites pepino'.split(' ') },
     ],
   },
   {
@@ -168,11 +177,11 @@ export const PLATE: PlateCategory[] = [
     label: 'Cheese, sauce, dressing',
     sizes: EXTRA_SIZES,
     choices: [
-      { label: 'Cheese', per100: t(408, 23.3, 2.4, 34, 0) },
-      { label: 'Creamy sauce or dressing', per100: t(350, 1.5, 6, 36, 0) },
-      { label: 'Mayonnaise', per100: t(680, 1, 0.6, 75, 0) },
-      { label: 'Guacamole or avocado', per100: t(157, 2, 8.6, 14.2, 6.7) },
-      { label: 'Tomato or stock sauce', per100: t(70, 1.6, 9, 3, 1.2) },
+      { label: 'Cheese', per100: t(408, 23.3, 2.4, 34, 0) , keywords: 'cheese queso parmesan cheddar mozzarella feta'.split(' ') },
+      { label: 'Creamy sauce or dressing', per100: t(350, 1.5, 6, 36, 0) , keywords: 'alfredo ranch aioli sour cream crema dressing mayonesa'.split(' ') },
+      { label: 'Mayonnaise', per100: t(680, 1, 0.6, 75, 0) , keywords: 'mayonnaise mayo mayonesa'.split(' ') },
+      { label: 'Guacamole or avocado', per100: t(157, 2, 8.6, 14.2, 6.7) , keywords: 'guacamole avocado aguacate palta'.split(' ') },
+      { label: 'Tomato or stock sauce', per100: t(70, 1.6, 9, 3, 1.2) , keywords: 'marinara salsa gravy tomato sauce hogao'.split(' ') },
     ],
   },
   {
@@ -180,11 +189,11 @@ export const PLATE: PlateCategory[] = [
     label: 'Pudding, cake, something sweet',
     sizes: SWEET_SIZES,
     choices: [
-      { label: 'Cake or pastry', per100: t(371, 4.2, 50.7, 16.4, 1.6) },
-      { label: 'Biscuits or cookies', per100: t(480, 5.7, 64, 23, 2) },
-      { label: 'Ice cream', per100: t(207, 3.5, 23.6, 11, 0.7) },
-      { label: 'Chocolate', per100: t(546, 4.9, 61, 31, 3.4) },
-      { label: 'Fruit', per100: t(60, 0.7, 15, 0.2, 2) },
+      { label: 'Cake or pastry', per100: t(371, 4.2, 50.7, 16.4, 1.6) , keywords: 'cake pastry brownie muffin donut torta pie tart'.split(' ') },
+      { label: 'Biscuits or cookies', per100: t(480, 5.7, 64, 23, 2) , keywords: 'biscuits cookies galletas'.split(' ') },
+      { label: 'Ice cream', per100: t(207, 3.5, 23.6, 11, 0.7) , keywords: 'ice cream helado gelato'.split(' ') },
+      { label: 'Chocolate', per100: t(546, 4.9, 61, 31, 3.4) , keywords: 'chocolate truffle candy sweets chocolatina'.split(' ') },
+      { label: 'Fruit', per100: t(60, 0.7, 15, 0.2, 2) , keywords: 'fruit fruta berries melon'.split(' ') },
     ],
   },
   {
@@ -192,11 +201,11 @@ export const PLATE: PlateCategory[] = [
     label: 'Something to drink',
     sizes: DRINK_SIZES,
     choices: [
-      { label: 'Soft drink, sugared', per100: t(42, 0, 10.6, 0, 0) },
-      { label: 'Fruit juice', per100: t(45, 0.5, 10.9, 0.1, 0.2) },
-      { label: 'Beer', per100: t(43, 0.5, 3.6, 0, 0) },
-      { label: 'Wine', per100: t(85, 0.1, 2.6, 0, 0) },
-      { label: 'Coffee with milk', per100: t(55, 3, 5, 2.5, 0) },
+      { label: 'Soft drink, sugared', per100: t(42, 0, 10.6, 0, 0) , keywords: 'soda coke cola sprite gaseosa soft drink fizzy'.split(' ') },
+      { label: 'Fruit juice', per100: t(45, 0.5, 10.9, 0.1, 0.2) , keywords: 'juice jugo orange juice smoothie zumo'.split(' ') },
+      { label: 'Beer', per100: t(43, 0.5, 3.6, 0, 0) , keywords: 'beer cerveza lager ale'.split(' ') },
+      { label: 'Wine', per100: t(85, 0.1, 2.6, 0, 0) , keywords: 'wine vino'.split(' ') },
+      { label: 'Coffee with milk', per100: t(55, 3, 5, 2.5, 0) , keywords: 'coffee latte cappuccino cafe con leche tea with milk'.split(' ') },
     ],
   },
 ]

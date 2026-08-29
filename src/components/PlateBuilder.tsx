@@ -30,8 +30,26 @@ export default function PlateBuilder({
   toast: (m: string) => void
 }) {
   const [items, setItems] = useState<PlateItem[]>([])
+  const [query, setQuery] = useState('')
   const [oiled, setOiled] = useState(true)
   const [saving, setSaving] = useState(false)
+
+  // Searching the stand-ins by what was actually on the plate. Nobody looks for
+  // "roasted or grilled vegetables"; they look for the green beans in front of
+  // them, so each choice carries the words someone would type for it.
+  const q = query.trim().toLowerCase()
+  const shown = q
+    ? PLATE.map((cat) => ({
+        ...cat,
+        // Matched against the label and every keyword as one string, rather
+        // than word by word: "green beans" has to find a keyword list that
+        // holds both, and "patacones" must not match on the taco buried
+        // inside it.
+        choices: cat.choices.filter((c) =>
+          `${c.label} ${(c.keywords ?? []).join(' ')}`.toLowerCase().includes(q),
+        ),
+      })).filter((cat) => cat.choices.length > 0)
+    : PLATE
 
   const totals = plateTotals(items, oiled)
   const error = plateError(items, oiled)
@@ -73,7 +91,23 @@ export default function PlateBuilder({
     <>
       <div className="tiny muted">
         Nothing here was weighed and nothing needs to be. Pick what was on the plate and match each
-        one to your hand — the answer is a range, which is all an estimate can honestly be.
+        one to your hand — then correct the grams by hand above if you have a better idea than your
+        hand did. The answer is a range, which is all an estimate can honestly be.
+      </div>
+
+      <div style={{ position: 'relative' }}>
+        <input
+          type="search"
+          placeholder="Search — green beans, arepa, beer…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          style={{ paddingLeft: 36 }}
+        />
+        <span
+          style={{ position: 'absolute', left: 10, top: 11, color: 'var(--text-muted)', pointerEvents: 'none' }}
+        >
+          <Icon.search />
+        </span>
       </div>
 
       {items.length > 0 && (
@@ -105,7 +139,14 @@ export default function PlateBuilder({
         </div>
       )}
 
-      {PLATE.map((cat) => (
+      {q && shown.length === 0 && (
+        <div className="empty">
+          Nothing matches “{query}”. Everything here is a generic stand-in, so try the plainer word —
+          the vegetables, the meat, the starch.
+        </div>
+      )}
+
+      {shown.map((cat) => (
         <div className="card tight" key={cat.key}>
           <h3>{cat.label}</h3>
           {cat.choices.map((choice) => (
