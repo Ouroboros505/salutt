@@ -67,36 +67,16 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Berry cake he baked, computed from the recipe rather than looked up.
-  // Batter: 3/4 egg (37.5 g), 100 g sugar, 43 g butter, 60 g flour, 85 g
-  // berries = 325 g raw at 1012 kcal. Cakes lose about an eighth of their
-  // weight in the oven, so ~286 g baked. The infused half of the butter is
-  // calorically identical to the plain half, so it changes nothing here.
-  //
-  // Logged by weight: the whole batch went into 4 dishes cut in two, so a
-  // piece is around 36 g, but weighing beats assuming.
-  if (!(data.foods ?? []).some((f) => /berry cake/i.test(f.name))) {
-    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
-    ;(data.foods ??= []).push(
-      touch({
-        id: nextId,
-        name: 'Berry cake, homemade',
-        kcal: 353,
-        protein: 4.1,
-        carbs: 54.9,
-        fat: 13.7,
-        fiber: 1.8,
-        portions: [{ label: 'one piece, 1/8 of the batch (36 g)', grams: 36 }],
-        defaultPortion: -1,
-        liquid: false,
-        source: 'manual',
-        favorite: false,
-        useCount: 0,
-        lastUsed: 0,
-        createdAt: Date.now(),
-      }),
-    )
-    notes.push('added Berry cake, homemade — per 100 g: 353 kcal, 4.1 P, 54.9 C, 13.7 F')
+  // Today's reading was saved as emptied and he had not been. The flag decides
+  // whether the trend may learn from the reading at all, so it is worth more
+  // than the weight itself.
+  const w = (data.weighIns ?? []).find((x) => x.date === '2026-08-29')
+  if (w) {
+    notes.push(`2026-08-29 (${w.kg} kg): afterStool ${w.afterStool} -> false`)
+    w.afterStool = false
+    touch(w)
+  } else {
+    notes.push('no 2026-08-29 weigh-in found')
   }
 
   return notes
