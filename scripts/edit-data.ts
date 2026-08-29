@@ -67,25 +67,31 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Red wine vinegar (Aldi). The label rounds to zero at a tablespoon, which
-  // it is entitled to do under 5 kcal; USDA puts the real figure at 19 kcal
-  // per 100 ml, so that is what is stored. Either way it is nothing in a pot —
-  // it is here because he wants the cupboard on hand for future recipes.
-  if (!(data.foods ?? []).some((f) => /red wine vinegar/i.test(f.name))) {
+  // Minced garlic in oil (Stonemill, Aldi). Label: 1 tsp (5 g) = 5 kcal, 1 g
+  // carbohydrate, everything else rounding to zero. Jar is 198 g, 40 servings.
+  // Lower than raw garlic's 149 kcal because it is packed in water — the
+  // ingredients read garlic, water, olive oil, citric acid.
+  //
+  // The protein and fat show as zero only because a 5 g serving rounds them
+  // away; at this dose in a pot it makes no difference either way.
+  if (!(data.foods ?? []).some((f) => /minced garlic/i.test(f.name))) {
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
     ;(data.foods ??= []).push(
       touch({
         id: nextId,
-        name: 'Red wine vinegar',
-        brand: 'Aldi',
-        kcal: 19,
-        protein: 0,
-        carbs: 0.3,
-        fat: 0,
+        name: 'Minced garlic in oil',
+        brand: 'Stonemill (Aldi)',
+        kcal: 100,
+        protein: 1,
+        carbs: 20,
+        fat: 1,
         fiber: 0,
-        portions: [{ label: '1 tbsp (15 ml)', grams: 15 }],
+        portions: [
+          { label: '1 tsp (5 g)', grams: 5 },
+          { label: 'the whole jar (198 g)', grams: 198 },
+        ],
         defaultPortion: -1,
-        liquid: true,
+        liquid: false,
         source: 'manual',
         favorite: false,
         useCount: 0,
@@ -93,7 +99,7 @@ function change(data: Data): string[] {
         createdAt: Date.now(),
       }),
     )
-    notes.push('added Red wine vinegar — per 100 ml: 19 kcal (label rounds a tbsp to zero)')
+    notes.push('added Minced garlic in oil — per 100 g: 100 kcal, 20 C (1 tsp = 5 kcal)')
   }
 
   return notes
