@@ -67,26 +67,30 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Beef skirt steak (Thomas Foods, via Aldi). Label is raw: 4 oz (112 g) =
-  // 180 kcal, 24 g protein, 10 g fat, no carbohydrate — so 161 kcal and 21.4 g
-  // protein per 100 g raw. He weighs cooked, so it is stored cooked, at the
-  // usual quarter of the weight lost from a pan-seared steak (factor 1.33).
-  // USDA's own broiled skirt steak lands at 234 kcal and 27 g protein, which
-  // brackets this from above, as it should for a leaner-labelled cut.
+  // Pork centre-cut loin filet (Aldi). Label is raw: 4 oz (112 g) = 140 kcal,
+  // 22 g protein, 4 g fat, 3 g carbohydrate — 125 kcal and 19.6 g protein per
+  // 100 g. Enhanced, but less so than the chicken: up to 15% solution against
+  // that bird's 25%.
   //
-  // Unlike the boiled chicken, this factor has not been measured on his own
-  // scale — weigh a batch raw and again cooked and it can be pinned exactly.
-  if (!(data.foods ?? []).some((f) => /skirt steak/i.test(f.name))) {
+  // Stored cooked, since that is when it gets weighed. Factor 1.45: the meat
+  // itself loses the usual quarter, and roughly half the injected solution
+  // goes with it — less than the chicken lost, because that was boiled, which
+  // is the harshest way to drive brine out, and a loin filet is roasted or
+  // seared. USDA's roasted pork loin is 209 kcal and 30 g protein, which sits
+  // just above this, as it should for a cut carrying added water.
+  //
+  // Worth measuring rather than trusting: weigh a filet before and after.
+  if (!(data.foods ?? []).some((f) => /pork.*loin filet/i.test(f.name))) {
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
     ;(data.foods ??= []).push(
       touch({
         id: nextId,
-        name: 'Beef skirt steak, cooked',
+        name: 'Pork centre-cut loin filet, cooked',
         brand: 'Aldi',
-        kcal: 214,
-        protein: 28.5,
-        carbs: 0,
-        fat: 11.9,
+        kcal: 181,
+        protein: 28.4,
+        carbs: 3.9,
+        fat: 5.2,
         fiber: 0,
         portions: [],
         defaultPortion: -1,
@@ -98,7 +102,7 @@ function change(data: Data): string[] {
         createdAt: Date.now(),
       }),
     )
-    notes.push('added Beef skirt steak, cooked (Aldi) — per 100 g: 214 kcal, 28.5 P, 11.9 F')
+    notes.push('added Pork centre-cut loin filet, cooked (Aldi) — per 100 g: 181 kcal, 28.4 P, 3.9 C, 5.2 F')
   }
 
   return notes
