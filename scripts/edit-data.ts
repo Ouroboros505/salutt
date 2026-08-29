@@ -67,20 +67,36 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // These are things eaten on somebody else's plate, not staples of his own,
-  // and saving them puts them in "My foods" where they do not belong. The app
-  // already has the right path for a meal like this — "Eating out — estimate a
-  // plate" — and the USDA rows behind them stay findable by search, where the
-  // restaurant naming files them under Eating out on its own.
-  for (const re of [/^spaghetti with meat sauce/i, /^green beans, roasted/i]) {
-    const i = (data.foods ?? []).findIndex((f) => re.test(f.name))
-    if (i < 0) continue
-    const [row] = data.foods.splice(i, 1)
-    if (row.id != null) {
-      const nextId = Math.max(0, ...(data.tombstones ?? []).map((t) => t.id ?? 0)) + 1
-      ;(data.tombstones ??= []).push({ id: nextId, table: 'foods', key: row.id, at: Date.now() })
-    }
-    notes.push(`deleted "${row.name}" from the library`)
+  // Berry cake he baked, computed from the recipe rather than looked up.
+  // Batter: 3/4 egg (37.5 g), 100 g sugar, 43 g butter, 60 g flour, 85 g
+  // berries = 325 g raw at 1012 kcal. Cakes lose about an eighth of their
+  // weight in the oven, so ~286 g baked. The infused half of the butter is
+  // calorically identical to the plain half, so it changes nothing here.
+  //
+  // Logged by weight: the whole batch went into 4 dishes cut in two, so a
+  // piece is around 36 g, but weighing beats assuming.
+  if (!(data.foods ?? []).some((f) => /berry cake/i.test(f.name))) {
+    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
+    ;(data.foods ??= []).push(
+      touch({
+        id: nextId,
+        name: 'Berry cake, homemade',
+        kcal: 353,
+        protein: 4.1,
+        carbs: 54.9,
+        fat: 13.7,
+        fiber: 1.8,
+        portions: [{ label: 'one piece, 1/8 of the batch (36 g)', grams: 36 }],
+        defaultPortion: -1,
+        liquid: false,
+        source: 'manual',
+        favorite: false,
+        useCount: 0,
+        lastUsed: 0,
+        createdAt: Date.now(),
+      }),
+    )
+    notes.push('added Berry cake, homemade — per 100 g: 353 kcal, 4.1 P, 54.9 C, 13.7 F')
   }
 
   return notes
