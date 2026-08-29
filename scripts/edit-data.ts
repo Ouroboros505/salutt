@@ -67,16 +67,38 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Today's reading was saved as emptied and he had not been. The flag decides
-  // whether the trend may learn from the reading at all, so it is worth more
-  // than the weight itself.
-  const w = (data.weighIns ?? []).find((x) => x.date === '2026-08-29')
-  if (w) {
-    notes.push(`2026-08-29 (${w.kg} kg): afterStool ${w.afterStool} -> false`)
-    w.afterStool = false
-    touch(w)
-  } else {
-    notes.push('no 2026-08-29 weigh-in found')
+  // Beef skirt steak (Thomas Foods, via Aldi). Label is raw: 4 oz (112 g) =
+  // 180 kcal, 24 g protein, 10 g fat, no carbohydrate — so 161 kcal and 21.4 g
+  // protein per 100 g raw. He weighs cooked, so it is stored cooked, at the
+  // usual quarter of the weight lost from a pan-seared steak (factor 1.33).
+  // USDA's own broiled skirt steak lands at 234 kcal and 27 g protein, which
+  // brackets this from above, as it should for a leaner-labelled cut.
+  //
+  // Unlike the boiled chicken, this factor has not been measured on his own
+  // scale — weigh a batch raw and again cooked and it can be pinned exactly.
+  if (!(data.foods ?? []).some((f) => /skirt steak/i.test(f.name))) {
+    const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
+    ;(data.foods ??= []).push(
+      touch({
+        id: nextId,
+        name: 'Beef skirt steak, cooked',
+        brand: 'Aldi',
+        kcal: 214,
+        protein: 28.5,
+        carbs: 0,
+        fat: 11.9,
+        fiber: 0,
+        portions: [],
+        defaultPortion: -1,
+        liquid: false,
+        source: 'manual',
+        favorite: false,
+        useCount: 0,
+        lastUsed: 0,
+        createdAt: Date.now(),
+      }),
+    )
+    notes.push('added Beef skirt steak, cooked (Aldi) — per 100 g: 214 kcal, 28.5 P, 11.9 F')
   }
 
   return notes
