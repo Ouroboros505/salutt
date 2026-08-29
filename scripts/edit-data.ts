@@ -67,26 +67,23 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Petite sirloin, Black Angus (Aldi). Label is raw: 4 oz (112 g) = 190 kcal,
-  // 23 g protein, 11 g fat, no carbohydrate — 170 kcal and 20.5 g protein per
-  // 100 g raw. Ingredients read "BEEF" and nothing else, and the sodium is
-  // 55 mg against the pork's 480, so unlike the other two this one carries no
-  // injected solution at all.
+  // Store cupboard staples, from their labels. These are ingredients rather
+  // than meals — he cooks with them repeatedly and wants them on hand for
+  // future recipes, so they live in the library even though a portion of any
+  // of them is never eaten on its own.
   //
-  // That makes the cooking loss the ordinary one: a quarter of the weight, all
-  // of it water from the meat itself, so factor 1.33 rather than the 1.45 and
-  // 1.60 the enhanced cuts needed. Stored cooked, as everything else now is.
-  if (!(data.foods ?? []).some((f) => /petite sirloin/i.test(f.name))) {
+  // All values are as-sold: the lentils dry, the tomatoes and broth as they
+  // come out of the tin and carton. A recipe built from them accounts for the
+  // cooking; the row itself should not.
+  const add = (row: Row, note: string) => {
+    if ((data.foods ?? []).some((f) => f.name.toLowerCase() === String(row.name).toLowerCase())) return
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
     ;(data.foods ??= []).push(
       touch({
         id: nextId,
-        name: 'Petite sirloin steak, cooked',
-        brand: 'Black Angus (Aldi)',
-        kcal: 226,
-        protein: 27.3,
+        protein: 0,
         carbs: 0,
-        fat: 13,
+        fat: 0,
         fiber: 0,
         portions: [],
         defaultPortion: -1,
@@ -96,10 +93,82 @@ function change(data: Data): string[] {
         useCount: 0,
         lastUsed: 0,
         createdAt: Date.now(),
+        ...row,
       }),
     )
-    notes.push('added Petite sirloin steak, cooked (Black Angus, Aldi) — per 100 g: 226 kcal, 27.3 P, 13 F')
+    notes.push(note)
   }
+
+  // 1/4 cup dry (35 g) = 120 kcal, 9 P, 22 C, 4 fibre, 0.4 fat. Bag is 13
+  // servings, 455 g. Within 3% of USDA's dry lentil, so the label is honest.
+  add(
+    {
+      name: 'Lentils, green, dry',
+      brand: "Dakota's (Aldi)",
+      kcal: 343,
+      protein: 25.7,
+      carbs: 62.9,
+      fat: 1.1,
+      fiber: 11.4,
+      portions: [
+        { label: '1/4 cup dry (35 g)', grams: 35 },
+        { label: 'the whole bag (455 g)', grams: 455 },
+      ],
+    },
+    'added Lentils, green, dry — per 100 g: 343 kcal, 25.7 P, 62.9 C, 11.4 fibre',
+  )
+
+  // 1/2 cup (121 g) = 25 kcal, 1 P, 5 C, 1 fibre. Tin is about 3.5 servings.
+  add(
+    {
+      name: 'Tomatoes, diced, tinned',
+      brand: 'Happy Harvest (Aldi)',
+      kcal: 21,
+      protein: 0.8,
+      carbs: 4.1,
+      fat: 0,
+      fiber: 0.8,
+      portions: [
+        { label: '1/2 cup (121 g)', grams: 121 },
+        { label: 'the whole tin (424 g)', grams: 424 },
+      ],
+    },
+    'added Tomatoes, diced, tinned — per 100 g: 21 kcal, 0.8 P, 4.1 C, 0.8 fibre',
+  )
+
+  // 1 cup (240 ml) = 10 kcal, 2 C, 580 mg sodium. Carton is about 4 cups.
+  add(
+    {
+      name: 'Vegetable broth',
+      brand: 'Great Value organic',
+      kcal: 4,
+      protein: 0,
+      carbs: 0.8,
+      fat: 0,
+      fiber: 0,
+      liquid: true,
+      portions: [
+        { label: '1 cup (240 ml)', grams: 240 },
+        { label: 'the whole carton (960 ml)', grams: 960 },
+      ],
+    },
+    'added Vegetable broth — per 100 ml: 4 kcal, 0.8 C (mostly salt: 580 mg a cup)',
+  )
+
+  // 1 cube (3.5 g) = 5 kcal, under a gram of carbohydrate, ~900 mg sodium.
+  add(
+    {
+      name: 'Chicken bouillon cube',
+      brand: "Chef's Cupboard (Aldi)",
+      kcal: 143,
+      protein: 0,
+      carbs: 14,
+      fat: 0,
+      fiber: 0,
+      portions: [{ label: '1 cube (3.5 g)', grams: 3.5 }],
+    },
+    'added Chicken bouillon cube — 5 kcal a cube, ~900 mg sodium',
+  )
 
   return notes
 }
