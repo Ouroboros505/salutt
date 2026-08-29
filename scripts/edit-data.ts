@@ -67,34 +67,25 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Sicilian extra virgin olive oil (Specially Selected, Aldi). Label is per
-  // tablespoon: 15 ml = 120 kcal, 14 g fat, nothing else. Oil is lighter than
-  // water at about 0.92 g/ml, so that tablespoon weighs ~13.8 g and the label
-  // works out to the standard 884 kcal per 100 g of pure fat — stored that way
-  // so a weighed amount is right, with the tablespoon kept as a portion for
-  // when it is poured rather than weighed.
-  //
-  // The most calorie-dense thing in the kitchen by some distance, and the one
-  // most often left out of a recipe. In a chimichurri it will be most of the
-  // energy in the jar.
-  if (!(data.foods ?? []).some((f) => /olive oil/i.test(f.name))) {
+  // Red wine vinegar (Aldi). The label rounds to zero at a tablespoon, which
+  // it is entitled to do under 5 kcal; USDA puts the real figure at 19 kcal
+  // per 100 ml, so that is what is stored. Either way it is nothing in a pot —
+  // it is here because he wants the cupboard on hand for future recipes.
+  if (!(data.foods ?? []).some((f) => /red wine vinegar/i.test(f.name))) {
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
     ;(data.foods ??= []).push(
       touch({
         id: nextId,
-        name: 'Olive oil, extra virgin',
-        brand: 'Specially Selected (Aldi)',
-        kcal: 884,
+        name: 'Red wine vinegar',
+        brand: 'Aldi',
+        kcal: 19,
         protein: 0,
-        carbs: 0,
-        fat: 100,
+        carbs: 0.3,
+        fat: 0,
         fiber: 0,
-        portions: [
-          { label: '1 tbsp (15 ml)', grams: 13.8 },
-          { label: '1 tsp (5 ml)', grams: 4.6 },
-        ],
+        portions: [{ label: '1 tbsp (15 ml)', grams: 15 }],
         defaultPortion: -1,
-        liquid: false,
+        liquid: true,
         source: 'manual',
         favorite: false,
         useCount: 0,
@@ -102,7 +93,7 @@ function change(data: Data): string[] {
         createdAt: Date.now(),
       }),
     )
-    notes.push('added Olive oil, extra virgin — per 100 g: 884 kcal, 100 g fat (1 tbsp = 122 kcal)')
+    notes.push('added Red wine vinegar — per 100 ml: 19 kcal (label rounds a tbsp to zero)')
   }
 
   return notes
