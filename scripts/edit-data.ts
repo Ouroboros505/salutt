@@ -67,30 +67,26 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Pork centre-cut loin filet (Aldi). Label is raw: 4 oz (112 g) = 140 kcal,
-  // 22 g protein, 4 g fat, 3 g carbohydrate — 125 kcal and 19.6 g protein per
-  // 100 g. Enhanced, but less so than the chicken: up to 15% solution against
-  // that bird's 25%.
+  // Petite sirloin, Black Angus (Aldi). Label is raw: 4 oz (112 g) = 190 kcal,
+  // 23 g protein, 11 g fat, no carbohydrate — 170 kcal and 20.5 g protein per
+  // 100 g raw. Ingredients read "BEEF" and nothing else, and the sodium is
+  // 55 mg against the pork's 480, so unlike the other two this one carries no
+  // injected solution at all.
   //
-  // Stored cooked, since that is when it gets weighed. Factor 1.45: the meat
-  // itself loses the usual quarter, and roughly half the injected solution
-  // goes with it — less than the chicken lost, because that was boiled, which
-  // is the harshest way to drive brine out, and a loin filet is roasted or
-  // seared. USDA's roasted pork loin is 209 kcal and 30 g protein, which sits
-  // just above this, as it should for a cut carrying added water.
-  //
-  // Worth measuring rather than trusting: weigh a filet before and after.
-  if (!(data.foods ?? []).some((f) => /pork.*loin filet/i.test(f.name))) {
+  // That makes the cooking loss the ordinary one: a quarter of the weight, all
+  // of it water from the meat itself, so factor 1.33 rather than the 1.45 and
+  // 1.60 the enhanced cuts needed. Stored cooked, as everything else now is.
+  if (!(data.foods ?? []).some((f) => /petite sirloin/i.test(f.name))) {
     const nextId = Math.max(0, ...(data.foods ?? []).map((f) => f.id ?? 0)) + 1
     ;(data.foods ??= []).push(
       touch({
         id: nextId,
-        name: 'Pork centre-cut loin filet, cooked',
-        brand: 'Aldi',
-        kcal: 181,
-        protein: 28.4,
-        carbs: 3.9,
-        fat: 5.2,
+        name: 'Petite sirloin steak, cooked',
+        brand: 'Black Angus (Aldi)',
+        kcal: 226,
+        protein: 27.3,
+        carbs: 0,
+        fat: 13,
         fiber: 0,
         portions: [],
         defaultPortion: -1,
@@ -102,7 +98,7 @@ function change(data: Data): string[] {
         createdAt: Date.now(),
       }),
     )
-    notes.push('added Pork centre-cut loin filet, cooked (Aldi) — per 100 g: 181 kcal, 28.4 P, 3.9 C, 5.2 F')
+    notes.push('added Petite sirloin steak, cooked (Black Angus, Aldi) — per 100 g: 226 kcal, 27.3 P, 13 F')
   }
 
   return notes
