@@ -67,81 +67,21 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  const r1 = (n: number) => Math.round(n * 10) / 10
-  const item = (name: string, grams: number, per100: number[]) => ({
-    name,
-    grams,
-    kcal: r1((per100[0] * grams) / 100),
-    protein: r1((per100[1] * grams) / 100),
-    carbs: r1((per100[2] * grams) / 100),
-    fat: r1((per100[3] * grams) / 100),
-    fiber: r1((per100[4] * grams) / 100),
-  })
-
-  const addRecipe = (row: Row, note: string) => {
-    if ((data.recipes ?? []).some((x) => x.name.toLowerCase() === String(row.name).toLowerCase())) return
-    const nextId = Math.max(0, ...(data.recipes ?? []).map((x) => x.id ?? 0)) + 1
-    ;(data.recipes ??= []).push(
-      touch({
-        id: nextId,
-        notes: '',
-        useCount: 0,
-        lastUsed: 0,
-        createdAt: Date.now(),
-        ...row,
-      }),
-    )
-    notes.push(note)
-  }
-
-  // Everything below is weighed RAW, because that is how he weighed it. The
-  // meats are therefore at their label values rather than the cooked rows in
-  // his library — a braise loses no meat juice to the air, it goes into the
-  // sauce and stays in the pot.
+  // Cooked uncovered the whole time, which changes the only figure that was
+  // estimated. A lidded braise loses maybe an eighth of its weight; an open
+  // pot at a simmer sheds 300-600 ml an hour, and this one had a lentil's
+  // worth of simmering to do. 18% of the 4,620 g that went in leaves ~3,790 g.
   //
-  // cookedG is the one figure not measured: the pot was too big to weigh. Only
-  // evaporation leaves a covered braise, so the loss is far smaller than a
-  // roast's — 12% of 4,620 g in gives about 4,065 g out. Weighing the finished
-  // pot, or just counting the containers it filled, would pin it exactly.
-  addRecipe(
-    {
-      name: 'Lentils with beef and pork',
-      cookedG: 4065,
-      containerMl: 0,
-      items: [
-        item('Bacon-wrapped top sirloin, raw', 140, [218, 16.9, 2.1, 15.5, 0]),
-        item('Petite sirloin steak, raw', 513, [169.6, 20.5, 0, 9.8, 0]),
-        item('Beef skirt steak, raw', 663, [160.7, 21.4, 0, 8.9, 0]),
-        item('Pork centre-cut loin filet, raw', 1180, [125, 19.6, 2.7, 3.6, 0]),
-        item('Green lentils, dry', 190, [343, 25.7, 62.9, 1.1, 11.4]),
-        item('Yellow onion (450 g whole, trimmed)', 405, [40, 1.1, 9.3, 0.1, 1.7]),
-        item('Bell pepper (402 g whole, trimmed)', 330, [26, 1, 6, 0.3, 2.1]),
-        item('Minced garlic in oil', 40, [100, 1, 20, 1, 0]),
-        item('Diced tomatoes, tinned', 411, [21, 0.8, 4.1, 0, 0.8]),
-        item('Vegetable broth', 720, [4, 0, 0.8, 0, 0]),
-        item('Olive oil, for searing (2 tbsp)', 27.6, [884, 0, 0, 100, 0]),
-      ],
-    },
-    'added recipe "Lentils with beef and pork" — 5,014 kcal in, 4,065 g out, 123 kcal & 13.8 g protein per 100 g',
-  )
-
-  // Blended, not cooked, so nothing evaporates and cookedG is simply the sum.
-  // The lemon is counted as its juice: a 111 g fruit yields roughly 40 g.
-  addRecipe(
-    {
-      name: 'Chimichurri',
-      cookedG: 289,
-      containerMl: 0,
-      items: [
-        item('Olive oil, extra virgin', 156, [884, 0, 0, 100, 0]),
-        item('Red wine vinegar (4 tbsp)', 60, [19, 0, 0.3, 0, 0]),
-        item('Fresh parsley', 30, [36, 3, 6.3, 0.8, 3.3]),
-        item('Lemon juice (from a 111 g lemon)', 40, [22, 0.4, 6.9, 0.2, 0.3]),
-        item('Red pepper flakes', 3, [318, 12, 57, 17, 27]),
-      ],
-    },
-    'added recipe "Chimichurri" — 1,420 kcal over 289 g, 491 kcal per 100 g (a tbsp is 74)',
-  )
+  // Still the one unmeasured number in the recipe. Counting the containers it
+  // filled would settle it in seconds.
+  const r = (data.recipes ?? []).find((x) => /lentils with beef and pork/i.test(x.name))
+  if (r) {
+    notes.push(`cookedG ${r.cookedG} -> 3790 (uncovered, ~18% evaporated)`)
+    r.cookedG = 3790
+    touch(r)
+  } else {
+    notes.push('lentil recipe not found')
+  }
 
   return notes
 }
