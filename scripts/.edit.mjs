@@ -160,15 +160,46 @@ function touch(row) {
 var summarise = (data) => Object.entries(data).filter(([, rows]) => Array.isArray(rows) && rows.length).map(([t, rows]) => `${t}=${rows.length}`).join(" ");
 function change(data) {
   const notes = [];
-  const r = (data.recipes ?? []).find((x) => /lentils with beef and pork/i.test(x.name));
-  if (r) {
-    notes.push(`cookedG ${r.cookedG} -> 3580, so it reports the drained plate (~140 kcal/100 g) rather than the pot (121)`);
-    r.cookedG = 3580;
-    r.notes = "Served drained \u2014 the broth stays in the tub. The per-100 g figure here is the plated solids with a little sauce, about 140 kcal, not the whole pot, which is 121. If you ever stir it and eat the liquid too, log 15% less than the app says.";
-    touch(r);
-  } else {
-    notes.push("lentil recipe not found");
+  const COOKED = /cooked|boiled|roasted|grilled|baked|steamed|strips, cooked|prepared/i;
+  const RAW = /,\s*raw$|,\s*dry$/i;
+  const AS_EATEN = /fruit|apple|banana|clementine|orange|berry|berries|blueberr|strawberr|melon|cantaloupe|watermelon|pineapple|kiwi|grape|cherr|avocado|yoghurt|yogurt|chobani|milk|cheese|cottage|whey|protein powder|nut|almond|cashew|peanut|chia|flax|seed|oil|vinegar|jerky|ham|salmon|tuna|deli|bouillon|broth|tomatoes, tinned|honey|chocolate|truffle|bar$|drink|sparkling|coffee|tea|egg|bread|tortilla|salt|pepper|spice|garlic|onion|lettuce|spinach|cucumber|carrot|celery/i;
+  const BY_HAND = {
+    "Hash browns patties": "as-eaten",
+    "Oikos Pro, vanilla": "as-eaten",
+    "Creatine monohydrate": "as-eaten",
+    "Pesto alla Genovese": "as-eaten",
+    "Tomatoes, diced, tinned": "as-eaten",
+    // The last raw-basis meat, from before the convention. Correct inside the
+    // lentil recipe, which weighs its meat going into the pot; logged on its
+    // own it would undercount by everything the pan takes out.
+    "Bacon-wrapped top sirloin": "raw"
+  };
+  let cooked = 0;
+  let asEaten = 0;
+  let raw = 0;
+  const unsure = [];
+  for (const f of data.foods ?? []) {
+    if (f.weighedAs) continue;
+    const n = f.name ?? "";
+    let basis;
+    if (BY_HAND[n]) basis = BY_HAND[n];
+    else if (COOKED.test(n)) basis = "cooked";
+    else if (AS_EATEN.test(n)) basis = "as-eaten";
+    else if (RAW.test(n)) basis = "raw";
+    else {
+      unsure.push(n);
+      continue;
+    }
+    f.weighedAs = basis;
+    touch(f);
+    if (basis === "cooked") cooked++;
+    else if (basis === "raw") raw++;
+    else asEaten++;
   }
+  notes.push(`marked ${cooked} cooked, ${asEaten} as-eaten, ${raw} raw`);
+  for (const f of data.foods ?? [])
+    if (f.weighedAs && f.weighedAs !== "as-eaten") notes.push(`   ${f.weighedAs.toUpperCase().padEnd(7)} ${f.name}`);
+  if (unsure.length) notes.push(`left unmarked (no warning either way): ${unsure.join(" | ")}`);
   return notes;
 }
 async function main() {

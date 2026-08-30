@@ -705,7 +705,7 @@ details.card[open] > summary svg {
 /* Body-composition small multiples, each with its ±1 SD noise band. */
 .comp-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
   gap: 10px;
 }
 .comp-card {
@@ -727,6 +727,10 @@ details.card[open] > summary svg {
 .comp-delta { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--text-muted); }
 .comp-delta.good { color: var(--success-text); }
 .comp-delta.bad { color: var(--warning); }
+
+/* A quiet caution inside a list row — says the number needs a second look
+   without the alarm of a full banner. */
+.tiny.warn { color: var(--warning); }
 .comp-delta.muted { color: var(--text-muted); }
 .linkbtn {
   background: none;

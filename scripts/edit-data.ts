@@ -67,31 +67,75 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // He serves it drained. The broth pools at the bottom and travels badly in a
-  // backpack, so what he plates is the solid part with a little sauce — and
-  // that is denser than the pot's average, because the liquid is mostly water
-  // while the meat and lentils are not.
-  //
-  // Splitting the pot: about 2,950 g of solids carrying roughly 88% of the
-  // energy, and 1,190 g of liquid carrying the rest. Solids alone come to
-  // ~150 kcal per 100 g; a plate of mostly-solids-plus-some-sauce lands near
-  // 140. Setting cookedG to 3,580 makes the recipe report that, which is wrong
-  // for the pot and right for the plate — and the plate is what gets logged.
-  //
-  // The cost is that the liquid he leaves is not free: it holds about 600 kcal
-  // and some protein, and binning it is a real if small loss.
-  const r = (data.recipes ?? []).find((x) => /lentils with beef and pork/i.test(x.name))
-  if (r) {
-    notes.push(`cookedG ${r.cookedG} -> 3580, so it reports the drained plate (~140 kcal/100 g) rather than the pot (121)`)
-    r.cookedG = 3580
-    r.notes =
-      'Served drained — the broth stays in the tub. The per-100 g figure here is the plated ' +
-      'solids with a little sauce, about 140 kcal, not the whole pot, which is 121. If you ever ' +
-      'stir it and eat the liquid too, log 15% less than the app says.'
-    touch(r)
-  } else {
-    notes.push('lentil recipe not found')
+  /**
+   * Backfilling `weighedAs` across the existing foods.
+   *
+   * The distinction only bites for things that must be cooked, where the pan
+   * takes out a third of the weight. Everything eaten as it comes — fruit,
+   * yoghurt, nuts, oil, jerky, deli meat, tinned fish — is 'as-eaten', and for
+   * those the question never arises. Marking them so is not pedantry: it is
+   * what stops a future warning firing on an apple.
+   */
+  const COOKED =
+    /cooked|boiled|roasted|grilled|baked|steamed|strips, cooked|prepared/i
+  const RAW = /,\s*raw$|,\s*dry$/i
+  // Things that reach the plate exactly as they were bought.
+  const AS_EATEN =
+    /fruit|apple|banana|clementine|orange|berry|berries|blueberr|strawberr|melon|cantaloupe|watermelon|pineapple|kiwi|grape|cherr|avocado|yoghurt|yogurt|chobani|milk|cheese|cottage|whey|protein powder|nut|almond|cashew|peanut|chia|flax|seed|oil|vinegar|jerky|ham|salmon|tuna|deli|bouillon|broth|tomatoes, tinned|honey|chocolate|truffle|bar$|drink|sparkling|coffee|tea|egg|bread|tortilla|salt|pepper|spice|garlic|onion|lettuce|spinach|cucumber|carrot|celery/i
+
+  /**
+   * The handful the name cannot place. Decided by how Alex actually measures
+   * them, not by whether heat was involved: a hash brown patty is counted
+   * straight from the box against the packet's own figures, so the numbers
+   * already match what he weighs.
+   */
+  const BY_HAND: Record<string, string> = {
+    'Hash browns patties': 'as-eaten',
+    'Oikos Pro, vanilla': 'as-eaten',
+    'Creatine monohydrate': 'as-eaten',
+    'Pesto alla Genovese': 'as-eaten',
+    'Tomatoes, diced, tinned': 'as-eaten',
+    // The last raw-basis meat, from before the convention. Correct inside the
+    // lentil recipe, which weighs its meat going into the pot; logged on its
+    // own it would undercount by everything the pan takes out.
+    'Bacon-wrapped top sirloin': 'raw',
   }
+
+  let cooked = 0
+  let asEaten = 0
+  let raw = 0
+  const unsure: string[] = []
+
+  for (const f of data.foods ?? []) {
+    if (f.weighedAs) continue
+    const n: string = f.name ?? ''
+    let basis: string
+    // Order matters, and the trap is fruit. USDA names its produce
+    // "Clementines, raw" — meaning uncooked, not "needs cooking" — so a
+    // name-suffix rule checked first would brand an apple a raw ingredient.
+    // Anything explicitly cooked wins, then anything eaten as it comes, and
+    // only what survives both is genuinely a pre-cooking figure.
+    if (BY_HAND[n]) basis = BY_HAND[n]
+    else if (COOKED.test(n)) basis = 'cooked'
+    else if (AS_EATEN.test(n)) basis = 'as-eaten'
+    else if (RAW.test(n)) basis = 'raw'
+    else {
+      // Not confidently placeable by name. Left undefined on purpose — an
+      // unmarked food warns about nothing, which is the safe way to be wrong.
+      unsure.push(n)
+      continue
+    }
+    f.weighedAs = basis
+    touch(f)
+    if (basis === 'cooked') cooked++
+    else if (basis === 'raw') raw++
+    else asEaten++
+  }
+
+  notes.push(`marked ${cooked} cooked, ${asEaten} as-eaten, ${raw} raw`)
+  for (const f of data.foods ?? [])
+    if (f.weighedAs && f.weighedAs !== 'as-eaten') notes.push(`   ${f.weighedAs.toUpperCase().padEnd(7)} ${f.name}`)
+  if (unsure.length) notes.push(`left unmarked (no warning either way): ${unsure.join(' | ')}`)
 
   return notes
 }

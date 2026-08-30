@@ -27,6 +27,27 @@ export interface Food {
   /** Default portion index used when logging, or -1 for "grams". */
   defaultPortion: number
   liquid: boolean
+  /**
+   * Which weight these numbers describe.
+   *
+   * A label almost always prints raw figures, but what lands on the scale at
+   * lunch is the cooked food, and meat loses a third of its weight in the pan.
+   * Storing one without saying which is how a chicken breast quietly becomes
+   * 30% wrong. So a food says what state it was weighed in:
+   *
+   *   'cooked'   — it must be cooked to be eaten, and these are the cooked
+   *                numbers. The normal case for meat, grains and pulses.
+   *   'as-eaten' — it is eaten exactly as bought, so the question does not
+   *                arise: fruit, yoghurt, jerky, deli meat, nuts, oil.
+   *   'raw'      — pre-cooking numbers for something that needs cooking. Only
+   *                honest inside a recipe, which weighs its ingredients going
+   *                into the pot; logging one of these on its own undercounts.
+   *
+   * Undefined means an older food from before the distinction was recorded.
+   * Nothing warns about those — silence is better than crying wolf across a
+   * whole existing log.
+   */
+  weighedAs?: 'cooked' | 'as-eaten' | 'raw'
   source: 'manual' | 'off' | 'usda'
   sourceId?: string
   favorite: boolean
@@ -172,6 +193,11 @@ export interface RecipeItem {
   name: string
   brand?: string
   grams: number
+  /**
+   * Copied from the source food so the editor can flag a cooked-basis
+   * ingredient sitting in a list that is filled in at raw weight.
+   */
+  weighedAs?: 'cooked' | 'as-eaten' | 'raw'
   /** Snapshotted at the time the ingredient was added, like log entries. */
   kcal: number
   protein: number

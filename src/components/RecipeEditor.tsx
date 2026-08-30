@@ -161,6 +161,19 @@ export default function RecipeEditor({
                     {item.grams} g · {Math.round(item.kcal)} kcal · P {Math.round(item.protein)} C{' '}
                     {Math.round(item.carbs)} F {Math.round(item.fat)}
                   </div>
+                  {/*
+                    This list is filled in at raw weight, but a food stored
+                    cooked carries cooked numbers. Pairing one with the weight
+                    that went into the pot overstates it by everything the pan
+                    would have taken out — a third, for meat. The food knows
+                    which it is, so it can say so here rather than let the
+                    mistake through silently.
+                  */}
+                  {item.weighedAs === 'cooked' && (
+                    <div className="tiny warn">
+                      Stored cooked — enter its cooked weight, not the raw weight
+                    </div>
+                  )}
                 </div>
                 <button
                   className="iconbtn"
@@ -642,6 +655,7 @@ function PasteRecipe({
                 name: r.hit!.name,
                 brand: r.hit!.brand,
                 grams: r.grams,
+                weighedAs: (r.hit as { weighedAs?: RecipeItem['weighedAs'] }).weighedAs,
                 ...scale(r.hit!, r.grams),
               })),
             )
@@ -865,6 +879,7 @@ function IngredientPicker({
               name: chosen.name,
               brand: chosen.brand,
               grams: g,
+              weighedAs: (chosen as { weighedAs?: RecipeItem['weighedAs'] }).weighedAs,
               ...macros,
             })
           }

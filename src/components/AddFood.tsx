@@ -428,6 +428,19 @@ function PortionStep({
 
   return (
     <>
+      {/*
+        A raw-basis food holds pre-cooking numbers, which belong to a recipe
+        weighing its ingredients into the pot — not to a plate. Logged here it
+        would undercount by everything the pan takes out, about a third for
+        meat, and undercounting is the direction that quietly ruins a cut.
+        Said once, in place, rather than left to be remembered.
+      */}
+      {food.weighedAs === 'raw' && (
+        <div className="note-block tiny warn">
+          These are raw numbers, for use inside a recipe. Weighed off your plate they
+          undercount — meat loses about a third of its weight in the pan.
+        </div>
+      )}
       <div className="scroll-x">
         {food.portions.map((p, i) => (
           <button key={i} className="chip" aria-pressed={portion === i} onClick={() => choose(i)}>
@@ -713,6 +726,10 @@ function RecipePortion({
 
 /* ---------------------------------------------------------------- create */
 
+/** Names that imply a raw label needs converting before it is stored. */
+const NEEDS_COOKING =
+  /chicken|beef|pork|steak|sirloin|mince|turkey|lamb|shrimp|prawn|salmon|tilapia|cod|fillet|filet|breast|thigh|rice|quinoa|pasta|lentil|bean|oat|potato/i
+
 export function CreateFood({
   initialName,
   onCreated,
@@ -728,6 +745,7 @@ export function CreateFood({
    * written and converts.
    */
   const [perServing, setPerServing] = useState(true)
+  const [weighedAs, setWeighedAs] = useState<'cooked' | 'as-eaten' | 'raw'>('as-eaten')
   const [name, setName] = useState(initialName)
   const [brand, setBrand] = useState('')
   const [servingG, setServingG] = useState<number | undefined>(undefined)
@@ -769,6 +787,41 @@ export function CreateFood({
       <Field label="Brand (optional)">
         <input value={brand} onChange={(e) => setBrand(e.target.value)} />
       </Field>
+
+      {/*
+        A label prints raw numbers; the scale at lunch holds cooked food, and
+        meat sheds a third of its weight in the pan. Asking once here is what
+        keeps that from becoming a silent 30% error later. Defaulted to
+        as-eaten because most things logged — fruit, yoghurt, jerky — never see
+        heat, and the nudge below only appears when the name suggests otherwise.
+      */}
+      <Field label="Weighed" hint={NEEDS_COOKING.test(name) && weighedAs === 'as-eaten' ? 'this looks like it needs cooking' : undefined}>
+        <div className="scroll-x">
+          {(
+            [
+              ['as-eaten', 'As bought'],
+              ['cooked', 'Cooked'],
+              ['raw', 'Raw'],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              className="chip"
+              aria-pressed={weighedAs === k}
+              onClick={() => setWeighedAs(k)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </Field>
+      <div className="tiny muted">
+        {weighedAs === 'as-eaten'
+          ? 'Eaten as it comes — fruit, yoghurt, nuts, jerky, deli meat, oil.'
+          : weighedAs === 'cooked'
+            ? 'Numbers describe the cooked food, which is what you will put on the scale.'
+            : 'Pre-cooking numbers. Right for a recipe ingredient, but logging this on its own undercounts by the weight the pan takes out.'}
+      </div>
 
       {perServing && (
         <div className="grid-2">
@@ -831,6 +884,7 @@ export function CreateFood({
             portions,
             defaultPortion: portions.length ? 0 : -1,
             liquid: false,
+            weighedAs,
             source: 'manual',
             favorite: false,
             useCount: 0,
