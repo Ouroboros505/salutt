@@ -67,17 +67,20 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Cooked uncovered the whole time, which changes the only figure that was
-  // estimated. A lidded braise loses maybe an eighth of its weight; an open
-  // pot at a simmer sheds 300-600 ml an hour, and this one had a lentil's
-  // worth of simmering to do. 18% of the 4,620 g that went in leaves ~3,790 g.
+  // Measured from the containers instead of guessed: 61 oz + 50 oz + one a
+  // little under the 50, each about nine tenths full. That is roughly 4,070 ml
+  // of finished dish, and a meat-and-lentil braise runs a shade denser than
+  // water, so call it 4,140 g.
   //
-  // Still the one unmeasured number in the recipe. Counting the containers it
-  // filled would settle it in seconds.
+  // Which says the uncovered pot lost about 10%, not the 18% I raised it to on
+  // hearing there was no lid. The lid matters less than the surface area and
+  // the time, and his estimate beats my inference — every one of the container
+  // combinations lands between 4,020 and 4,280 g, so 4,140 is the middle of a
+  // band only ±3% wide. That is tighter than the recipe's other assumptions.
   const r = (data.recipes ?? []).find((x) => /lentils with beef and pork/i.test(x.name))
   if (r) {
-    notes.push(`cookedG ${r.cookedG} -> 3790 (uncovered, ~18% evaporated)`)
-    r.cookedG = 3790
+    notes.push(`cookedG ${r.cookedG} -> 4140 (measured from the containers)`)
+    r.cookedG = 4140
     touch(r)
   } else {
     notes.push('lentil recipe not found')
