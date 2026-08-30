@@ -160,15 +160,14 @@ function touch(row) {
 var summarise = (data) => Object.entries(data).filter(([, rows]) => Array.isArray(rows) && rows.length).map(([t, rows]) => `${t}=${rows.length}`).join(" ");
 function change(data) {
   const notes = [];
-  for (const re of [/^spaghetti with meat sauce/i, /^green beans, roasted/i]) {
-    const i = (data.foods ?? []).findIndex((f) => re.test(f.name));
-    if (i < 0) continue;
-    const [row] = data.foods.splice(i, 1);
-    if (row.id != null) {
-      const nextId = Math.max(0, ...(data.tombstones ?? []).map((t) => t.id ?? 0)) + 1;
-      (data.tombstones ??= []).push({ id: nextId, table: "foods", key: row.id, at: Date.now() });
-    }
-    notes.push(`deleted "${row.name}" from the library`);
+  const r = (data.recipes ?? []).find((x) => /lentils with beef and pork/i.test(x.name));
+  if (r) {
+    notes.push(`cookedG ${r.cookedG} -> 3580, so it reports the drained plate (~140 kcal/100 g) rather than the pot (121)`);
+    r.cookedG = 3580;
+    r.notes = "Served drained \u2014 the broth stays in the tub. The per-100 g figure here is the plated solids with a little sauce, about 140 kcal, not the whole pot, which is 121. If you ever stir it and eat the liquid too, log 15% less than the app says.";
+    touch(r);
+  } else {
+    notes.push("lentil recipe not found");
   }
   return notes;
 }

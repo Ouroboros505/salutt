@@ -157,19 +157,56 @@ export function weightTrend(weighIns: WeighIn[], halfLifeDays: number): TrendPoi
     adjusted = comparable.length >= 3 ? comparable : sorted
   }
 
+  /**
+   * A line fitted through the recent readings, weighted towards the newest.
+   *
+   * This replaced a double exponential smoother, which had a fault visible on
+   * any short log: it seeds itself at the first reading, so the whole line is
+   * pinned to a single morning. Here that morning happened to be a light one,
+   * and the trend spent a week climbing away from it before it could turn —
+   * a hump that was in the algorithm and not in the body. It also lagged, and
+   * reported a third of the real rate of loss.
+   *
+   * Fitting a line instead has no seed to be wrong about. Each point gets the
+   * line through everything up to that day, with weights halving every
+   * `halfLifeDays` into the past, so old readings fade rather than anchor. The
+   * fit carries a slope, which is what stops it lagging behind a body that is
+   * genuinely moving.
+   *
+   * Below three readings there is no slope worth estimating, so it falls back
+   * to the weighted average — flat, but honest about knowing nothing yet.
+   */
   const out: TrendPoint[] = []
-  let s1 = adjusted[0].kg
-  let s2 = adjusted[0].kg
-  let prevDate = adjusted[0].date
-
   for (let i = 0; i < adjusted.length; i++) {
-    const w = adjusted[i]
-    const gap = Math.max(1, daysBetween(prevDate, w.date))
-    const alpha = i === 0 ? 1 : 1 - Math.pow(0.5, gap / halfLifeDays)
-    s1 += (w.kg - s1) * alpha
-    s2 += (s1 - s2) * alpha
-    out.push({ date: w.date, raw: w.kg, trend: 2 * s1 - s2 })
-    prevDate = w.date
+    const here = adjusted[i].date
+    let sw = 0
+    let sx = 0
+    let sy = 0
+    let sxx = 0
+    let sxy = 0
+    for (let j = 0; j <= i; j++) {
+      const age = daysBetween(adjusted[j].date, here)
+      const wgt = Math.pow(0.5, age / halfLifeDays)
+      const x = -age
+      const y = adjusted[j].kg
+      sw += wgt
+      sx += wgt * x
+      sy += wgt * y
+      sxx += wgt * x * x
+      sxy += wgt * x * y
+    }
+    const mean = sy / sw
+    let value = mean
+    if (i >= 2) {
+      const den = sxx - (sx * sx) / sw
+      if (Math.abs(den) > 1e-9) {
+        const slope = (sxy - (sx * sy) / sw) / den
+        // Evaluated at today, where x is zero, so the fitted value is just the
+        // intercept: the weighted mean carried forward along the slope.
+        value = mean - slope * (sx / sw)
+      }
+    }
+    out.push({ date: here, raw: adjusted[i].kg, trend: value })
   }
   return out
 }
