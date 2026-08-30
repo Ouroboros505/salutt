@@ -67,20 +67,27 @@ const summarise = (data: Data) =>
 function change(data: Data): string[] {
   const notes: string[] = []
 
-  // Measured from the containers instead of guessed: 61 oz + 50 oz + one a
-  // little under the 50, each about nine tenths full. That is roughly 4,070 ml
-  // of finished dish, and a meat-and-lentil braise runs a shade denser than
-  // water, so call it 4,140 g.
+  // He serves it drained. The broth pools at the bottom and travels badly in a
+  // backpack, so what he plates is the solid part with a little sauce — and
+  // that is denser than the pot's average, because the liquid is mostly water
+  // while the meat and lentils are not.
   //
-  // Which says the uncovered pot lost about 10%, not the 18% I raised it to on
-  // hearing there was no lid. The lid matters less than the surface area and
-  // the time, and his estimate beats my inference — every one of the container
-  // combinations lands between 4,020 and 4,280 g, so 4,140 is the middle of a
-  // band only ±3% wide. That is tighter than the recipe's other assumptions.
+  // Splitting the pot: about 2,950 g of solids carrying roughly 88% of the
+  // energy, and 1,190 g of liquid carrying the rest. Solids alone come to
+  // ~150 kcal per 100 g; a plate of mostly-solids-plus-some-sauce lands near
+  // 140. Setting cookedG to 3,580 makes the recipe report that, which is wrong
+  // for the pot and right for the plate — and the plate is what gets logged.
+  //
+  // The cost is that the liquid he leaves is not free: it holds about 600 kcal
+  // and some protein, and binning it is a real if small loss.
   const r = (data.recipes ?? []).find((x) => /lentils with beef and pork/i.test(x.name))
   if (r) {
-    notes.push(`cookedG ${r.cookedG} -> 4140 (measured from the containers)`)
-    r.cookedG = 4140
+    notes.push(`cookedG ${r.cookedG} -> 3580, so it reports the drained plate (~140 kcal/100 g) rather than the pot (121)`)
+    r.cookedG = 3580
+    r.notes =
+      'Served drained — the broth stays in the tub. The per-100 g figure here is the plated ' +
+      'solids with a little sauce, about 140 kcal, not the whole pot, which is 121. If you ever ' +
+      'stir it and eat the liquid too, log 15% less than the app says.'
     touch(r)
   } else {
     notes.push('lentil recipe not found')
