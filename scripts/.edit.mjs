@@ -160,46 +160,39 @@ function touch(row) {
 var summarise = (data) => Object.entries(data).filter(([, rows]) => Array.isArray(rows) && rows.length).map(([t, rows]) => `${t}=${rows.length}`).join(" ");
 function change(data) {
   const notes = [];
-  const COOKED = /cooked|boiled|roasted|grilled|baked|steamed|strips, cooked|prepared/i;
-  const RAW = /,\s*raw$|,\s*dry$/i;
-  const AS_EATEN = /fruit|apple|banana|clementine|orange|berry|berries|blueberr|strawberr|melon|cantaloupe|watermelon|pineapple|kiwi|grape|cherr|avocado|yoghurt|yogurt|chobani|milk|cheese|cottage|whey|protein powder|nut|almond|cashew|peanut|chia|flax|seed|oil|vinegar|jerky|ham|salmon|tuna|deli|bouillon|broth|tomatoes, tinned|honey|chocolate|truffle|bar$|drink|sparkling|coffee|tea|egg|bread|tortilla|salt|pepper|spice|garlic|onion|lettuce|spinach|cucumber|carrot|celery/i;
-  const BY_HAND = {
-    "Hash browns patties": "as-eaten",
-    "Oikos Pro, vanilla": "as-eaten",
-    "Creatine monohydrate": "as-eaten",
-    "Pesto alla Genovese": "as-eaten",
-    "Tomatoes, diced, tinned": "as-eaten",
-    // The last raw-basis meat, from before the convention. Correct inside the
-    // lentil recipe, which weighs its meat going into the pot; logged on its
-    // own it would undercount by everything the pan takes out.
-    "Bacon-wrapped top sirloin": "raw"
-  };
-  let cooked = 0;
-  let asEaten = 0;
-  let raw = 0;
-  const unsure = [];
-  for (const f of data.foods ?? []) {
-    if (f.weighedAs) continue;
-    const n = f.name ?? "";
-    let basis;
-    if (BY_HAND[n]) basis = BY_HAND[n];
-    else if (COOKED.test(n)) basis = "cooked";
-    else if (AS_EATEN.test(n)) basis = "as-eaten";
-    else if (RAW.test(n)) basis = "raw";
-    else {
-      unsure.push(n);
-      continue;
-    }
-    f.weighedAs = basis;
-    touch(f);
-    if (basis === "cooked") cooked++;
-    else if (basis === "raw") raw++;
-    else asEaten++;
+  const foods = data.foods ?? [];
+  const maxId = foods.reduce((m, f) => Math.max(m, Number(f.id) || 0), 0);
+  const dup = foods.find((f) => /ahi tuna|yellowfin/i.test(f.name ?? ""));
+  if (dup) {
+    notes.push(`already present as "${dup.name}" \u2014 leaving it alone`);
+  } else {
+    foods.push(
+      touch({
+        id: maxId + 1,
+        name: "Ahi tuna steak, cooked",
+        brand: "Aldi",
+        kcal: 140,
+        protein: 30.2,
+        carbs: 0,
+        fat: 1.6,
+        fiber: 0,
+        portions: [
+          { label: "1 steak, cooked (~93 g)", grams: 93 },
+          { label: "100 g cooked", grams: 100 }
+        ],
+        defaultPortion: 0,
+        liquid: false,
+        weighedAs: "cooked",
+        source: "manual",
+        favorite: false,
+        useCount: 0,
+        lastUsed: 0,
+        createdAt: Date.now(),
+        notes: "Cooked values, converted from the raw label (130 kcal / 28 g protein per 113 g) with a 1.22 factor; a steak finishes near 93 g. Leanest protein in your list at 140 kcal for 30 g. Yellowfin sits in the FDA middle tier for mercury, so about one serving a week rather than a staple. Keep frozen, thaw in the fridge."
+      })
+    );
+    notes.push(`added food #${maxId + 1} "Ahi tuna steak, cooked" \u2014 140 kcal, 30.2 P per 100 g cooked; 1 steak ~93 g`);
   }
-  notes.push(`marked ${cooked} cooked, ${asEaten} as-eaten, ${raw} raw`);
-  for (const f of data.foods ?? [])
-    if (f.weighedAs && f.weighedAs !== "as-eaten") notes.push(`   ${f.weighedAs.toUpperCase().padEnd(7)} ${f.name}`);
-  if (unsure.length) notes.push(`left unmarked (no warning either way): ${unsure.join(" | ")}`);
   return notes;
 }
 async function main() {

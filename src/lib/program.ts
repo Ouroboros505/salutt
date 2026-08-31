@@ -193,7 +193,7 @@ export const CATALOGUE: Exercise[] = [
   E('Face Pulls', 'Back', 3, '15', 4, 90, 'Cable, rope', true),
   E('Pull-Ups', 'Back', 3, '8', 6, 110, 'Pull-up bar'),
   E('Chest-Supported Row', 'Back', 3, '12', 5, 105, 'Incline bench, dumbbells'),
-  E('Straight-Arm Pulldown', 'Back', 2, '15', 4, 90, 'Cable machine'),
+  E('Straight-Arm Pulldown', 'Back', 2, '15', 4, 90, 'Cable machine', true),
 
   // ------------------------------------------------------------ Shoulders
   E('Seated DB Shoulder Press', 'Shoulders', 3, '12', 5, 105, 'Dumbbells, bench', true),
@@ -491,10 +491,14 @@ export const WEEK: DayPlan[] = [
     weekday: 1,
     name: 'Push — chest, shoulders, triceps',
     exercises: [
+      // Cable Fly and the leg raise came out. Chest was never the limit on the
+      // shape he is chasing, and the abdominal work belonged to a week that
+      // already carries plenty of it on Tuesday and Thursday. Both slots go to
+      // the side delts instead, which are the muscles that actually widen a
+      // shoulder once the collarbone has stopped growing.
       'Movement Prep (bands, circles, bridges)', 'Barbell Bench Press', 'Incline DB Press',
-      'Cable Fly', 'Seated DB Shoulder Press', 'Lateral Raises', 'Triceps Rope Pushdown',
-      'Overhead Triceps Extension (cable)', 'Face Pulls', 'Captain’s Chair Leg Raise',
-      'Cool-Down Stretch',
+      'Seated DB Shoulder Press', 'Lateral Raises', 'Triceps Rope Pushdown',
+      'Overhead Triceps Extension (cable)', 'Face Pulls', 'Cool-Down Stretch',
     ],
   },
   {
@@ -507,11 +511,16 @@ export const WEEK: DayPlan[] = [
   },
   {
     weekday: 3,
-    name: 'Pull — back, biceps',
+    name: 'Pull — back, shoulders, biceps',
     exercises: [
+      // The pulldown had been carrying the lats alone. Straight-Arm Pulldown
+      // joins it because it works the lat without the arms giving out first,
+      // and the lateral raises appear here for the second time in the week —
+      // the same total sets spread over more days grows a muscle better than
+      // one long session does.
       'Movement Prep (bands, circles, bridges)', 'Lat Pulldown', 'Seated Cable Row',
-      'Single-Arm DB Row', 'Face Pulls', 'Pallof Press', 'DB Bicep Curl', 'Hammer Curl',
-      'Cool-Down Stretch',
+      'Single-Arm DB Row', 'Straight-Arm Pulldown', 'Lateral Raises', 'Face Pulls',
+      'DB Bicep Curl', 'Hammer Curl', 'Cool-Down Stretch',
     ],
   },
   {
@@ -532,11 +541,18 @@ export const WEEK: DayPlan[] = [
   },
   {
     weekday: 5,
-    name: 'Legs — quads, hamstrings, glutes',
+    name: 'Legs, and width — quads, hamstrings, delts, lats',
     exercises: [
+      // Step-Ups went because Bulgarians already train the same pattern
+      // harder; the band walks and the knee extension are knee-rehab work he
+      // no longer needs; the cable crunch is the one exercise in the week that
+      // works against him, since a thicker waist is the opposite of a taper on
+      // a rib cage as broad as his. Fourteen sets still sits inside the range
+      // that grows legs. What the four slots buy is a third day of lateral
+      // raises and a second of pulldowns.
       'Movement Prep (bands, circles, bridges)', 'Goblet Squat', 'Romanian Deadlift',
-      'Bulgarian Split Squat', 'Step-Ups', 'Leg Curl', 'Lateral Band Walks',
-      'Banded Terminal Knee Extension', 'Calf Raises', 'Cable Crunch', 'Cool-Down Stretch',
+      'Bulgarian Split Squat', 'Leg Curl', 'Calf Raises', 'Lat Pulldown', 'Lateral Raises',
+      'Cool-Down Stretch',
     ],
   },
 ]
