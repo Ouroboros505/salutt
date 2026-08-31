@@ -79,6 +79,9 @@ export default function Insights({ settings }: { settings: Settings }) {
   const avgCarbs = mean((s) => s.carbs)
   const avgFat = mean((s) => s.fat)
   const avgFiber = mean((s) => s.fiber)
+  // Bodyweight for the per-kilo figures: the trend, not a raw morning, so the
+  // ratio does not jump around on water.
+  const kgNow = currentKg ?? settings.startWeightKg ?? 75
   const adherence = Math.round((logged.length / days) * 100)
   const onTarget = logged.filter((s) => Math.abs(s.value - targets.kcal) <= 150).length
 
@@ -168,20 +171,29 @@ export default function Insights({ settings }: { settings: Settings }) {
           <Stat label="Days logged" value={`${logged.length}/${days}`} sub={`${adherence}%`} />
           <Stat label="Within ±150 kcal" value={String(onTarget)} sub="days" />
           <Stat label="Average intake" value={Math.round(avgKcal).toLocaleString()} sub="kcal" />
+          {/*
+            Grams are what you log, so they stay the headline — but a gram
+            figure compares to nothing. Every reference worth checking against,
+            in a paper or a plan or an argument online, is written as a share of
+            calories or per kilo of bodyweight. Those are the units underneath,
+            and they also settle a confusion grams create: eating fewer total
+            calories drags every gram figure below its target at once, and only
+            the percentage shows whether the diet's shape actually changed.
+          */}
           <Stat
             label="Average protein"
             value={Math.round(avgProtein).toString()}
-            sub={`of ${targets.protein} g target`}
+            sub={avgKcal > 0 ? `${(avgProtein / kgNow).toFixed(2)} g/kg · ${Math.round((avgProtein * 4 * 100) / avgKcal)}% of kcal` : `of ${targets.protein} g target`}
           />
           <Stat
             label="Average carbs"
             value={Math.round(avgCarbs).toString()}
-            sub={`of ${targets.carbs} g target`}
+            sub={avgKcal > 0 ? `${Math.round((avgCarbs * 4 * 100) / avgKcal)}% of kcal · ${(avgCarbs / kgNow).toFixed(1)} g/kg` : `of ${targets.carbs} g target`}
           />
           <Stat
             label="Average fat"
             value={Math.round(avgFat).toString()}
-            sub={`of ${targets.fat} g target`}
+            sub={avgKcal > 0 ? `${Math.round((avgFat * 9 * 100) / avgKcal)}% of kcal · target ${Math.round(settings.fatPctKcal * 100)}%` : `of ${targets.fat} g target`}
           />
           {/* Fibre has no field on Targets — it is derived from the calorie
               target at 14 g per 1000, the same rule Today uses, so the bar
@@ -189,7 +201,7 @@ export default function Insights({ settings }: { settings: Settings }) {
           <Stat
             label="Average fibre"
             value={Math.round(avgFiber).toString()}
-            sub={`of ${Math.round((targets.kcal * 14) / 1000)} g target`}
+            sub={avgKcal > 0 ? `${((avgFiber * 1000) / avgKcal).toFixed(0)} g per 1000 kcal · guideline 14` : `of ${Math.round((targets.kcal * 14) / 1000)} g target`}
           />
         </div>
         {adherence < 70 && logged.length > 0 && (
