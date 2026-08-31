@@ -14,6 +14,7 @@ import {
 import { TrendChart } from '../components/charts'
 import { CompositionCharts } from '../components/Composition'
 import { Field, Icon, NumberInput, Segmented, Sheet } from '../components/ui'
+import MeasureGuide from '../components/MeasureGuide'
 import type { ListenerState } from '../lib/useScaleListener'
 import type { ScaleReading } from '../lib/scale'
 import { bodyFatBand } from '../lib/bodyComp'
@@ -496,6 +497,9 @@ function MeasureSheet({
   const [date, setDate] = useState(todayISO())
   const [vals, setVals] = useState<Record<string, string>>({})
 
+  // Which measurement's guide is open. Null when none is.
+  const [guide, setGuide] = useState<keyof Measurement | null>(null)
+
   return (
     <Sheet title="Measurements" onClose={onClose}>
       <Field label="Date">
@@ -504,7 +508,17 @@ function MeasureSheet({
 
       <div className="grid-2">
         {TAPE.map((t) => (
-          <Field key={String(t.key)} label={t.label}>
+          <Field
+            key={String(t.key)}
+            label={t.label}
+            /* A drawing beats a sentence for tape placement, and placement
+               drift is the largest error in these numbers. */
+            hint={
+              <button className="linkbtn" onClick={() => setGuide(t.key)}>
+                how?
+              </button>
+            }
+          >
             <NumberInput
               value={vals[String(t.key)] ? parseFloat(vals[String(t.key)]) : undefined}
               unit="cm"
@@ -540,6 +554,8 @@ function MeasureSheet({
       >
         Save
       </button>
+
+      {guide && <MeasureGuide which={guide} onClose={() => setGuide(null)} />}
 
       <div className="tiny muted">
         Measure relaxed, at the same landmark each time — waist at the navel, arm at mid-bicep.

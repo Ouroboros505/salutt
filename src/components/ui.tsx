@@ -97,7 +97,8 @@ export function Field({
   children,
 }: {
   label: string
-  hint?: string
+  /** Text, or a small control — the measurement fields hang a "how?" link here. */
+  hint?: ReactNode
   children: ReactNode
 }) {
   return (

@@ -162,36 +162,36 @@ function change(data) {
   const notes = [];
   const foods = data.foods ?? [];
   const maxId = foods.reduce((m, f) => Math.max(m, Number(f.id) || 0), 0);
-  const dup = foods.find((f) => /ahi tuna|yellowfin/i.test(f.name ?? ""));
+  const dup = foods.find((f) => /strawberr/i.test(f.name ?? ""));
   if (dup) {
     notes.push(`already present as "${dup.name}" \u2014 leaving it alone`);
   } else {
     foods.push(
       touch({
         id: maxId + 1,
-        name: "Ahi tuna steak, cooked",
-        brand: "Aldi",
-        kcal: 140,
-        protein: 30.2,
-        carbs: 0,
-        fat: 1.6,
-        fiber: 0,
+        name: "Strawberries, fresh",
+        kcal: 32,
+        protein: 0.7,
+        carbs: 7.7,
+        fat: 0.3,
+        fiber: 2,
         portions: [
-          { label: "1 steak, cooked (~93 g)", grams: 93 },
-          { label: "100 g cooked", grams: 100 }
+          { label: "100 g", grams: 100 },
+          { label: "1 medium berry (~11 g)", grams: 11 },
+          { label: "1 cup, halved (~150 g)", grams: 150 }
         ],
         defaultPortion: 0,
         liquid: false,
-        weighedAs: "cooked",
+        weighedAs: "as-eaten",
         source: "manual",
         favorite: false,
         useCount: 0,
         lastUsed: 0,
         createdAt: Date.now(),
-        notes: "Cooked values, converted from the raw label (130 kcal / 28 g protein per 113 g) with a 1.22 factor; a steak finishes near 93 g. Leanest protein in your list at 140 kcal for 30 g. Yellowfin sits in the FDA middle tier for mercury, so about one serving a week rather than a staple. Keep frozen, thaw in the fridge."
+        notes: "Flesh only \u2014 weigh them with the green tops removed, which is what these USDA figures describe. With the caps left on you would be about 6% over, which is not worth a second entry. Low FODMAP and on your safe list: glucose-balanced fructose, negligible sorbitol."
       })
     );
-    notes.push(`added food #${maxId + 1} "Ahi tuna steak, cooked" \u2014 140 kcal, 30.2 P per 100 g cooked; 1 steak ~93 g`);
+    notes.push(`added food #${maxId + 1} "Strawberries, fresh" \u2014 32 kcal, 2.0 g fibre per 100 g flesh`);
   }
   return notes;
 }

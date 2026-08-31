@@ -68,55 +68,55 @@ function change(data: Data): string[] {
   const notes: string[] = []
 
   /**
-   * Ahi (yellowfin) tuna steaks, Aldi, wild caught — stored cooked.
+   * Strawberries — flesh only, the way he weighs them.
    *
-   * Label is per 113 g raw steak: 130 kcal, 28 g protein, 1.5 g fat, so 115
-   * kcal and 24.8 g of protein per 100 g raw. USDA's raw-and-cooked pair for
-   * yellowfin implies a factor of 1.22, which is what is used here: a 113 g
-   * steak comes off the pan near 93 g.
+   * USDA's figures for raw strawberries are already per 100 g of edible fruit,
+   * with the green caps counted as refuse at about 6%. So these numbers belong
+   * to a hulled berry on the scale, which is what he asked for and what he
+   * actually eats. Weighing a punnet with the tops still on would overstate a
+   * portion by that 6% — trivial next to the day's logging error, and not
+   * worth a second entry to chase. The clementine went the same way.
    *
-   * Worth noticing on the label: 370 mg of sodium in a serving, where plain
-   * tuna carries about a tenth of that. This has been treated, and the smoke
-   * named in the ingredients is the tasteless kind used to hold the red
-   * colour rather than anything you would taste. It eats as normal tuna; it
-   * just lands saltier than the fish it came from.
+   * Also worth having on the list for a reason that is not nutrition: his own
+   * testing put strawberries firmly on the safe side. Fructose balanced with
+   * glucose, almost no sorbitol — neither of the two things that set his
+   * evenings off.
    */
   const foods = data.foods ?? []
   const maxId = foods.reduce((m: number, f: Row) => Math.max(m, Number(f.id) || 0), 0)
-  const dup = foods.find((f: Row) => /ahi tuna|yellowfin/i.test(f.name ?? ''))
+  const dup = foods.find((f: Row) => /strawberr/i.test(f.name ?? ''))
   if (dup) {
     notes.push(`already present as "${dup.name}" — leaving it alone`)
   } else {
     foods.push(
       touch({
         id: maxId + 1,
-        name: 'Ahi tuna steak, cooked',
-        brand: 'Aldi',
-        kcal: 140,
-        protein: 30.2,
-        carbs: 0,
-        fat: 1.6,
-        fiber: 0,
+        name: 'Strawberries, fresh',
+        kcal: 32,
+        protein: 0.7,
+        carbs: 7.7,
+        fat: 0.3,
+        fiber: 2.0,
         portions: [
-          { label: '1 steak, cooked (~93 g)', grams: 93 },
-          { label: '100 g cooked', grams: 100 },
+          { label: '100 g', grams: 100 },
+          { label: '1 medium berry (~11 g)', grams: 11 },
+          { label: '1 cup, halved (~150 g)', grams: 150 },
         ],
         defaultPortion: 0,
         liquid: false,
-        weighedAs: 'cooked',
+        weighedAs: 'as-eaten',
         source: 'manual',
         favorite: false,
         useCount: 0,
         lastUsed: 0,
         createdAt: Date.now(),
         notes:
-          'Cooked values, converted from the raw label (130 kcal / 28 g protein per 113 g) with a ' +
-          '1.22 factor; a steak finishes near 93 g. Leanest protein in your list at 140 kcal for ' +
-          '30 g. Yellowfin sits in the FDA middle tier for mercury, so about one serving a week ' +
-          'rather than a staple. Keep frozen, thaw in the fridge.',
+          'Flesh only — weigh them with the green tops removed, which is what these USDA figures ' +
+          'describe. With the caps left on you would be about 6% over, which is not worth a second ' +
+          'entry. Low FODMAP and on your safe list: glucose-balanced fructose, negligible sorbitol.',
       }),
     )
-    notes.push(`added food #${maxId + 1} "Ahi tuna steak, cooked" — 140 kcal, 30.2 P per 100 g cooked; 1 steak ~93 g`)
+    notes.push(`added food #${maxId + 1} "Strawberries, fresh" — 32 kcal, 2.0 g fibre per 100 g flesh`)
   }
 
   return notes
