@@ -39,17 +39,33 @@ export default function Insights({ settings }: { settings: Settings }) {
 
   // Daily calorie totals across the window, including the days with nothing.
   const from = addDays(todayISO(), -(days - 1))
-  const byDay = new Map<string, { kcal: number; protein: number }>()
+  // Carbohydrate, fat and fibre ride along with the other two. Protein was the
+  // only macro averaged here, which left the question "am I actually eating the
+  // carbs the target assumes?" with nowhere to be answered — and since carbs
+  // are whatever remains once protein and fat are set, that is the number that
+  // quietly tells you whether the day added up.
+  type Totals = { kcal: number; protein: number; carbs: number; fat: number; fiber: number }
+  const zero = (): Totals => ({ kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 })
+  const byDay = new Map<string, Totals>()
   for (const e of entries) {
     if (e.date < from) continue
-    const cur = byDay.get(e.date) ?? { kcal: 0, protein: 0 }
-    byDay.set(e.date, { kcal: cur.kcal + e.kcal, protein: cur.protein + e.protein })
+    const cur = byDay.get(e.date) ?? zero()
+    byDay.set(e.date, {
+      kcal: cur.kcal + e.kcal,
+      protein: cur.protein + e.protein,
+      carbs: cur.carbs + (e.carbs ?? 0),
+      fat: cur.fat + (e.fat ?? 0),
+      fiber: cur.fiber + (e.fiber ?? 0),
+    })
   }
 
   const series = Array.from({ length: days }, (_, i) => {
     const date = addDays(from, i)
-    const v = byDay.get(date)
-    return { date, label: formatShort(date), sublabel: formatShort(date), value: v?.kcal ?? 0, protein: v?.protein ?? 0 }
+    const v = byDay.get(date) ?? zero()
+    return {
+      date, label: formatShort(date), sublabel: formatShort(date),
+      value: v.kcal, protein: v.protein, carbs: v.carbs, fat: v.fat, fiber: v.fiber,
+    }
   })
 
   // Averages exclude today: it is still being eaten, so counting it drags every
@@ -57,7 +73,12 @@ export default function Insights({ settings }: { settings: Settings }) {
   // The chart still draws it — a part-day is worth seeing, just not averaging.
   const logged = series.filter((s) => s.value > 200 && s.date < todayISO())
   const avgKcal = logged.length ? logged.reduce((t, s) => t + s.value, 0) / logged.length : 0
-  const avgProtein = logged.length ? logged.reduce((t, s) => t + s.protein, 0) / logged.length : 0
+  const mean = (pick: (s: (typeof series)[number]) => number) =>
+    logged.length ? logged.reduce((t, s) => t + pick(s), 0) / logged.length : 0
+  const avgProtein = mean((s) => s.protein)
+  const avgCarbs = mean((s) => s.carbs)
+  const avgFat = mean((s) => s.fat)
+  const avgFiber = mean((s) => s.fiber)
   const adherence = Math.round((logged.length / days) * 100)
   const onTarget = logged.filter((s) => Math.abs(s.value - targets.kcal) <= 150).length
 
@@ -151,6 +172,24 @@ export default function Insights({ settings }: { settings: Settings }) {
             label="Average protein"
             value={Math.round(avgProtein).toString()}
             sub={`of ${targets.protein} g target`}
+          />
+          <Stat
+            label="Average carbs"
+            value={Math.round(avgCarbs).toString()}
+            sub={`of ${targets.carbs} g target`}
+          />
+          <Stat
+            label="Average fat"
+            value={Math.round(avgFat).toString()}
+            sub={`of ${targets.fat} g target`}
+          />
+          {/* Fibre has no field on Targets — it is derived from the calorie
+              target at 14 g per 1000, the same rule Today uses, so the bar
+              moves with the diet rather than sitting at a flat 30. */}
+          <Stat
+            label="Average fibre"
+            value={Math.round(avgFiber).toString()}
+            sub={`of ${Math.round((targets.kcal * 14) / 1000)} g target`}
           />
         </div>
         {adherence < 70 && logged.length > 0 && (
