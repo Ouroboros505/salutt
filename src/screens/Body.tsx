@@ -86,7 +86,30 @@ export default function Body({
   )
   const lastCounted = lastReading != null && full.some((p) => p.date === lastReading.date)
   const rate = trendSlopeKgPerWeek(full)
-  const last = measurements[0]
+  /**
+   * The most recent value for each measurement, which is not the same as the
+   * most recent record.
+   *
+   * They move at completely different speeds: a waist shifts every week on a
+   * cut, a neck barely moves in a month, and nobody sensibly measures all six
+   * every time. But the body-fat estimate needs a waist and a neck together,
+   * and reading one record meant a week of waist-only logging silently deleted
+   * the estimate — the number vanished and nothing said why.
+   *
+   * So each field carries forward from the last time it was taken. A month-old
+   * neck paired with today's waist is a small inaccuracy; showing nothing at
+   * all was a larger one.
+   */
+  const last = measurements.length
+    ? (['waist', 'hips', 'chest', 'neck', 'arm', 'thigh'] as const).reduce(
+        (acc, k) => {
+          const found = measurements.find((m) => m[k] != null)
+          if (found) acc[k] = found[k]
+          return acc
+        },
+        { ...measurements[0] } as Measurement,
+      )
+    : undefined
 
   const stool = stoolOffset(weighIns)
   const week = pastTrend(full, 7)
