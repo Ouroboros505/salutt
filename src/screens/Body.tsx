@@ -204,14 +204,6 @@ export default function Body({
 
       <div className="card">
         <div className="card-head">
-          <h2>Body composition</h2>
-        </div>
-        <Segmented value={compRange} options={RANGES} onChange={setCompRange} />
-        <CompositionCharts weighIns={weighIns} fromDate={compFrom} />
-      </div>
-
-      <div className="card">
-        <div className="card-head">
           <h2>Measurements</h2>
           <button className="btn sm" onClick={() => setMeasuring(true)}>
             <Icon.plus /> Log
@@ -248,6 +240,14 @@ export default function Body({
             stalls.
           </div>
         )}
+      </div>
+
+      <div className="card">
+        <div className="card-head">
+          <h2>Body composition</h2>
+        </div>
+        <Segmented value={compRange} options={RANGES} onChange={setCompRange} />
+        <CompositionCharts weighIns={weighIns} fromDate={compFrom} />
       </div>
 
       <div className="card tight">
