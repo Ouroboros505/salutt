@@ -143,6 +143,28 @@ export interface WeighIn {
   createdAt: number
 }
 
+/**
+ * Water, counted in bottles rather than measured.
+ *
+ * Everything else in this app is weighed to the gram, which is right for food
+ * and wrong for this: nobody decants a drink to log it, and a tracker that
+ * asks them to gets used for two days. So water is a tally — one tap is one
+ * bottle of whatever size he actually carries — and the arithmetic happens
+ * afterwards. An approximate number he will really keep beats an exact one he
+ * will abandon.
+ *
+ * One row per day, incremented in place.
+ */
+export interface Water {
+  id?: number
+  date: ISODate
+  /** Bottles drunk. Multiplied by the settings bottle size for the total. */
+  bottles: number
+  createdAt: number
+  updatedAt?: number
+  deletedAt?: number
+}
+
 export interface Measurement {
   id?: number
   date: ISODate
@@ -383,6 +405,8 @@ export interface Settings {
   lastSync?: number
   startWeightKg?: number
   goalWeightKg?: number
+  /** Size of the bottle he refills, in millilitres. One tap counts one of these. */
+  bottleMl?: number
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -482,6 +506,7 @@ export const SYNCED_TABLES = [
   'routes',
   'places',
   'plannedMeals',
+  'water',
 ] as const
 
 /** The synced tables as they stood at version 3, for that version's upgrade. */
@@ -506,6 +531,7 @@ class SaluttDB extends Dexie {
   routes!: Table<Route, number>
   places!: Table<Place, number>
   plannedMeals!: Table<PlannedMeal, number>
+  water!: Table<Water, number>
   settings!: Table<Settings, string>
   tombstones!: Table<Tombstone, number>
 
@@ -554,6 +580,9 @@ class SaluttDB extends Dexie {
 
     // Named addresses, so a route can be planned once and reused by name.
     this.version(6).stores({ places: '++id, name, lastUsed' })
+    // A tally of bottles, one row a day. New table only — nothing existing is
+    // touched, so the upgrade is a no-op for every other store.
+    this.version(7).stores({ water: '++id, &date' })
 
     // Stamp every write, so no call site has to remember to. Dexie types the
     // three hooks as separate overloads, which a loop cannot satisfy.

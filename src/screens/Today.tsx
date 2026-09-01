@@ -103,6 +103,25 @@ export default function Today({
     useLiveQuery(() => db.mealTemplates.orderBy('lastUsed').reverse().limit(6).toArray(), []) ?? []
   const workouts = useLiveQuery(() => db.workouts.where('date').equals(date).toArray(), [date]) ?? []
 
+  // The day's bottle tally, and the size of one. A missing row means none yet.
+  const waterRow = useLiveQuery(() => db.water.where('date').equals(date).first(), [date])
+  const bottles = waterRow?.bottles ?? 0
+  const bottleMl = settings.bottleMl ?? 591
+
+  /**
+   * One tap, one bottle — and one tap on the minus takes it back.
+   *
+   * Written as an upsert rather than an add so repeated taps do not litter the
+   * table with a row each, and floored at zero so an over-eager undo cannot
+   * leave the day owing water.
+   */
+  const addBottle = async (delta = 1) => {
+    const existing = await db.water.where('date').equals(date).first()
+    const next = Math.max(0, (existing?.bottles ?? 0) + delta)
+    if (existing?.id != null) await db.water.update(existing.id, { bottles: next, updatedAt: Date.now() })
+    else await db.water.add({ date, bottles: next, createdAt: Date.now(), updatedAt: Date.now() })
+  }
+
 
   const trend = weightTrend(weighIns, settings.trendHalfLifeDays)
   const currentKg = trend.length ? trend[trend.length - 1].trend : null
@@ -605,14 +624,42 @@ export default function Today({
             <div className="small muted">{isToday ? 'Not weighed today' : 'No weigh-in'}</div>
           )}
         </div>
-        <div className="card tight">
-          <h3>Training</h3>
-          {workouts.length ? (
-            <div className="small truncate">{workouts.map((w) => w.name).join(', ')}</div>
-          ) : (
-            <div className="small muted">Rest day</div>
-          )}
-        </div>
+        {/*
+          Water replaced the training tile, which only ever repeated what the
+          Train tab already said. This is the one number here that is counted
+          rather than weighed: a tap is a bottle, because anything that asks
+          for millilitres at the sink gets abandoned inside a week. Under-
+          hydration is also the live problem — it is what made his stools hard
+          once creatine raised the requirement — so a rough tally he keeps is
+          worth more than a precise one he does not.
+        */}
+        <button className="card tight watertile" onClick={() => void addBottle()}>
+          <div className="row between">
+            <h3>Water</h3>
+            {bottles > 0 && (
+              <span
+                className="linkbtn tiny"
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void addBottle(-1)
+                }}
+              >
+                −
+              </span>
+            )}
+          </div>
+          <div className="stat-value num">
+            {(bottles * bottleMl) / 1000 >= 1
+              ? ((bottles * bottleMl) / 1000).toFixed(1)
+              : bottles * bottleMl}
+            <span className="hero-unit">{(bottles * bottleMl) / 1000 >= 1 ? 'L' : 'ml'}</span>
+          </div>
+          <div className="small muted">
+            {bottles === 0 ? 'Tap to add a bottle' : `${bottles} × ${bottleMl} ml`}
+          </div>
+        </button>
       </div>
 
       {copying && previousDay && (

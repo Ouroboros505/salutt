@@ -731,6 +731,19 @@ details.card[open] > summary svg {
 /* A quiet caution inside a list row — says the number needs a second look
    without the alarm of a full banner. */
 .tiny.warn { color: var(--warning); }
+
+/* The water tile is a button but must read as one of the pair of cards beside
+   it, so it borrows the card's box and drops the button's own chrome. */
+.watertile {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.watertile:active { transform: scale(0.985); }
 .comp-delta.muted { color: var(--text-muted); }
 .linkbtn {
   background: none;

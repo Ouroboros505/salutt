@@ -110,6 +110,17 @@ export default function Settings({
               onChange={(e) => patch({ goalWeightKg: num(e.target.value) })}
             />
           </Field>
+          {/* One tap on the Today tile counts one of these. */}
+          <Field label="Water bottle (ml)" hint="What one tap on Today counts">
+            <input
+              type="number"
+              inputMode="numeric"
+              step="10"
+              placeholder="591"
+              value={s.bottleMl ?? ''}
+              onChange={(e) => patch({ bottleMl: num(e.target.value) })}
+            />
+          </Field>
           <Field label="Rate (kg / week)" hint="Negative to lose">
             <input
               type="number"

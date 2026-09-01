@@ -29,6 +29,9 @@ const TABLES = [
   // Weighed-ahead meals travel too: they are a morning's work with a scale,
   // and losing them on a phone swap would mean weighing everything again.
   'plannedMeals',
+  // The water tally travels as well; it is a habit record, and starting a new
+  // phone with an empty one would read as a day of drinking nothing.
+  'water',
   // Deletions have to travel too, or a merge resurrects them.
   'tombstones',
   'settings',
