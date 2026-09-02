@@ -715,6 +715,20 @@ export function progressSoFar(trend: TrendPoint[]): Progress | null {
   if (trend.length < 2) return null
   const first = trend[0]
   const last = trend[trend.length - 1]
+  /**
+   * Raw at the start, smoothed at the end, on purpose.
+   *
+   * It looks like an inconsistency and is the opposite. The filter seeds at
+   * the very first reading and spends its first days climbing toward the real
+   * level, so the early trend values are biased low — reading them would
+   * understate the change and flatter nobody. By the end it has a fortnight of
+   * evidence and the smoothed figure is the better one.
+   *
+   * So each end uses whichever estimate is actually better there: an average
+   * of the first few readings, which the filter cannot yet improve on, against
+   * a trend value it has earned. Averaging three of them keeps one heavy
+   * morning from setting the whole baseline.
+   */
   const head = trend.slice(0, Math.min(BASELINE_READINGS, trend.length))
   const baseline = head.reduce((a, p) => a + (p.raw ?? p.trend), 0) / head.length
   const days = Math.round(
