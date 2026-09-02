@@ -351,6 +351,23 @@ for (const ex of CATALOGUE) {
 }
 
 /**
+ * Whether a weight is expected against this exercise.
+ *
+ * A plank logged at zero is a plank; a hammer curl logged at zero is a hammer
+ * curl somebody forgot to write down. The catalogue already knows which is
+ * which — bodyweight, cardio and mobility movements resolve to a load style
+ * with no factor — so the difference can be stated rather than guessed at.
+ */
+export function expectsWeight(name: string): boolean {
+  const ex = byName(name)
+  if (!ex || ex.byMinutes) return false
+  // LOAD_BODY also carries a factor, because a plank can be loaded with a
+  // plate — so the factor alone cannot separate "no weight is an omission"
+  // from "no weight is the exercise". The bodyweight list can.
+  return (ex.load?.factor ?? 1) > 0 && !BODYWEIGHT.includes(ex.name)
+}
+
+/**
  * What one set of this exercise is counted in.
  *
  * The prescription is free text because that is how a plan is written —

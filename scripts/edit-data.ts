@@ -68,39 +68,42 @@ function change(data: Data): string[] {
   const notes: string[] = []
 
   /**
-   * Strawberries — flesh only, the way he weighs them.
+   * Fusia shrimp and avocado roll, Aldi — as sold, since nobody cooks sushi.
    *
-   * USDA's figures for raw strawberries are already per 100 g of edible fruit,
-   * with the green caps counted as refuse at about 6%. So these numbers belong
-   * to a hulled berry on the scale, which is what he asked for and what he
-   * actually eats. Weighing a punnet with the tops still on would overstate a
-   * portion by that 6% — trivial next to the day's logging error, and not
-   * worth a second entry to chase. The clementine went the same way.
+   * Label is per 5 pieces (109 g): 110 kcal, 6 g protein, 17 g carbs, 3 g fat,
+   * 2 g fibre, 340 mg sodium. Three servings to a box, so fifteen pieces and
+   * 327 g in total.
    *
-   * Also worth having on the list for a reason that is not nutrition: his own
-   * testing put strawberries firmly on the safe side. Fructose balanced with
-   * glucose, almost no sorbitol — neither of the two things that set his
-   * evenings off.
+   * Portions are by the piece because that is the unit he eats and the unit he
+   * will decide in — a scale is not going near a sushi box.
+   *
+   * The note carries a warning the numbers do not: the roll contains avocado
+   * and lists sorbitol among its ingredients, and sorbitol is one of his two
+   * confirmed triggers, at a threshold as low as 75 g of avocado flesh. Five
+   * pieces is a small dose and likely fine; the whole box is a different
+   * question, and worth knowing before rather than after.
    */
   const foods = data.foods ?? []
   const maxId = foods.reduce((m: number, f: Row) => Math.max(m, Number(f.id) || 0), 0)
-  const dup = foods.find((f: Row) => /strawberr/i.test(f.name ?? ''))
+  const dup = foods.find((f: Row) => /sushi|avocado roll/i.test(f.name ?? ''))
   if (dup) {
-    notes.push(`already present as "${dup.name}" — leaving it alone`)
+    notes.push(`already present as "${dup.name}"`)
   } else {
+    const per100 = (x: number) => Math.round((x / 109) * 100 * 100) / 100
     foods.push(
       touch({
         id: maxId + 1,
-        name: 'Strawberries, fresh',
-        kcal: 32,
-        protein: 0.7,
-        carbs: 7.7,
-        fat: 0.3,
-        fiber: 2.0,
+        name: 'Shrimp & avocado sushi roll',
+        brand: 'Fusia (Aldi)',
+        kcal: per100(110),
+        protein: per100(6),
+        carbs: per100(17),
+        fat: per100(3),
+        fiber: per100(2),
         portions: [
-          { label: '100 g', grams: 100 },
-          { label: '1 medium berry (~11 g)', grams: 11 },
-          { label: '1 cup, halved (~150 g)', grams: 150 },
+          { label: '5 pieces (109 g)', grams: 109 },
+          { label: '1 piece', grams: 22 },
+          { label: 'whole box, 15 pieces', grams: 327 },
         ],
         defaultPortion: 0,
         liquid: false,
@@ -111,12 +114,14 @@ function change(data: Data): string[] {
         lastUsed: 0,
         createdAt: Date.now(),
         notes:
-          'Flesh only — weigh them with the green tops removed, which is what these USDA figures ' +
-          'describe. With the caps left on you would be about 6% over, which is not worth a second ' +
-          'entry. Low FODMAP and on your safe list: glucose-balanced fructose, negligible sorbitol.',
+          'Per 5 pieces: 110 kcal, 6 g protein — only about a fifth of its energy is protein, so ' +
+          'treat it as a carb rather than a protein source. The "shrimp salad" is shrimp plus ' +
+          'Alaska pollock and starches. CONTAINS AVOCADO AND ADDED SORBITOL, both of which are ' +
+          'your confirmed trigger: five pieces is a small dose, the whole box is not. Also 340 mg ' +
+          'sodium per serving, so expect a little water on the scale next morning.',
       }),
     )
-    notes.push(`added food #${maxId + 1} "Strawberries, fresh" — 32 kcal, 2.0 g fibre per 100 g flesh`)
+    notes.push(`added #${maxId + 1} "Shrimp & avocado sushi roll" — 5 pieces = 110 kcal, 6 g P`)
   }
 
   return notes

@@ -25,6 +25,7 @@ import {
   type Exercise,
   type MuscleGroup,
   canonicalName,
+  expectsWeight,
   sessionMinutes,
 } from '../lib/program'
 import { Icon, Meter, NumberInput, Sheet } from './ui'
@@ -254,6 +255,31 @@ export default function SessionSheet({
     }
     return out
   }, [history])
+
+  /**
+   * Exercises about to be logged with no weight against them, where a weight
+   * is expected.
+   *
+   * This is how two sessions of hammer curls ended up in the log as bare rep
+   * counts: nothing was wrong, nothing complained, and the omission only
+   * surfaced weeks later when the history had nothing to show. Progressive
+   * overload is the entire mechanism behind the plan, and it needs last week's
+   * number to exist. Said here, before Finish, it costs one glance; said
+   * later, it costs the record.
+   */
+  const missingWeight = useMemo(
+    () =>
+      items
+        .filter(
+          (i) =>
+            expectsWeight(i.name) &&
+            i.minutes == null &&
+            i.sets.length > 0 &&
+            i.sets.every((st) => !st.weightKg && st.band == null),
+        )
+        .map((i) => i.name),
+    [items],
+  )
 
   // Written on every change, so closing the sheet mid-session costs nothing.
   // An edit of something already logged is not a draft and must not overwrite
@@ -900,6 +926,12 @@ const clock = (ms: number) => {
       >
         {workout ? 'Save changes' : 'Finish and log'} · {minutes} min · {kcal} kcal
       </button>
+
+      {missingWeight.length > 0 && (
+        <div className="tiny warn" style={{ paddingTop: 6 }}>
+          No weight recorded for {missingWeight.join(', ')} — next week will have nothing to beat.
+        </div>
+      )}
 
       <button className="btn ghost block muted" onClick={onClose}>
         {workout ? 'Cancel' : 'Keep for later'}

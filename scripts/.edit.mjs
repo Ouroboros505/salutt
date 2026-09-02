@@ -162,23 +162,25 @@ function change(data) {
   const notes = [];
   const foods = data.foods ?? [];
   const maxId = foods.reduce((m, f) => Math.max(m, Number(f.id) || 0), 0);
-  const dup = foods.find((f) => /strawberr/i.test(f.name ?? ""));
+  const dup = foods.find((f) => /sushi|avocado roll/i.test(f.name ?? ""));
   if (dup) {
-    notes.push(`already present as "${dup.name}" \u2014 leaving it alone`);
+    notes.push(`already present as "${dup.name}"`);
   } else {
+    const per100 = (x) => Math.round(x / 109 * 100 * 100) / 100;
     foods.push(
       touch({
         id: maxId + 1,
-        name: "Strawberries, fresh",
-        kcal: 32,
-        protein: 0.7,
-        carbs: 7.7,
-        fat: 0.3,
-        fiber: 2,
+        name: "Shrimp & avocado sushi roll",
+        brand: "Fusia (Aldi)",
+        kcal: per100(110),
+        protein: per100(6),
+        carbs: per100(17),
+        fat: per100(3),
+        fiber: per100(2),
         portions: [
-          { label: "100 g", grams: 100 },
-          { label: "1 medium berry (~11 g)", grams: 11 },
-          { label: "1 cup, halved (~150 g)", grams: 150 }
+          { label: "5 pieces (109 g)", grams: 109 },
+          { label: "1 piece", grams: 22 },
+          { label: "whole box, 15 pieces", grams: 327 }
         ],
         defaultPortion: 0,
         liquid: false,
@@ -188,10 +190,10 @@ function change(data) {
         useCount: 0,
         lastUsed: 0,
         createdAt: Date.now(),
-        notes: "Flesh only \u2014 weigh them with the green tops removed, which is what these USDA figures describe. With the caps left on you would be about 6% over, which is not worth a second entry. Low FODMAP and on your safe list: glucose-balanced fructose, negligible sorbitol."
+        notes: 'Per 5 pieces: 110 kcal, 6 g protein \u2014 only about a fifth of its energy is protein, so treat it as a carb rather than a protein source. The "shrimp salad" is shrimp plus Alaska pollock and starches. CONTAINS AVOCADO AND ADDED SORBITOL, both of which are your confirmed trigger: five pieces is a small dose, the whole box is not. Also 340 mg sodium per serving, so expect a little water on the scale next morning.'
       })
     );
-    notes.push(`added food #${maxId + 1} "Strawberries, fresh" \u2014 32 kcal, 2.0 g fibre per 100 g flesh`);
+    notes.push(`added #${maxId + 1} "Shrimp & avocado sushi roll" \u2014 5 pieces = 110 kcal, 6 g P`);
   }
   return notes;
 }
