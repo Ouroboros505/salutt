@@ -368,8 +368,40 @@ export function adaptiveTDEE(
   if (intakes.length < minLoggedDays) return null
 
   const meanIntake = intakes.reduce((a, b) => a + b, 0) / intakes.length
-  const trendChangeKg = finish.trend - start.trend
-  const kcal = meanIntake - (trendChangeKg * KCAL_PER_KG) / days
+
+  /**
+   * The window's rate of change, fitted rather than measured end to end.
+   *
+   * Subtracting the first trend point from the last looked equivalent and was
+   * not. The filter seeds itself at the first reading, so `trend[0]` carries no
+   * smoothing at all — it is one raw morning wearing the trend's name. His
+   * happened to be a light one, and 0.43 kg of noise spread over seventeen days
+   * is 195 kcal a day of phantom maintenance, which is most of the gap between
+   * this figure and every other estimate of it.
+   *
+   * A least-squares slope through the whole window uses every point instead of
+   * two, so a wobble at either end moves it barely at all.
+   */
+  const t0 = new Date(start.date).getTime()
+  let sw = 0
+  let sx = 0
+  let sy = 0
+  let sxx = 0
+  let sxy = 0
+  for (const p of win) {
+    const x = (new Date(p.date).getTime() - t0) / 86_400_000
+    sw += 1
+    sx += x
+    sy += p.trend
+    sxx += x * x
+    sxy += x * p.trend
+  }
+  const den = sxx - (sx * sx) / sw
+  const slopeKgPerDay =
+    Math.abs(den) > 1e-9
+      ? (sxy - (sx * sy) / sw) / den
+      : (finish.trend - start.trend) / days
+  const kcal = meanIntake - slopeKgPerDay * KCAL_PER_KG
 
   // `days` is the span between the endpoints; the window covers one more
   // calendar day than that, which is what adherence should be measured against.
@@ -383,7 +415,9 @@ export function adaptiveTDEE(
     windowDays: days + 1,
     loggedDays: intakes.length,
     meanIntake: Math.round(meanIntake),
-    trendChangeKg,
+    // Reported as the fitted change across the window, so it agrees with the
+    // figure the maintenance was actually solved from.
+    trendChangeKg: slopeKgPerDay * days,
     confidence,
   }
 }
