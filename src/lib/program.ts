@@ -665,7 +665,21 @@ export function byName(name: string): Exercise | undefined {
  */
 export function exerciseKcal(ex: Exercise, count: number, kg: number): number {
   if (!(kg > 0) || !(count > 0)) return 0
-  return Math.round((ex.met * kg * (count * ex.secPerSet)) / 3600)
+  /**
+   * Net of resting, not gross.
+   *
+   * One MET is resting metabolism, so `met x kg x hours` includes the energy
+   * he would have spent lying still for the same minutes — and the day's
+   * figure already counts a full 24 hours of BMR separately. Charging both
+   * billed that hour twice, which inflated exactly the days he trained
+   * hardest and quietly handed him food he had not earned.
+   *
+   * Subtracting the one MET leaves what the exercise actually added. For a
+   * 24-minute row that is 27 kcal, which is small; across a week of two rides
+   * and a session a day it stops being small.
+   */
+  const netMet = Math.max(0, ex.met - 1)
+  return Math.round((netMet * kg * (count * ex.secPerSet)) / 3600)
 }
 
 /**

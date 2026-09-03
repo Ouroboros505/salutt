@@ -160,41 +160,25 @@ function touch(row) {
 var summarise = (data) => Object.entries(data).filter(([, rows]) => Array.isArray(rows) && rows.length).map(([t, rows]) => `${t}=${rows.length}`).join(" ");
 function change(data) {
   const notes = [];
-  const foods = data.foods ?? [];
-  const maxId = foods.reduce((m, f) => Math.max(m, Number(f.id) || 0), 0);
-  const dup = foods.find((f) => /sushi|avocado roll/i.test(f.name ?? ""));
-  if (dup) {
-    notes.push(`already present as "${dup.name}"`);
-  } else {
-    const per100 = (x) => Math.round(x / 109 * 100 * 100) / 100;
-    foods.push(
-      touch({
-        id: maxId + 1,
-        name: "Shrimp & avocado sushi roll",
-        brand: "Fusia (Aldi)",
-        kcal: per100(110),
-        protein: per100(6),
-        carbs: per100(17),
-        fat: per100(3),
-        fiber: per100(2),
-        portions: [
-          { label: "5 pieces (109 g)", grams: 109 },
-          { label: "1 piece", grams: 22 },
-          { label: "whole box, 15 pieces", grams: 327 }
-        ],
-        defaultPortion: 0,
-        liquid: false,
-        weighedAs: "as-eaten",
-        source: "manual",
-        favorite: false,
-        useCount: 0,
-        lastUsed: 0,
-        createdAt: Date.now(),
-        notes: 'Per 5 pieces: 110 kcal, 6 g protein \u2014 only about a fifth of its energy is protein, so treat it as a carb rather than a protein source. The "shrimp salad" is shrimp plus Alaska pollock and starches. CONTAINS AVOCADO AND ADDED SORBITOL, both of which are your confirmed trigger: five pieces is a small dose, the whole box is not. Also 340 mg sodium per serving, so expect a little water on the scale next morning.'
-      })
-    );
-    notes.push(`added #${maxId + 1} "Shrimp & avocado sushi roll" \u2014 5 pieces = 110 kcal, 6 g P`);
+  const kg = 67.4;
+  let touched = 0;
+  let before = 0;
+  let after = 0;
+  for (const w of data.workouts ?? []) {
+    const kcal = Number(w.kcal) || 0;
+    const min = Number(w.durationMin) || 0;
+    if (kcal <= 0 || min <= 0) continue;
+    const grossMet = kcal * 200 / (3.5 * kg * min);
+    if (!(grossMet > 1)) continue;
+    const scaled = Math.round(kcal * ((grossMet - 1) / grossMet));
+    before += kcal;
+    after += scaled;
+    w.kcal = scaled;
+    touch(w);
+    touched++;
   }
+  notes.push(`rescaled ${touched} sessions: ${before} -> ${after} kcal total (${before - after} removed)`);
+  notes.push(`  average per session: ${(before / touched).toFixed(0)} -> ${(after / touched).toFixed(0)}`);
   return notes;
 }
 async function main() {

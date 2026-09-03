@@ -84,7 +84,10 @@ export function metFromSpeed(
  */
 export function rideKcal(met: number, kg: number, minutes: number): number {
   if (!(kg > 0) || !(minutes > 0)) return 0
-  return Math.round((met * 3.5 * kg * minutes) / 200)
+  // Net of resting, for the same reason the gym figures are: the day already
+  // counts a full 24 hours of BMR, so charging the ride's first MET again
+  // bills the same hour twice.
+  return Math.round((Math.max(0, met - 1) * 3.5 * kg * minutes) / 200)
 }
 
 /** Places worth a button, because they are where the riding actually goes. */

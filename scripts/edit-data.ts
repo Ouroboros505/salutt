@@ -68,61 +68,45 @@ function change(data: Data): string[] {
   const notes: string[] = []
 
   /**
-   * Fusia shrimp and avocado roll, Aldi — as sold, since nobody cooks sushi.
+   * Rescale every logged session to the net-of-resting formula.
    *
-   * Label is per 5 pieces (109 g): 110 kcal, 6 g protein, 17 g carbs, 3 g fat,
-   * 2 g fibre, 340 mg sodium. Three servings to a box, so fifteen pieces and
-   * 327 g in total.
+   * The code fix alone would have been worse than the bug for a fortnight.
+   * The daily target compares today's activity against the average of the
+   * last two weeks, so changing the formula without touching history would
+   * have put new days on one basis and the average on another, and every
+   * training day would have read as unusually light until the old sessions
+   * aged out. A quiet two weeks of under-eating to correct a 24 g/week bias
+   * is a bad trade.
    *
-   * Portions are by the piece because that is the unit he eats and the unit he
-   * will decide in — a scale is not going near a sushi box.
+   * Each stored figure was met x kg x hours. The new one is (met - 1) x kg x
+   * hours. Without re-deriving every exercise, the ratio of the two is what
+   * the session's blended MET implies — so scale by (met - 1) / met using the
+   * MET the session's own kcal and duration reveal.
    *
-   * The note carries a warning the numbers do not: the roll contains avocado
-   * and lists sorbitol among its ingredients, and sorbitol is one of his two
-   * confirmed triggers, at a threshold as low as 75 g of avocado flesh. Five
-   * pieces is a small dose and likely fine; the whole box is a different
-   * question, and worth knowing before rather than after.
+   * Rides carry their own kcal from the same gross formula and are rescaled
+   * the same way.
    */
-  const foods = data.foods ?? []
-  const maxId = foods.reduce((m: number, f: Row) => Math.max(m, Number(f.id) || 0), 0)
-  const dup = foods.find((f: Row) => /sushi|avocado roll/i.test(f.name ?? ''))
-  if (dup) {
-    notes.push(`already present as "${dup.name}"`)
-  } else {
-    const per100 = (x: number) => Math.round((x / 109) * 100 * 100) / 100
-    foods.push(
-      touch({
-        id: maxId + 1,
-        name: 'Shrimp & avocado sushi roll',
-        brand: 'Fusia (Aldi)',
-        kcal: per100(110),
-        protein: per100(6),
-        carbs: per100(17),
-        fat: per100(3),
-        fiber: per100(2),
-        portions: [
-          { label: '5 pieces (109 g)', grams: 109 },
-          { label: '1 piece', grams: 22 },
-          { label: 'whole box, 15 pieces', grams: 327 },
-        ],
-        defaultPortion: 0,
-        liquid: false,
-        weighedAs: 'as-eaten',
-        source: 'manual',
-        favorite: false,
-        useCount: 0,
-        lastUsed: 0,
-        createdAt: Date.now(),
-        notes:
-          'Per 5 pieces: 110 kcal, 6 g protein — only about a fifth of its energy is protein, so ' +
-          'treat it as a carb rather than a protein source. The "shrimp salad" is shrimp plus ' +
-          'Alaska pollock and starches. CONTAINS AVOCADO AND ADDED SORBITOL, both of which are ' +
-          'your confirmed trigger: five pieces is a small dose, the whole box is not. Also 340 mg ' +
-          'sodium per serving, so expect a little water on the scale next morning.',
-      }),
-    )
-    notes.push(`added #${maxId + 1} "Shrimp & avocado sushi roll" — 5 pieces = 110 kcal, 6 g P`)
+  const kg = 67.4 // his trend weight; the ratio barely moves with it
+  let touched = 0
+  let before = 0
+  let after = 0
+
+  for (const w of data.workouts ?? []) {
+    const kcal = Number(w.kcal) || 0
+    const min = Number(w.durationMin) || 0
+    if (kcal <= 0 || min <= 0) continue
+    // Back out the gross MET this session was priced at.
+    const grossMet = (kcal * 200) / (3.5 * kg * min)
+    if (!(grossMet > 1)) continue
+    const scaled = Math.round(kcal * ((grossMet - 1) / grossMet))
+    before += kcal
+    after += scaled
+    w.kcal = scaled
+    touch(w)
+    touched++
   }
+  notes.push(`rescaled ${touched} sessions: ${before} -> ${after} kcal total (${(before - after)} removed)`)
+  notes.push(`  average per session: ${(before / touched).toFixed(0)} -> ${(after / touched).toFixed(0)}`)
 
   return notes
 }
