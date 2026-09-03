@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type ISODate, type Settings, type Workout } from '../db/db'
 import {
@@ -159,6 +159,80 @@ function fromWorkout(w: Workout): Done[] {
   return out
 }
 
+/** m:ss, floored at zero, for the rest and hold clocks. */
+const clock = (ms: number) => {
+  const t = Math.max(0, Math.round(ms / 1000))
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`
+}
+
+/**
+ * Past this a rest is not a rest. Nobody sits between two sets for ten
+ * minutes; they are talking, or done, or have put the phone down. The clock
+ * stops ticking and says so, and the next ticked set starts it fresh.
+ */
+const REST_CAP_MS = 10 * 60 * 1000
+
+/**
+ * The rest and hold clock, as its own component.
+ *
+ * It used to be a `now` state on the sheet itself, ticking every 250 ms. That
+ * re-rendered the whole session — every exercise, every set row, every
+ * last-time lookup — four times a second from the first ticked set until the
+ * sheet closed, since nothing stopped the rest clock short of pressing
+ * "Lifting". Measured in a headless browser: 660 DOM mutations and ~20 ms of
+ * script per second, continuously, on a desktop; several times that on a
+ * phone, with the screen on, for an hour. That is the one sustained load in
+ * the app while it sits idle mid-session, and Android's "isn't responding"
+ * dialog is what a phone under pressure does with sustained load.
+ *
+ * Here the tick is owned by the clock, so each second re-renders one span.
+ * Once a second, because the display has seconds; and not at all past the
+ * cap, because at that point there is nothing to count.
+ */
+function RestClock({
+  restSince,
+  holdUntil,
+  onHoldDone,
+}: {
+  restSince: number | null
+  holdUntil: number | null
+  onHoldDone: () => void
+}) {
+  const [now, setNow] = useState(() => Date.now())
+  const capped = holdUntil == null && restSince != null && now - restSince >= REST_CAP_MS
+
+  useEffect(() => {
+    setNow(Date.now())
+    if (capped || (restSince == null && holdUntil == null)) return
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [restSince, holdUntil, capped])
+
+  // Buzz once when a hold reaches zero, then hand it back. The ref keeps a
+  // re-render from buzzing the same hold twice.
+  const buzzed = useRef<number | null>(null)
+  useEffect(() => {
+    if (holdUntil == null || now < holdUntil || buzzed.current === holdUntil) return
+    buzzed.current = holdUntil
+    try {
+      navigator.vibrate?.([200, 80, 200])
+    } catch {
+      /* no vibration API, the visual 0:00 is enough */
+    }
+    onHoldDone()
+  }, [now, holdUntil, onHoldDone])
+
+  return (
+    <span className="stat-value num" style={{ color: 'inherit' }}>
+      {holdUntil != null
+        ? clock(holdUntil - now)
+        : capped
+          ? '10:00+'
+          : clock(now - (restSince ?? now))}
+    </span>
+  )
+}
+
 export default function SessionSheet({
   date,
   kg,
@@ -208,23 +282,6 @@ export default function SessionSheet({
   // runs at a time, so the bar never shows two things at once.
   const [restSince, setRestSince] = useState<number | null>(null)
   const [holdUntil, setHoldUntil] = useState<number | null>(null)
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (restSince == null && holdUntil == null) return
-    const id = setInterval(() => setNow(Date.now()), 250)
-    return () => clearInterval(id)
-  }, [restSince, holdUntil])
-  // Buzz once when a hold reaches zero, then clear it.
-  useEffect(() => {
-    if (holdUntil != null && now >= holdUntil) {
-      try {
-        navigator.vibrate?.([200, 80, 200])
-      } catch {
-        /* no vibration API, the visual 0:00 is enough */
-      }
-      setHoldUntil(null)
-    }
-  }, [now, holdUntil])
 
   /**
    * What you did last time, per exercise.
@@ -422,10 +479,6 @@ export default function SessionSheet({
  */
 const fmtWeight = (n: number): string => (Number.isInteger(n) ? String(n) : n.toFixed(1))
 
-const clock = (ms: number) => {
-    const t = Math.max(0, Math.round(ms / 1000))
-    return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`
-  }
 
   const catalogue = useMemo(
     () => (adding ? CATALOGUE.filter((e) => e.group === adding) : []),
@@ -829,9 +882,7 @@ const clock = (ms: number) => {
           <span className="stat-label" style={{ color: 'inherit' }}>
             {holdUntil != null ? 'Hold' : 'Resting'}
           </span>
-          <span className="stat-value num" style={{ color: 'inherit' }}>
-            {holdUntil != null ? clock(holdUntil - now) : clock(now - (restSince ?? now))}
-          </span>
+          <RestClock restSince={restSince} holdUntil={holdUntil} onHoldDone={() => setHoldUntil(null)} />
           {holdUntil != null ? (
             <button className="btn sm ghost" style={{ color: 'inherit' }} onClick={() => setHoldUntil(null)}>
               Stop
