@@ -31,6 +31,7 @@ import {
 import { Icon, Meter, NumberInput, Sheet } from './ui'
 import { formatShort } from '../lib/date'
 import DemoSheet from './DemoSheet'
+import WaterFab from './WaterFab'
 
 interface SetRow {
   reps: number
@@ -433,6 +434,8 @@ const clock = (ms: number) => {
 
   if (adding) {
     return (
+      <>
+      <WaterFab settings={settings} />
       <Sheet title={adding} onClose={() => setAdding(null)}>
         <div className="scroll-x">
           {GROUPS.map((g) => (
@@ -477,10 +480,15 @@ const clock = (ms: number) => {
           ))}
         </div>
       </Sheet>
+      </>
     )
   }
 
   return (
+    <>
+    {/* The only screen with a floating control: drinking mid-session is the
+        one moment where leaving to log it costs enough to skip it. */}
+    <WaterFab settings={settings} />
     <Sheet title={plan ? plan.name : 'Session'} onClose={onClose}>
       <div className="row between">
         <span className="tiny muted grow">
@@ -939,5 +947,6 @@ const clock = (ms: number) => {
 
       {demoName && <DemoSheet name={demoName} onClose={() => setDemoName(null)} />}
     </Sheet>
+    </>
   )
 }

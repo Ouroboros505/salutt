@@ -744,6 +744,45 @@ details.card[open] > summary svg {
   -webkit-tap-highlight-color: transparent;
 }
 .watertile:active { transform: scale(0.985); }
+
+/* The bottle counter that floats over a session. Fixed, above the sheet
+   (z 50) and below toasts (z 60). touch-action: none hands every pointer
+   move to the component, which is what lets it tell a drag from a tap. */
+.waterfab {
+  position: fixed;
+  z-index: 55;
+  border-radius: 999px;
+  border: none;
+  background: var(--series-1); /* the protein blue — closest thing to water */
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 0;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease;
+}
+.waterfab:active { cursor: grabbing; }
+.waterfab.bump { transform: scale(1.12); }
+.waterfab-val {
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+.waterfab-val small {
+  font-size: 8.5px;
+  font-weight: 600;
+  margin-left: 1px;
+  opacity: 0.9;
+}
 .comp-delta.muted { color: var(--text-muted); }
 .linkbtn {
   background: none;

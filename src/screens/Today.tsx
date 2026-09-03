@@ -17,6 +17,7 @@ import {
   type PastMeal,
 } from '../db/ops'
 import { addDays, formatDay, formatShort, todayISO, startOfWeek } from '../lib/date'
+import { addBottle as addBottleFor, bottleMlOf } from '../lib/water'
 import {
   adaptiveTDEE,
   computeTargets,
@@ -106,21 +107,10 @@ export default function Today({
   // The day's bottle tally, and the size of one. A missing row means none yet.
   const waterRow = useLiveQuery(() => db.water.where('date').equals(date).first(), [date])
   const bottles = waterRow?.bottles ?? 0
-  const bottleMl = settings.bottleMl ?? 591
-
-  /**
-   * One tap, one bottle — and one tap on the minus takes it back.
-   *
-   * Written as an upsert rather than an add so repeated taps do not litter the
-   * table with a row each, and floored at zero so an over-eager undo cannot
-   * leave the day owing water.
-   */
-  const addBottle = async (delta = 1) => {
-    const existing = await db.water.where('date').equals(date).first()
-    const next = Math.max(0, (existing?.bottles ?? 0) + delta)
-    if (existing?.id != null) await db.water.update(existing.id, { bottles: next, updatedAt: Date.now() })
-    else await db.water.add({ date, bottles: next, createdAt: Date.now(), updatedAt: Date.now() })
-  }
+  const bottleMl = bottleMlOf(settings)
+  // The tally logic lives in lib/water so the button floating over a session
+  // and this tile can never disagree about what a tap is worth.
+  const addBottle = (delta = 1) => addBottleFor(date, delta)
 
 
   const trend = weightTrend(weighIns, settings.trendHalfLifeDays)
