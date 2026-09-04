@@ -30,6 +30,7 @@ import {
 import { Icon, Meter, Sheet } from '../components/ui'
 import AddFood from '../components/AddFood'
 import CopyDay from '../components/CopyDay'
+import WhatIf from '../components/WhatIf'
 
 /** Legacy rows used fixed lowercase keys; show them with proper names. */
 const LEGACY: Record<string, string> = {
@@ -78,6 +79,8 @@ export default function Today({
   onLaunchHandled?: () => void
 }) {
   const [adding, setAdding] = useState<Meal | null>(null)
+  // The remaining figure, tapped, opens a scratchpad for the rest of the day.
+  const [planning, setPlanning] = useState(false)
   const [editing, setEditing] = useState<Entry | null>(null)
   const [saving, setSaving] = useState<{ meal: Meal; items: Entry[] } | null>(null)
   const [naming, setNaming] = useState(false)
@@ -219,12 +222,15 @@ export default function Today({
       {/* ------------------------------------------------------ calories */}
       <div className="card">
         <div className="row between" style={{ alignItems: 'flex-end' }}>
-          <div>
+          {/* The number is the button. A separate control for "what could I
+              still eat" would be one more thing on a screen that is full;
+              the figure itself is what the question is about. */}
+          <button className="herobtn" onClick={() => setPlanning(true)} aria-label="Try out the rest of the day">
             <div className="stat-label">{remaining >= 0 ? 'Remaining' : 'Over'}</div>
             <div className="hero num" style={{ color: remaining < 0 ? 'var(--critical)' : undefined }}>
               {Math.abs(Math.round(remaining)).toLocaleString()} <span className="hero-unit">kcal</span>
             </div>
-          </div>
+          </button>
           <div style={{ textAlign: 'right' }}>
             <div className="small secondary num">{Math.round(totals.kcal).toLocaleString()} eaten</div>
             <div className="small muted num">of {targets.kcal.toLocaleString()} target</div>
@@ -714,6 +720,17 @@ export default function Today({
       )}
 
       {editing && <EditEntry entry={editing} onClose={() => setEditing(null)} toast={toast} />}
+
+      {planning && (
+        <WhatIf
+          eaten={totals}
+          planned={planned}
+          targets={targets}
+          fibreGoal={fibreTarget(targets.kcal, settings.fibreTargetG)}
+          fibreCeiling={settings.fibreCeilingG ?? FIBRE_PLENTY}
+          onClose={() => setPlanning(false)}
+        />
+      )}
 
       {saving && (
         <SaveTemplate

@@ -371,6 +371,18 @@ input[type='number'] {
   line-height: 1;
   letter-spacing: -0.03em;
 }
+/* The remaining figure doubles as the way into the what-if sheet: no
+   frame, no colour, just the number with a press state. */
+.herobtn {
+  all: unset;
+  display: block;
+  cursor: pointer;
+  border-radius: 8px;
+  -webkit-tap-highlight-color: transparent;
+}
+.herobtn:active { opacity: 0.6; }
+.herobtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+
 .hero-unit {
   font-size: 15px;
   font-weight: 550;
