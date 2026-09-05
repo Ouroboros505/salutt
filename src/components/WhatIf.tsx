@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, type Food, type PlannedMeal, type Recipe } from '../db/db'
+import { db, type Food, type ISODate, type PlannedMeal, type Recipe } from '../db/db'
 import { plannedTotals, quickFoods, scale, searchLocal, ZERO, type Totals } from '../db/ops'
+import { formatShort } from '../lib/date'
 import { per100, portion as recipePortion, servingGrams } from '../lib/recipes'
 import { Icon, Meter, NumberInput, Sheet } from './ui'
 
@@ -40,6 +41,7 @@ type Stage = { kind: 'search' } | { kind: 'food'; food: Food } | { kind: 'recipe
 export default function WhatIf({
   eaten,
   planned: waiting = [],
+  date,
   targets,
   fibreGoal,
   fibreCeiling,
@@ -49,6 +51,8 @@ export default function WhatIf({
   eaten: Totals
   /** Weighed already and waiting to be eaten: the likeliest next thing. */
   planned?: PlannedMeal[]
+  /** The day being planned, so a carried-over weighing can say it is older. */
+  date: ISODate
   targets: { kcal: number; protein: number; carbs: number; fat: number }
   fibreGoal: number
   fibreCeiling: number
@@ -214,9 +218,16 @@ export default function WhatIf({
             </span>
           </div>
 
-          {waiting.length > 0 && !q && (
+          {/* Only what is still waiting: the row is deleted the moment it is
+              eaten, so anything already logged has left this list. Shown even
+              when empty, because "nothing weighed" is itself the answer and
+              its absence made the reusable list below look like this one. */}
+          {!q && (
             <div className="stack tight">
-              <div className="stat-label">Weighed for later</div>
+              <div className="stat-label">Weighed this morning</div>
+              {waiting.length === 0 && (
+                <div className="tiny muted">Nothing weighed and still waiting to be eaten.</div>
+              )}
               {waiting.map((w) => {
                 const t = plannedTotals(w)
                 return (
@@ -229,6 +240,12 @@ export default function WhatIf({
                   >
                     <span className="grow" style={{ textAlign: 'left' }}>
                       {w.meal}
+                      {w.date !== date && (
+                        <span className="tiny" style={{ color: 'var(--warning)' }}>
+                          {' '}
+                          · weighed {formatShort(w.date)}
+                        </span>
+                      )}
                       <span className="muted"> · {w.items.map((i) => i.name).join(', ')}</span>
                     </span>
                     <span className="muted num small">{Math.round(t.kcal)} kcal</span>
@@ -238,9 +255,11 @@ export default function WhatIf({
             </div>
           )}
 
+          {/* Reusable, not day-specific — the same wording Today uses, so
+              these read as a shortcut rather than as something logged today. */}
           {matchingTemplates.length > 0 && (
             <div className="stack tight">
-              <div className="stat-label">Saved meals</div>
+              <div className="stat-label">Quick add</div>
               {matchingTemplates.map((t) => (
                 <button
                   key={t.id}

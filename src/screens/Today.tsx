@@ -725,6 +725,7 @@ export default function Today({
         <WhatIf
           eaten={totals}
           planned={planned}
+          date={date}
           targets={targets}
           fibreGoal={fibreTarget(targets.kcal, settings.fibreTargetG)}
           fibreCeiling={settings.fibreCeilingG ?? FIBRE_PLENTY}
