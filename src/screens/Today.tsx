@@ -138,6 +138,21 @@ export default function Today({
   const usual = usualActivity(allWorkouts, date)
   const meanIntake = adaptive?.meanIntake ?? null
   const maintenance = adaptive && adaptive.confidence !== 'low' ? adaptive.kcal : null
+  /**
+   * The day's target at a given intake — because it depends on the intake.
+   *
+   * Digestion is 10% of what is eaten, and it is part of what the body spends,
+   * so eating more raises expenditure and with it the target. That feedback is
+   * why this is a function rather than a number: the what-if sheet has to ask
+   * what the target *would be* once its imagined food is included, or it would
+   * quietly under-report the room left by about 8% of whatever it adds.
+   */
+  const targetsFor = (intakeKcal: number) => {
+    const e = currentKg
+      ? dayEnergy(settings, currentKg, intakeKcal, todayActivity, maintenance, usual, meanIntake)
+      : null
+    return computeTargets(settings, currentKg, adaptive, e)
+  }
   // Computed whenever there is a weight, whether or not it is trusted enough
   // to move the target — seeing the day's arithmetic is the point of it.
   const energy = currentKg
@@ -727,6 +742,7 @@ export default function Today({
           planned={planned}
           date={date}
           targets={targets}
+          targetsFor={targetsFor}
           fibreGoal={fibreTarget(targets.kcal, settings.fibreTargetG)}
           fibreCeiling={settings.fibreCeilingG ?? FIBRE_PLENTY}
           onClose={() => setPlanning(false)}

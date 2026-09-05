@@ -43,6 +43,7 @@ export default function WhatIf({
   planned: waiting = [],
   date,
   targets,
+  targetsFor,
   fibreGoal,
   fibreCeiling,
   onClose,
@@ -54,6 +55,15 @@ export default function WhatIf({
   /** The day being planned, so a carried-over weighing can say it is older. */
   date: ISODate
   targets: { kcal: number; protein: number; carbs: number; fat: number }
+  /**
+   * The target the day would have at a given intake.
+   *
+   * Not a constant: 10% of everything eaten is spent digesting it, so planned
+   * food raises expenditure and the target with it. Asking for the target at
+   * the planned intake is what keeps this sheet honest against the Today
+   * screen once the food is actually logged.
+   */
+  targetsFor?: (intakeKcal: number) => { kcal: number; protein: number; carbs: number; fat: number }
   fibreGoal: number
   fibreCeiling: number
   onClose: () => void
@@ -102,7 +112,11 @@ export default function WhatIf({
 
   const plannedT = picks.reduce((s, p) => add(s, p.t), { ...ZERO })
   const after = add(eaten, plannedT)
-  const left = targets.kcal - after.kcal
+  // The target as it would stand once the planned food is eaten, digestion
+  // included. With nothing planned this is exactly the Today figure.
+  const goal = targetsFor ? targetsFor(after.kcal) : targets
+  const left = goal.kcal - after.kcal
+  const targetMoved = Math.round(goal.kcal) - Math.round(targets.kcal)
 
   const addPick = (p: Omit<Pick, 'key'>) => {
     setPicks((ps) => [...ps, { ...p, key: Date.now() + Math.random() }])
@@ -111,9 +125,9 @@ export default function WhatIf({
   }
 
   const rows = [
-    { label: 'Protein', color: 'var(--series-1)', now: eaten.protein, then: after.protein, goal: targets.protein },
-    { label: 'Carbs', color: 'var(--series-2)', now: eaten.carbs, then: after.carbs, goal: targets.carbs },
-    { label: 'Fat', color: 'var(--series-3)', now: eaten.fat, then: after.fat, goal: targets.fat },
+    { label: 'Protein', color: 'var(--series-1)', now: eaten.protein, then: after.protein, goal: goal.protein },
+    { label: 'Carbs', color: 'var(--series-2)', now: eaten.carbs, then: after.carbs, goal: goal.carbs },
+    { label: 'Fat', color: 'var(--series-3)', now: eaten.fat, then: after.fat, goal: goal.fat },
     {
       label: 'Fibre',
       color: after.fiber > fibreCeiling ? 'var(--warning)' : 'var(--series-5)',
@@ -125,7 +139,7 @@ export default function WhatIf({
 
   // What the plan still leaves wanting, in the order he would act on it.
   const short: string[] = []
-  if (after.protein < targets.protein - 2) short.push(`${Math.round(targets.protein - after.protein)} g protein`)
+  if (after.protein < goal.protein - 2) short.push(`${Math.round(goal.protein - after.protein)} g protein`)
   if (after.fiber < fibreGoal - 2) short.push(`${Math.round(fibreGoal - after.fiber)} g fibre`)
 
   return (
@@ -148,10 +162,10 @@ export default function WhatIf({
                 {Math.round(eaten.kcal).toLocaleString()} eaten
                 {picks.length > 0 && <> + {Math.round(plannedT.kcal).toLocaleString()} planned</>}
                 <br />
-                of {targets.kcal.toLocaleString()}
+                of {Math.round(goal.kcal).toLocaleString()}
               </div>
             </div>
-            <Meter value={after.kcal} max={targets.kcal} color={left < 0 ? 'var(--critical)' : undefined} />
+            <Meter value={after.kcal} max={goal.kcal} color={left < 0 ? 'var(--critical)' : undefined} />
 
             {rows.map((r) => (
               <div key={r.label} className="stack" style={{ gap: 3 }}>
@@ -170,6 +184,13 @@ export default function WhatIf({
               </div>
             ))}
 
+            {targetMoved !== 0 && (
+              <div className="tiny muted num">
+                Target {Math.round(targets.kcal).toLocaleString()} →{' '}
+                {Math.round(goal.kcal).toLocaleString()} — digesting the extra food burns some
+                of it.
+              </div>
+            )}
             {short.length > 0 && (
               <div className="tiny muted">Still short: {short.join(' · ')}</div>
             )}
