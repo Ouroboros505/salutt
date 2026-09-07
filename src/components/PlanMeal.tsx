@@ -109,6 +109,17 @@ export default function PlanMeal({
     return {
       ...it,
       grams,
+      /**
+       * The label has to follow the weight.
+       *
+       * It was left alone here, so a row dropped in from a saved meal kept
+       * that meal's remembered grams as its caption while the real weight and
+       * the macros moved underneath. The numbers were right and the caption
+       * lied, which is worse than either being wrong on its own: the log
+       * looked like it had ignored the morning's scale. Typing a weight here
+       * means a scale is in hand, so the plain grams are the honest caption.
+       */
+      amountLabel: `${grams} g`,
       kcal: Math.round(basis.kcal * f),
       protein: r(basis.protein),
       carbs: r(basis.carbs),
