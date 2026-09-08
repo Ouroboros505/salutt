@@ -247,9 +247,9 @@ export const CATALOGUE: Exercise[] = [
 
   // --------------------------------------------------------------- Cardio
   // Intervals keep their round structure; everything else is minutes.
-  E('StairMaster Intervals', 'Cardio', 10, '30s hard / 90s easy', 9, 120, 'StairMaster', true),
-  E('Bike Intervals', 'Cardio', 8, '1 min hard / 2 min easy', 8.5, 180, 'Stationary bike', true),
-  E('Rower Intervals', 'Cardio', 8, '1 min hard / 2 min easy', 8.5, 180, 'Rowing machine', true),
+  E('StairMaster Intervals', 'Cardio', 10, '30s hard / 90s easy', 6.8, 120, 'StairMaster', true),
+  E('Bike Intervals', 'Cardio', 8, '1 min hard / 2 min easy', 6.4, 180, 'Stationary bike', true),
+  E('Rower Intervals', 'Cardio', 8, '1 min hard / 2 min easy', 6.4, 180, 'Rowing machine', true),
   C('Easy pace ramp / cool-down', 5, 8, 'Any machine', true),
   C('Walking, brisk', 3.5, 20, 'Outdoors or treadmill'),
   C('Treadmill incline walk', 6, 20, 'Treadmill'),
@@ -442,8 +442,25 @@ export function parseProtocol(reps: string): { hard: number; easy: number } | nu
  * away from it by how the work-to-rest blend shifts. The published number
  * stays the published number, and only the departure from it is modelled.
  */
-const HARD_MET = 12
-const EASY_MET = 6
+/**
+ * How hard "hard" and "easy" really are, measured rather than assumed.
+ *
+ * These began as 12 and 6, which were guesses, and two machine readings say
+ * they were wrong in a way that mattered. The spread was the problem more than
+ * the level: a gap that wide meant shifting from the written 30s/90s to a
+ * 2min/1min round multiplied the charge by a third, so the harder he trained
+ * the further the estimate ran from the truth.
+ *
+ *   2026-09-08  StairMaster, 20 min at 2:1     machine 175 kcal, app charged 244
+ *   2026-09-03  Rower, 24 min at the written 1:2  machine 170 kcal, app charged ~215
+ *
+ * On a stepper the easy phase is slower stepping, not rest, so the two ends sit
+ * closer together than a sprint-and-walk model implies. Ten and seven reproduce
+ * both readings once the catalogue values below are calibrated to match, and
+ * they keep a harder session costing more without letting it run away.
+ */
+const HARD_MET = 10
+const EASY_MET = 7
 const blend = (hard: number, easy: number) => (HARD_MET * hard + EASY_MET * easy) / (hard + easy)
 
 export function withInterval(ex: Exercise, hard: number, easy: number): Exercise {
