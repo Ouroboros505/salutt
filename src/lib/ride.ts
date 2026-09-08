@@ -163,5 +163,15 @@ export function rideEnergy(
   }
 }
 
-/** Junctions per kilometre on a town ride, which is what stops you. */
-export const STOPS_PER_KM = 2.5
+/**
+ * Full stops per kilometre — not junctions, which is what this used to count.
+ *
+ * The restart term throws away all the kinetic energy and buys it back, so it
+ * only describes a genuine stop from moving to standing. Junctions on a town
+ * ride are mostly rolled through or slowed for, and charging 2.5 dead stops a
+ * kilometre priced a commute as if he unclipped every four hundred metres.
+ * One and a half is what is left once the slow-downs are taken out, and it
+ * brings a 4.9 km ride to within a few kcal of what a Compendium MET value
+ * gives for the same speed.
+ */
+export const STOPS_PER_KM = 1.5
