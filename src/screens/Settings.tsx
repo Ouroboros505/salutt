@@ -121,18 +121,55 @@ export default function Settings({
               onChange={(e) => patch({ bottleMl: num(e.target.value) })}
             />
           </Field>
-          <Field label="Rate (kg / week)" hint="Negative to lose">
-            <input
-              type="number"
-              inputMode="decimal"
-              step="0.05"
-              value={s.goalKgPerWeek}
-              onChange={(e) => patch({ goalKgPerWeek: num(e.target.value) ?? -0.5 })}
-            />
-          </Field>
+          {/* A share of bodyweight when one is set, otherwise the flat figure.
+              The evidence is written as a percentage for a reason: the same
+              kilo a week is gentle at 80 kg and punishing at 55. */}
+          {s.goalPctPerWeek ? (
+            <Field label="Rate (% of weight / week)" hint="Tapers on its own as you get lighter">
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.05"
+                value={Math.round(s.goalPctPerWeek * 1000) / 10}
+                onChange={(e) => {
+                  const pct = num(e.target.value)
+                  patch({ goalPctPerWeek: pct != null && pct > 0 ? pct / 100 : undefined })
+                }}
+              />
+            </Field>
+          ) : (
+            <Field label="Rate (kg / week)" hint="Negative to lose">
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.05"
+                value={s.goalKgPerWeek}
+                onChange={(e) => patch({ goalKgPerWeek: num(e.target.value) ?? -0.5 })}
+              />
+            </Field>
+          )}
         </div>
 
-        {Math.abs(s.goalKgPerWeek) > 0.9 && (
+        <button
+          className="btn ghost sm"
+          onClick={() =>
+            patch(
+              s.goalPctPerWeek
+                ? { goalPctPerWeek: undefined }
+                : { goalPctPerWeek: Math.abs(s.goalKgPerWeek) / 70 },
+            )
+          }
+        >
+          {s.goalPctPerWeek ? 'Use a fixed kg per week instead' : 'Use a share of bodyweight instead'}
+        </button>
+
+        {s.goalPctPerWeek != null && s.goalPctPerWeek > 0.01 && (
+          <div className="tiny" style={{ color: 'var(--serious)' }}>
+            Past about 1% of bodyweight a week the deficit starts coming out of muscle. The
+            best-evidenced rate is nearer 0.7%.
+          </div>
+        )}
+        {!s.goalPctPerWeek && Math.abs(s.goalKgPerWeek) > 0.9 && (
           <div className="tiny" style={{ color: 'var(--serious)' }}>
             Faster than about 0.75-1 kg/week usually costs muscle and adherence. Slower holds better.
           </div>

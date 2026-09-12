@@ -306,7 +306,7 @@ export default function Today({
           <div className="tiny muted num">
             {progress.fromKg.toFixed(2)} → {progress.toKg.toFixed(2)} kg on the trend line ·{' '}
             {((progress.changeKg / progress.days) * 7).toFixed(2)} kg/week against{' '}
-            {settings.goalKgPerWeek} planned
+            {Math.round(targets.goalKgPerWeek * 100) / 100} planned
           </div>
           {!progress.settled && (
             <div className="tiny muted">

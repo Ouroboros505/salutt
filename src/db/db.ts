@@ -341,6 +341,17 @@ export interface Settings {
   activity: number
   /** Target rate of change, kg per week. Negative for a deficit. */
   goalKgPerWeek: number
+  /**
+   * The same goal as a share of bodyweight per week, which is the form the
+   * evidence is actually written in.
+   *
+   * A fixed kg/week quietly gets more aggressive as you shrink: 0.6 is 0.90%
+   * of 66 kg and 1.00% of 60 kg, so a rate chosen as safe at the start drifts
+   * to the ceiling by the finish. Expressed as a share it tapers on its own
+   * and needs no remembering. Set, it replaces `goalKgPerWeek`; unset, the
+   * fixed figure is used as before.
+   */
+  goalPctPerWeek?: number
   /** Manual calorie target; when unset, the adaptive target is used. */
   kcalTargetOverride?: number
   proteinGPerKg: number

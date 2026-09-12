@@ -10,6 +10,7 @@ import {
   KCAL_PER_KG,
   trendSlopeKgPerWeek,
   weightTrend,
+  goalPerWeek,
 } from '../lib/metrics'
 import { BarChart } from '../components/charts'
 import { Segmented } from '../components/ui'
@@ -82,6 +83,8 @@ export default function Insights({ settings }: { settings: Settings }) {
   // Bodyweight for the per-kilo figures: the trend, not a raw morning, so the
   // ratio does not jump around on water.
   const kgNow = currentKg ?? settings.startWeightKg ?? 75
+  // The goal in kilograms, after a share-of-bodyweight one is resolved.
+  const goal = goalPerWeek(settings, kgNow)
   const adherence = Math.round((logged.length / days) * 100)
   const onTarget = logged.filter((s) => Math.abs(s.value - targets.kcal) <= 150).length
 
@@ -137,8 +140,8 @@ export default function Insights({ settings }: { settings: Settings }) {
           />
           <Stat
             label="Goal rate"
-            value={`${settings.goalKgPerWeek > 0 ? '+' : ''}${settings.goalKgPerWeek}`}
-            sub="kg / week"
+            value={`${goal > 0 ? '+' : ''}${Math.round(goal * 100) / 100}`}
+            sub={settings.goalPctPerWeek ? `kg / week · ${Math.round(settings.goalPctPerWeek * 1000) / 10}% of weight` : 'kg / week'}
           />
         </div>
 

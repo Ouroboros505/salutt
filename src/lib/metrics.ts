@@ -434,6 +434,18 @@ export interface Targets {
   baseKcal: number
   /** Today's computed expenditure, when there is enough logged to compute it. */
   energy: DayEnergy | null
+  /** The weekly goal actually in force, after a percentage one is resolved. */
+  goalKgPerWeek: number
+}
+
+/**
+ * The weekly goal in kilograms, whichever way it was expressed.
+ *
+ * A share of bodyweight is resolved against the trend rather than the morning
+ * reading, so the target does not move with half a kilo of overnight water.
+ */
+export function goalPerWeek(settings: Pick<Settings, 'goalKgPerWeek' | 'goalPctPerWeek'>, kg: number): number {
+  return settings.goalPctPerWeek ? -(kg * settings.goalPctPerWeek) : settings.goalKgPerWeek
 }
 
 /**
@@ -601,13 +613,14 @@ export function computeTargets(
   const useAdaptive = adaptive && adaptive.confidence !== 'low'
   const tdee = useAdaptive ? adaptive!.kcal : formulaTDEE
 
+  const goal = goalPerWeek(settings, kg)
   let kcal: number
   let basis: Targets['basis']
   if (settings.kcalTargetOverride) {
     kcal = settings.kcalTargetOverride
     basis = 'manual'
   } else {
-    kcal = tdee + (settings.goalKgPerWeek * KCAL_PER_KG) / 7
+    kcal = tdee + (goal * KCAL_PER_KG) / 7
     basis = useAdaptive ? 'adaptive' : 'formula'
   }
 
@@ -619,7 +632,7 @@ export function computeTargets(
   if (energy) {
     const deficit = settings.kcalTargetOverride
       ? tdee - settings.kcalTargetOverride
-      : -(settings.goalKgPerWeek * KCAL_PER_KG) / 7
+      : -(goal * KCAL_PER_KG) / 7
     /**
      * The deficit is held as a share of the day, not as a flat number.
      *
@@ -662,7 +675,7 @@ export function computeTargets(
   const fat = Math.round((kcal * settings.fatPctKcal) / 9)
   const carbs = Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4))
 
-  return { kcal, protein, carbs, fat, basis, tdee: Math.round(tdee), baseKcal, energy }
+  return { kcal, protein, carbs, fat, basis, tdee: Math.round(tdee), baseKcal, energy, goalKgPerWeek: goal }
 }
 
 /** Projected date of reaching a goal weight at the current measured rate. */
