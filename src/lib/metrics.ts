@@ -44,6 +44,71 @@ export function navyBodyFat(
   return isFinite(v) ? v : null
 }
 
+/**
+ * The most a day's deficit can take out of fat, before it starts taking muscle.
+ *
+ * Adipose tissue can only release energy so fast, and the rate is roughly
+ * proportional to how much of it there is — about 31 kcal per pound of fat per
+ * day in Alpert's model of the limit. That is why a rate chosen as safe at the
+ * start of a cut stops being safe near the end: the percentage of bodyweight
+ * barely moves, and the fat behind it halves.
+ *
+ * It is an upper bound from a starvation model rather than a recommendation,
+ * so the warning below fires well before the line rather than on it.
+ */
+const KCAL_PER_KG_FAT_PER_DAY = 31 / 0.453592
+
+/** Kilograms a week that fat alone can pay for, at a given fat mass. */
+export function fatLossCeiling(fatMassKg: number): number {
+  return (fatMassKg * KCAL_PER_KG_FAT_PER_DAY * 7) / KCAL_PER_KG
+}
+
+export interface FatBudget {
+  bodyFatPct: number
+  fatMassKg: number
+  /** Which estimate it used, because the two disagree and it matters. */
+  source: 'tape' | 'scale'
+  ceilingKgPerWeek: number
+  goalKgPerWeek: number
+  /** The goal as a share of what fat can supply. Over 1 means muscle pays. */
+  usage: number
+  level: 'ok' | 'close' | 'over'
+  /** The share of bodyweight that would sit at 80% of the ceiling. */
+  safePctPerWeek: number
+}
+
+/**
+ * Whether the rate being asked for is one the body can still pay for in fat.
+ *
+ * The tape is preferred over the scale when there is one, because bioimpedance
+ * reads a man's body fat optimistically and an optimistic fat mass raises the
+ * ceiling — which is the wrong direction for a warning to be wrong in.
+ */
+export function fatBudget(
+  weightKg: number,
+  goalKgPerWeek: number,
+  opts: { tapePct?: number | null; scalePct?: number | null },
+): FatBudget | null {
+  const tape = opts.tapePct != null && isFinite(opts.tapePct) ? opts.tapePct : null
+  const scale = opts.scalePct != null && isFinite(opts.scalePct) ? opts.scalePct : null
+  const bodyFatPct = tape ?? scale
+  if (bodyFatPct == null || !(weightKg > 0)) return null
+  const fatMassKg = weightKg * (bodyFatPct / 100)
+  const ceilingKgPerWeek = fatLossCeiling(fatMassKg)
+  const asked = Math.abs(goalKgPerWeek)
+  const usage = ceilingKgPerWeek > 0 ? asked / ceilingKgPerWeek : Infinity
+  return {
+    bodyFatPct,
+    fatMassKg,
+    source: tape != null ? 'tape' : 'scale',
+    ceilingKgPerWeek,
+    goalKgPerWeek,
+    usage,
+    level: usage >= 1 ? 'over' : usage >= 0.8 ? 'close' : 'ok',
+    safePctPerWeek: (ceilingKgPerWeek * 0.8) / weightKg,
+  }
+}
+
 export interface TrendPoint {
   date: ISODate
   /** Raw scale reading for this day, if there was one. */

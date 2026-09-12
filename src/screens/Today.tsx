@@ -20,6 +20,8 @@ import { addDays, formatDay, formatShort, todayISO, startOfWeek } from '../lib/d
 import { addBottle as addBottleFor, bottleMlOf } from '../lib/water'
 import {
   adaptiveTDEE,
+  fatBudget,
+  navyBodyFat,
   computeTargets,
   dayEnergy,
   gramsFromKcal,
@@ -124,6 +126,8 @@ export default function Today({
   // Today's expenditure, computed from what is known and anchored to what was
   // measured, rather than an average day's figure applied to every day.
   const allWorkouts = useLiveQuery(() => db.workouts.toArray(), []) ?? []
+  // The latest tape, for the fat-budget check below.
+  const lastMeasure = useLiveQuery(() => db.measurements.orderBy('date').last(), []) ?? null
   // Anything weighed and not yet eaten, including earlier days: food that was
   // not eaten yesterday is usually eaten today, and making him weigh it again
   // to prove that would be the paper notebook all over again. It logs to the
@@ -181,6 +185,27 @@ export default function Today({
     if (days.length === 0) return null
     return { mean: Math.round(days.reduce((a, b) => a + b, 0) / days.length), days: days.length }
   })()
+
+  /**
+   * Is the rate being asked for still one that fat can pay for?
+   *
+   * The percentage goal retapers with bodyweight, which sounds like enough and
+   * is not: bodyweight falls a tenth while the fat behind it can halve. So the
+   * ceiling is worked out from fat mass directly and checked every day. It
+   * earns a place at the top of the screen rather than a line in Settings,
+   * because by the time it fires the answer is to change a setting, and a
+   * warning nobody sees is a warning that did not happen.
+   */
+  const todayWeighIn = weighIns.find((w) => w.date === date) ?? weighIns[weighIns.length - 1]
+  const budget =
+    currentKg != null
+      ? fatBudget(currentKg, targets.goalKgPerWeek, {
+          tapePct: lastMeasure
+            ? navyBodyFat(settings.sex, settings.heightCm, lastMeasure.waist, lastMeasure.neck, lastMeasure.hips)
+            : null,
+          scalePct: todayWeighIn?.bodyFatPct ?? null,
+        })
+      : null
 
   const progress = progressSoFar(trend)
   const remaining = targets.kcal - totals.kcal
@@ -279,6 +304,44 @@ export default function Today({
             ) : null}
           </div>
         )}
+
+      {budget && budget.level !== 'ok' && (
+        <div
+          className="card tight stack tight"
+          style={{
+            borderColor: budget.level === 'over' ? 'var(--critical)' : 'var(--warning)',
+            borderWidth: 2,
+          }}
+        >
+          <div className="row between">
+            <span className="stat-label" style={{ color: budget.level === 'over' ? 'var(--critical)' : 'var(--warning)' }}>
+              {budget.level === 'over' ? 'Losing faster than your fat can pay for' : 'Close to what your fat can pay for'}
+            </span>
+            <span className="stat-value num" style={{ color: budget.level === 'over' ? 'var(--critical)' : 'var(--warning)' }}>
+              {Math.round(budget.usage * 100)}%
+            </span>
+          </div>
+          <div className="small num">
+            Asking for {Math.abs(budget.goalKgPerWeek).toFixed(2)} kg a week against a ceiling of{' '}
+            {budget.ceilingKgPerWeek.toFixed(2)} from {budget.fatMassKg.toFixed(1)} kg of fat.
+          </div>
+          <div className="tiny muted">
+            Fat can only release so much energy a day, and the limit falls as the fat does. Past it,
+            the rest of the deficit comes out of muscle — the thing this whole cut is protecting.{' '}
+            {/* At the amber threshold the safe rate is by definition about the
+                rate already set, so telling him to drop to it would read as
+                nonsense. There it is a heads-up; only past the line is it an
+                instruction. */}
+            {budget.level === 'over'
+              ? `Drop the rate to about ${(budget.safePctPerWeek * 100).toFixed(1)}% of bodyweight in Settings, which is ${(budget.safePctPerWeek * (currentKg ?? 0)).toFixed(2)} kg a week.`
+              : 'Nothing to change today, but expect to lower the rate within the next few kilos.'}
+          </div>
+          <div className="tiny muted">
+            Body fat taken from {budget.source === 'tape' ? 'your tape measurements' : 'the scale, which reads men optimistically — a tape reading would make this more reliable'}
+            , at {budget.bodyFatPct.toFixed(1)}%.
+          </div>
+        </div>
+      )}
 
       {/* What the scale says, which is the only measurement here. Paper
           deficits and the trend line disagree early on and converge later. */}
