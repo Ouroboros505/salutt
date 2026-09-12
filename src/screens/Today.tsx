@@ -103,13 +103,17 @@ export default function Today({
   const previousMeals = useLiveQuery(() => pastMeals(date), [date]) ?? []
 
 
-  const entries = useLiveQuery(() => db.entries.where('date').equals(date).toArray(), [date]) ?? []
-  const weighIns = useLiveQuery(() => db.weighIns.toArray(), []) ?? []
-  const allEntries = useLiveQuery(() => db.entries.toArray(), []) ?? []
+  const entriesRaw = useLiveQuery(() => db.entries.where('date').equals(date).toArray(), [date])
+  const entries = entriesRaw ?? []
+  const weighInsRaw = useLiveQuery(() => db.weighIns.toArray(), [])
+  const weighIns = weighInsRaw ?? []
+  const allEntriesRaw = useLiveQuery(() => db.entries.toArray(), [])
+  const allEntries = allEntriesRaw ?? []
   const quick = useLiveQuery(() => quickFoods(10), [entries.length]) ?? []
   const templates =
     useLiveQuery(() => db.mealTemplates.orderBy('lastUsed').reverse().limit(6).toArray(), []) ?? []
-  const workouts = useLiveQuery(() => db.workouts.where('date').equals(date).toArray(), [date]) ?? []
+  const workoutsRaw = useLiveQuery(() => db.workouts.where('date').equals(date).toArray(), [date])
+  const workouts = workoutsRaw ?? []
 
   // The day's bottle tally, and the size of one. A missing row means none yet.
   const waterRow = useLiveQuery(() => db.water.where('date').equals(date).first(), [date])
@@ -127,7 +131,8 @@ export default function Today({
 
   // Today's expenditure, computed from what is known and anchored to what was
   // measured, rather than an average day's figure applied to every day.
-  const allWorkouts = useLiveQuery(() => db.workouts.toArray(), []) ?? []
+  const allWorkoutsRaw = useLiveQuery(() => db.workouts.toArray(), [])
+  const allWorkouts = allWorkoutsRaw ?? []
   // The latest tape, for the fat-budget check below.
   const lastMeasure = useLiveQuery(() => db.measurements.orderBy('date').last(), []) ?? null
   // Anything weighed and not yet eaten, including earlier days: food that was
@@ -183,15 +188,26 @@ export default function Today({
     async () => (await db.dayTargets.where('date').equals(date).first()) ?? null,
     [date],
   )
+  // Every query the target depends on has to have answered before the day is
+  // frozen. Swiping to a past day re-runs them, and for the first render they
+  // are still loading, so the target for that render is one for an empty
+  // day — no food, no activity, floored at resting metabolism. Freezing that
+  // is how a day eaten to within five calories came to read 417 over.
+  const dayLoaded =
+    entriesRaw !== undefined &&
+    workoutsRaw !== undefined &&
+    weighInsRaw !== undefined &&
+    allEntriesRaw !== undefined &&
+    allWorkoutsRaw !== undefined
   useEffect(() => {
-    if (isToday || frozen !== null || !currentKg) return
+    if (isToday || frozen !== null || !currentKg || !dayLoaded) return
     // Check and add in one transaction, so a double effect run cannot throw.
     void db.transaction('rw', db.dayTargets, async () => {
       const already = await db.dayTargets.where('date').equals(date).first()
       if (!already) await db.dayTargets.add({ date, targets: liveTargets, createdAt: Date.now() })
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date, isToday, frozen === null, currentKg])
+  }, [date, isToday, frozen === null, currentKg, dayLoaded])
   const targets = !isToday && frozen ? (frozen.targets as typeof liveTargets) : liveTargets
   const energy = targets.energy
   /**
