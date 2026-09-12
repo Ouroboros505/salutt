@@ -331,9 +331,21 @@ export default function Today({
                       energy.total - energy.rest + energy.restHigh - totals.kcal,
                     )} g`}
               </span>
-              <span className="tiny muted num">
-                of {gramsFromKcal((-settings.goalKgPerWeek * 7700) / 7)} g planned
-              </span>
+              {/* Against what today's target actually delivers, not against
+                  the weekly goal setting.
+
+                  Those two disagree whenever a manual calorie target is set,
+                  because an override replaces the goal rather than being
+                  derived from it: 1,850 against a measured maintenance works
+                  out to 0.70 kg a week, while the goal still said 0.5. The
+                  card then reported a shortfall he was never being asked to
+                  hit, two lines below a week summary calling him "on it".
+
+                  Deriving it from the target makes the gap mean the one thing
+                  he can act on — how far today's eating sat from today's
+                  number. With no override the two are the same figure anyway,
+                  since the target is built from the goal. */}
+              <span className="tiny muted num">of {gramsFromKcal(energy.total - targets.kcal)} g planned</span>
               <span className="muted"><Icon.chevron /></span>
             </span>
           </summary>
