@@ -699,28 +699,35 @@ export function computeTargets(
       ? tdee - settings.kcalTargetOverride
       : -(goal * KCAL_PER_KG) / 7
     /**
-     * The deficit is held as a share of the day, not as a flat number.
+     * The deficit is a flat number, not a share of the day.
      *
-     * Subtracting the same 585 kcal from every day sounds fair and is not: it
-     * is 22% of a long training day and 29% of a quiet one, which quietly
-     * makes rest days the harshest of the week. That is backwards — rest is
-     * when the repair happens, and the literature on losing weight without
-     * losing muscle puts the useful ceiling near 500 kcal a day rather than
-     * near a percentage that drifts with whatever you happened to do.
+     * It was a share, on the reasoning that subtracting the same 585 kcal
+     * makes a rest day proportionally harsher than a training day. True, but
+     * it answers a question nobody asked: the goal set here is a *rate*, and a
+     * rate is a fixed number of grams a day that does not care whether they
+     * were earned on a bike or on a sofa. Holding a share instead delivered
+     * 74 g on a quiet day and 94 g on a heavy one against a goal of 85, and
+     * made the day's plan unreadable before anything had been logged.
+     *
+     * Flat also gives the dynamic target its plain meaning back — move more,
+     * eat more, one for one — where a share handed over a bonus on top of the
+     * extra expenditure and quietly forgave the quiet days.
+     *
+     * What protects a rest day is not a smaller deficit but the floor below:
+     * the target never drops under resting metabolism, whatever the goal asks.
      */
-    const share = tdee > 0 ? Math.min(0.4, deficit / tdee) : 0
-    const computed = energy.total * (1 - share)
+    const computed = energy.total - deficit
     kcal = baseKcal + energy.trust * (computed - baseKcal)
     /**
-     * And the day is not allowed to wander far from the base.
+     * A one-sided guard, because the two directions have different risks.
      *
-     * Training and rest days are meant to differ by roughly 300-600 kcal, the
-     * difference coming out of carbohydrate. Left uncapped this arithmetic
-     * produced a 644 kcal spread between a couch day and a heavy one, which is
-     * further than the evidence supports and further than anyone can eat to
-     * without the low days feeling like punishment.
+     * Above, a mis-logged workout could hand over a target it had not earned,
+     * so the day may not run away upward. Below, the real protection is the
+     * resting-metabolism floor rather than a distance from the average, and
+     * capping the downside would break the flat deficit on exactly the quiet
+     * days it is meant to hold.
      */
-    kcal = Math.min(baseKcal + MAX_DAILY_SWING, Math.max(baseKcal - MAX_DAILY_SWING, kcal))
+    kcal = Math.min(baseKcal + MAX_DAILY_SWING, kcal)
   }
 
   /**
