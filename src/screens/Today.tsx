@@ -20,6 +20,8 @@ import { addDays, formatDay, formatShort, todayISO, startOfWeek } from '../lib/d
 import { addBottle as addBottleFor, bottleMlOf } from '../lib/water'
 import {
   adaptiveTDEE,
+  ageFrom,
+  bmrMifflin,
   fatBudget,
   navyBodyFat,
   computeTargets,
@@ -394,21 +396,21 @@ export default function Today({
                       energy.total - energy.rest + energy.restHigh - totals.kcal,
                     )} g`}
               </span>
-              {/* Against what today's target actually delivers, not against
-                  the weekly goal setting.
+              {/* The goal, not what the day happens to allow.
 
-                  Those two disagree whenever a manual calorie target is set,
-                  because an override replaces the goal rather than being
-                  derived from it: 1,850 against a measured maintenance works
-                  out to 0.70 kg a week, while the goal still said 0.5. The
-                  card then reported a shortfall he was never being asked to
-                  hit, two lines below a week summary calling him "on it".
+                  This briefly read the day's own achievable deficit, to stop a
+                  manual calorie override reporting a shortfall against a goal
+                  it had retired. Removing the override fixed that at the root
+                  and left this measuring the wrong thing: a plan is a fixed
+                  number of grams a day, and a quiet day that can only reach 68
+                  of them has fallen short of the plan rather than changed it.
 
-                  Deriving it from the target makes the gap mean the one thing
-                  he can act on — how far today's eating sat from today's
-                  number. With no override the two are the same figure anyway,
-                  since the target is built from the goal. */}
-              <span className="tiny muted num">of {gramsFromKcal(energy.total - targets.kcal)} g planned</span>
+                  So the comparison is against the goal, and a day that cannot
+                  get there says why below rather than quietly moving the
+                  post. */}
+              <span className="tiny muted num">
+                of {gramsFromKcal((-targets.goalKgPerWeek * 7700) / 7)} g planned
+              </span>
               <span className="muted"><Icon.chevron /></span>
             </span>
           </summary>
@@ -446,6 +448,15 @@ export default function Today({
               <span className="secondary">Eaten</span>
               <span>{Math.round(totals.kcal).toLocaleString()}</span>
             </div>
+            {currentKg != null &&
+              targets.kcal <=
+                Math.max(settings.sex === 'male' ? 1500 : 1200, Math.round(bmrMifflin(currentKg, settings.heightCm, ageFrom(settings.birthDate), settings.sex))) + 1 && (
+              <div className="tiny" style={{ color: 'var(--warning)' }}>
+                Today's target is at your resting metabolism, so the day cannot reach the full
+                plan without eating below it. That is the floor doing its job, not the plan
+                changing.
+              </div>
+            )}
             <div className="tiny muted">
               {energy.anchored
                 ? 'Everything else is solved against the maintenance your weight trend measured.'
