@@ -32,6 +32,9 @@ const TABLES = [
   // The water tally travels as well; it is a habit record, and starting a new
   // phone with an empty one would read as a day of drinking nothing.
   'water',
+  // Frozen past targets: without them a restored phone would rescore every
+  // old day under whatever the rules are by then.
+  'dayTargets',
   // Deletions have to travel too, or a merge resurrects them.
   'tombstones',
   'settings',

@@ -161,10 +161,39 @@ export default function Today({
   }
   // Computed whenever there is a weight, whether or not it is trusted enough
   // to move the target — seeing the day's arithmetic is the point of it.
-  const energy = currentKg
+  const liveEnergy = currentKg
     ? dayEnergy(settings, currentKg, totals.kcal, todayActivity, maintenance, usual, meanIntake)
     : null
-  const targets = computeTargets(settings, currentKg, adaptive, energy)
+  const liveTargets = computeTargets(settings, currentKg, adaptive, liveEnergy)
+  const isToday = date === todayISO()
+  /**
+   * A past day shows the target it had, not the one it would have now.
+   *
+   * The live figure is rebuilt from today's settings and today's maintenance
+   * estimate, which is right for today and rewrites history for everything
+   * before it. So the first time a finished day is looked at, its target is
+   * frozen, and from then on that is what it shows. Today is always live.
+   */
+  // `undefined` while the query is still loading, `null` once it has answered
+  // "no row". Without that distinction the effect below fired during the
+  // loading window on every revisit, tried to add a second row for the day,
+  // and tripped the unique index inside a table that had a live subscriber —
+  // which took the whole screen down.
+  const frozen = useLiveQuery(
+    async () => (await db.dayTargets.where('date').equals(date).first()) ?? null,
+    [date],
+  )
+  useEffect(() => {
+    if (isToday || frozen !== null || !currentKg) return
+    // Check and add in one transaction, so a double effect run cannot throw.
+    void db.transaction('rw', db.dayTargets, async () => {
+      const already = await db.dayTargets.where('date').equals(date).first()
+      if (!already) await db.dayTargets.add({ date, targets: liveTargets, createdAt: Date.now() })
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, isToday, frozen === null, currentKg])
+  const targets = !isToday && frozen ? (frozen.targets as typeof liveTargets) : liveTargets
+  const energy = targets.energy
   /**
    * How the week is going, which is the question the daily figure cannot
    * answer.
@@ -211,7 +240,6 @@ export default function Today({
 
   const progress = progressSoFar(trend)
   const remaining = targets.kcal - totals.kcal
-  const isToday = date === todayISO()
   const todayWeight = weighIns.find((w) => w.date === date)
 
   // The sections of the day are whatever you created, ordered by when the

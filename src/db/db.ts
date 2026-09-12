@@ -155,6 +155,27 @@ export interface WeighIn {
  *
  * One row per day, incremented in place.
  */
+/**
+ * A day's target, frozen once the day is over.
+ *
+ * Targets are computed, not stored: every screen rebuilds them from the
+ * settings and the maintenance estimate as they stand *now*. That is right for
+ * today and wrong for yesterday. Change the goal, and every past day is
+ * rescored under a rule it was never following — a week of hitting the number
+ * to within ten calories reads, the next morning, as a week of under-eating.
+ *
+ * So a past day keeps the target it actually had. The whole `Targets` object
+ * goes in, energy breakdown included, so the day reads exactly as it did.
+ */
+export interface DayTarget {
+  id?: number
+  /** Unique — one snapshot per day. */
+  date: ISODate
+  targets: unknown
+  createdAt: number
+  updatedAt?: number
+}
+
 export interface Water {
   id?: number
   date: ISODate
@@ -518,6 +539,7 @@ export const SYNCED_TABLES = [
   'places',
   'plannedMeals',
   'water',
+  'dayTargets',
 ] as const
 
 /** The synced tables as they stood at version 3, for that version's upgrade. */
@@ -543,6 +565,7 @@ class SaluttDB extends Dexie {
   places!: Table<Place, number>
   plannedMeals!: Table<PlannedMeal, number>
   water!: Table<Water, number>
+  dayTargets!: Table<DayTarget, number>
   settings!: Table<Settings, string>
   tombstones!: Table<Tombstone, number>
 
@@ -594,6 +617,8 @@ class SaluttDB extends Dexie {
     // A tally of bottles, one row a day. New table only — nothing existing is
     // touched, so the upgrade is a no-op for every other store.
     this.version(7).stores({ water: '++id, &date' })
+    // One frozen target per past day. New table only.
+    this.version(8).stores({ dayTargets: '++id, &date' })
 
     // Stamp every write, so no call site has to remember to. Dexie types the
     // three hooks as separate overloads, which a loop cannot satisfy.
