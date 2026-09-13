@@ -23,6 +23,7 @@ import {
   ageFrom,
   bmrMifflin,
   fatBudget,
+  latestMeasures,
   navyBodyFat,
   computeTargets,
   dayEnergy,
@@ -133,8 +134,18 @@ export default function Today({
   // measured, rather than an average day's figure applied to every day.
   const allWorkoutsRaw = useLiveQuery(() => db.workouts.toArray(), [])
   const allWorkouts = allWorkoutsRaw ?? []
-  // The latest tape, for the fat-budget check below.
-  const lastMeasure = useLiveQuery(() => db.measurements.orderBy('date').last(), []) ?? null
+  /**
+   * The latest value of each tape measurement, for the fat-budget check.
+   *
+   * Not the latest record: a Sunday where only the waist was taken has no
+   * neck, the Navy estimate needs both, and the check then fell back to the
+   * scale — which reads a man's body fat optimistically, so it invented a
+   * thin man with little fat to spend and fired the warning at him.
+   */
+  const measures = useLiveQuery(
+    async () => latestMeasures(await db.measurements.orderBy('date').reverse().toArray()),
+    [],
+  )
   // Anything weighed and not yet eaten, including earlier days: food that was
   // not eaten yesterday is usually eaten today, and making him weigh it again
   // to prove that would be the paper notebook all over again. It logs to the
@@ -287,8 +298,8 @@ export default function Today({
   const budget =
     currentKg != null
       ? fatBudget(currentKg, targets.goalKgPerWeek, {
-          tapePct: lastMeasure
-            ? navyBodyFat(settings.sex, settings.heightCm, lastMeasure.waist, lastMeasure.neck, lastMeasure.hips)
+          tapePct: measures
+            ? navyBodyFat(settings.sex, settings.heightCm, measures.waist, measures.neck, measures.hips)
             : null,
           scalePct: todayWeighIn?.bodyFatPct ?? null,
         })

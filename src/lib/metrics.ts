@@ -1,4 +1,4 @@
-import type { Entry, ISODate, Settings, WeighIn } from '../db/db'
+import type { Entry, ISODate, Measurement, Settings, WeighIn } from '../db/db'
 import { addDays, daysBetween, todayISO } from './date'
 
 /** Energy density of body tissue lost/gained, kcal per kg. */
@@ -21,6 +21,28 @@ export function ageFrom(birthDate: ISODate | undefined, on: ISODate = todayISO()
 export function bmi(kg: number, cm: number): number {
   const m = cm / 100
   return kg / (m * m)
+}
+
+/**
+ * The most recent value for each measurement, which is not the same thing as
+ * the most recent record.
+ *
+ * They move at completely different speeds — a waist shifts every week on a
+ * cut, a neck barely moves in a month — and nobody sensibly measures all six
+ * every time. But the body-fat estimate needs a waist and a neck together, so
+ * reading a single record makes a week of waist-only logging silently delete
+ * the estimate. A month-old neck paired with today's waist is a small
+ * inaccuracy; having no estimate at all is a larger one.
+ *
+ * Expects newest first.
+ */
+export function latestMeasures(newestFirst: Measurement[]): Partial<Measurement> {
+  const out: Partial<Measurement> = {}
+  for (const k of ['waist', 'hips', 'chest', 'neck', 'arm', 'thigh'] as const) {
+    const found = newestFirst.find((m) => m[k] != null)
+    if (found) out[k] = found[k]
+  }
+  return out
 }
 
 /**

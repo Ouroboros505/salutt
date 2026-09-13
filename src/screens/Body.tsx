@@ -4,6 +4,7 @@ import { db, type Measurement, type Settings } from '../db/db'
 import { addDays, formatShort, todayISO } from '../lib/date'
 import {
   bmi,
+  latestMeasures,
   navyBodyFat,
   projectGoal,
   stoolOffset,
@@ -101,14 +102,7 @@ export default function Body({
    * all was a larger one.
    */
   const last = measurements.length
-    ? (['waist', 'hips', 'chest', 'neck', 'arm', 'thigh'] as const).reduce(
-        (acc, k) => {
-          const found = measurements.find((m) => m[k] != null)
-          if (found) acc[k] = found[k]
-          return acc
-        },
-        { ...measurements[0] } as Measurement,
-      )
+    ? ({ ...measurements[0], ...latestMeasures(measurements) } as Measurement)
     : undefined
 
   const stool = stoolOffset(weighIns)
