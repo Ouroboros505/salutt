@@ -156,7 +156,7 @@ export interface WeighIn {
  * One row per day, incremented in place.
  */
 /**
- * A day's target, frozen once the day is over.
+ * The rules a finished day was judged by, frozen once the day is over.
  *
  * Targets are computed, not stored: every screen rebuilds them from the
  * settings and the maintenance estimate as they stand *now*. That is right for
@@ -164,14 +164,33 @@ export interface WeighIn {
  * rescored under a rule it was never following — a week of hitting the number
  * to within ten calories reads, the next morning, as a week of under-eating.
  *
- * So a past day keeps the target it actually had. The whole `Targets` object
- * goes in, energy breakdown included, so the day reads exactly as it did.
+ * What gets frozen is the **rules**, not the answer. Freezing the answer was
+ * the first attempt and it was wrong in the other direction: a day's data can
+ * still legitimately change after the day ends — food logged late, a
+ * correction pushed from the desktop — and a stored number cannot follow it.
+ * A plate added the evening after a snapshot was taken left the day reading
+ * 175 over when it was 36.
+ *
+ * Holding the rules and recomputing the day from its own entries gets both:
+ * the goal and the maintenance stay as they were, while the food and the
+ * training stay current.
  */
 export interface DayTarget {
   id?: number
   /** Unique — one snapshot per day. */
   date: ISODate
-  targets: unknown
+  /** Weekly goal in kg, already resolved from any percentage form. */
+  goalKgPerWeek: number
+  /** Maintenance as measured at the time, or null if it was not yet trusted. */
+  maintenance: number | null
+  /** The 14-day activity mean and coverage the residual was solved against. */
+  usualMean: number
+  usualTrust: number
+  usualLogged: number
+  usualDays: number
+  meanIntake: number | null
+  /** Trend weight on the day, so the goal and the resting figure hold still. */
+  kg: number
   createdAt: number
   updatedAt?: number
 }
@@ -619,6 +638,13 @@ class SaluttDB extends Dexie {
     this.version(7).stores({ water: '++id, &date' })
     // One frozen target per past day. New table only.
     this.version(8).stores({ dayTargets: '++id, &date' })
+    // The snapshot went from holding the answer to holding the rules. The old
+    // rows cannot be converted — they never stored the maintenance figure —
+    // so they are dropped and the days re-freeze from current rules, which is
+    // what they would have said anyway for every day since the change.
+    this.version(9)
+      .stores({ dayTargets: '++id, &date' })
+      .upgrade((tx) => tx.table('dayTargets').clear())
 
     // Stamp every write, so no call site has to remember to. Dexie types the
     // three hooks as separate overloads, which a loop cannot satisfy.

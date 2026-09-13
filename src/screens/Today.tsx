@@ -172,12 +172,13 @@ export default function Today({
   const liveTargets = computeTargets(settings, currentKg, adaptive, liveEnergy)
   const isToday = date === todayISO()
   /**
-   * A past day shows the target it had, not the one it would have now.
+   * A past day is judged by the rules it had, on the food it actually holds.
    *
-   * The live figure is rebuilt from today's settings and today's maintenance
-   * estimate, which is right for today and rewrites history for everything
-   * before it. So the first time a finished day is looked at, its target is
-   * frozen, and from then on that is what it shows. Today is always live.
+   * Freezing the finished *number* was the first attempt and it broke the
+   * other way: a day's data can still change after the day ends — food logged
+   * late, a correction pushed from the desktop — and a stored figure cannot
+   * follow it. So what is kept is the goal and the maintenance estimate as
+   * they stood, and the day is recomputed from its own entries against those.
    */
   // `undefined` while the query is still loading, `null` once it has answered
   // "no row". Without that distinction the effect below fired during the
@@ -204,12 +205,51 @@ export default function Today({
     // Check and add in one transaction, so a double effect run cannot throw.
     void db.transaction('rw', db.dayTargets, async () => {
       const already = await db.dayTargets.where('date').equals(date).first()
-      if (!already) await db.dayTargets.add({ date, targets: liveTargets, createdAt: Date.now() })
+      if (already) return
+      await db.dayTargets.add({
+        date,
+        goalKgPerWeek: liveTargets.goalKgPerWeek,
+        maintenance,
+        usualMean: usual?.mean ?? 0,
+        usualTrust: usual?.trust ?? 0,
+        usualLogged: usual?.logged ?? 0,
+        usualDays: usual?.days ?? 14,
+        meanIntake,
+        kg: currentKg,
+        createdAt: Date.now(),
+      })
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, isToday, frozen === null, currentKg, dayLoaded])
-  const targets = !isToday && frozen ? (frozen.targets as typeof liveTargets) : liveTargets
-  const energy = targets.energy
+  /**
+   * The day priced under whichever rules apply: today's, or the frozen ones.
+   *
+   * The settings object is reconstructed with the goal expressed in kilograms,
+   * because a percentage one would re-resolve against a weight that has since
+   * moved and quietly change a finished day.
+   */
+  const asFrozen = !isToday && frozen ? frozen : null
+  const energy = currentKg
+    ? asFrozen
+      ? dayEnergy(
+          settings,
+          asFrozen.kg,
+          totals.kcal,
+          todayActivity,
+          asFrozen.maintenance,
+          { mean: asFrozen.usualMean, trust: asFrozen.usualTrust, logged: asFrozen.usualLogged, days: asFrozen.usualDays },
+          asFrozen.meanIntake,
+        )
+      : liveEnergy
+    : null
+  const targets = asFrozen
+    ? computeTargets(
+        { ...settings, goalPctPerWeek: undefined, goalKgPerWeek: asFrozen.goalKgPerWeek },
+        asFrozen.kg,
+        asFrozen.maintenance != null ? { ...adaptive!, kcal: asFrozen.maintenance } : adaptive,
+        energy,
+      )
+    : liveTargets
   /**
    * How the week is going, which is the question the daily figure cannot
    * answer.
