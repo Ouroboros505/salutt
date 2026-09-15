@@ -301,6 +301,10 @@ export default function SessionSheet({
     // reversing it here is what makes "last time" the latest rather than the
     // first time the exercise was ever done.
     for (const w of [...(history ?? [])].reverse()) {
+      // A session flagged as below full strength is history, not a target.
+      // Skipping it here means next week still compares against the last
+      // honest effort rather than against a week spent ill.
+      if (w.notFullStrength) continue
       for (const s of w.sets) {
         // Keyed by the current name, so a session logged before an exercise
         // was renamed still answers when this week's plan asks for it.
@@ -325,6 +329,10 @@ export default function SessionSheet({
    * number to exist. Said here, before Finish, it costs one glance; said
    * later, it costs the record.
    */
+  // Sticky across a re-open of the same session, so editing does not silently
+  // clear the flag that made its numbers make sense.
+  const [notFullStrength, setNotFullStrength] = useState(workout?.notFullStrength ?? false)
+
   const missingWeight = useMemo(
     () =>
       items
@@ -970,6 +978,7 @@ const fmtWeight = (n: number): string => (Number.isInteger(n) ? String(n) : n.to
                   }
                 }),
               ),
+              ...(notFullStrength ? { notFullStrength: true } : {}),
               notes: plan && kept < planned ? `${kept} of ${planned} planned exercises` : undefined,
               createdAt: workout?.createdAt ?? Date.now(),
             }
@@ -985,6 +994,23 @@ const fmtWeight = (n: number): string => (Number.isInteger(n) ? String(n) : n.to
       >
         {workout ? 'Save changes' : 'Finish and log'} · {minutes} min · {kcal} kcal
       </button>
+
+      {/* Offered before Finish, because afterwards nobody goes back to add it
+          and the depressed numbers become next week's target by default. */}
+      <button
+        className="btn ghost block"
+        aria-pressed={notFullStrength}
+        onClick={() => setNotFullStrength((v) => !v)}
+        style={notFullStrength ? { color: 'var(--warning)' } : undefined}
+      >
+        {notFullStrength ? '\u2713 ' : ''}I was not at full strength today
+      </button>
+      {notFullStrength && (
+        <div className="tiny muted" style={{ paddingTop: 2 }}>
+          It still counts and still logs. It just will not become the number to beat next week —
+          that stays with your last full-strength session.
+        </div>
+      )}
 
       {missingWeight.length > 0 && (
         <div className="tiny warn" style={{ paddingTop: 6 }}>

@@ -246,6 +246,17 @@ export interface Workout {
   kcal?: number
   distanceKm?: number
   sets: SetEntry[]
+  /**
+   * Logged while ill, exhausted, or otherwise not at full strength.
+   *
+   * The session still counts for everything it should — minutes, calories,
+   * the record that it happened. What it does not do is become the number to
+   * beat next week. A cold costs 5-10% of your strength for a few days, and
+   * without this the next session's reference is a depressed figure, so
+   * recovering from the illness reads as progress and the real progression
+   * quietly resets a rung lower.
+   */
+  notFullStrength?: boolean
   notes?: string
   createdAt: number
 }
