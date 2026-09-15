@@ -81,16 +81,27 @@ interface Done {
 interface Draft {
   date: ISODate
   items: Done[]
+  /**
+   * Which day's plan the draft follows, when it is not the date's own.
+   *
+   * Android kills a backgrounded PWA between sets more often than not, and
+   * the sheet comes back from its draft. Without this it came back with Push
+   * exercises under a title reading "Cardio, core and yoga" and saved the
+   * session under that name, because the plan was re-derived from the
+   * weekday while the exercises were restored from the draft.
+   */
+  planWeekday?: number
+  notFullStrength?: boolean
 }
 
 const draftKey = (date: ISODate) => `salutt:session-draft:${date}`
 
-function loadDraft(date: ISODate): Done[] | null {
+function loadDraft(date: ISODate): Draft | null {
   try {
     const raw = localStorage.getItem(draftKey(date))
     if (!raw) return null
     const parsed = JSON.parse(raw) as Draft
-    return parsed.date === date && Array.isArray(parsed.items) ? parsed.items : null
+    return parsed.date === date && Array.isArray(parsed.items) ? parsed : null
   } catch {
     return null
   }
@@ -260,7 +271,15 @@ export default function SessionSheet({
    * exercises rather than making him rebuild the day by hand. The swap is only
    * offered while nothing has been ticked, so it can never wipe logged work.
    */
-  const [plan, setPlan] = useState<DayPlan | null>(() => planFor(date))
+  const [plan, setPlan] = useState<DayPlan | null>(() => {
+    // Editing: the plan is whatever the saved session was named for, so the
+    // title matches the exercises and "Save changes" cannot rename it.
+    if (workout) return WEEK.find((p) => p.name.split(/\s*[\u2014,]\s*/)[0] === workout.name) ?? planFor(date)
+    const saved = loadDraft(date)
+    if (saved && draftHasWork(saved.items) && saved.planWeekday != null)
+      return WEEK.find((p) => p.weekday === saved.planWeekday) ?? planFor(date)
+    return planFor(date)
+  })
   const seedFrom = (p: DayPlan | null): Done[] =>
     (p?.exercises ?? [])
       .map(byName)
@@ -275,14 +294,14 @@ export default function SessionSheet({
   const [restored] = useState(() => {
     if (workout) return false
     const saved = loadDraft(date)
-    return !!saved && draftHasWork(saved)
+    return !!saved && draftHasWork(saved.items)
   })
   const [items, setItems] = useState<Done[]>(() => {
     if (workout) return fromWorkout(workout)
     const saved = loadDraft(date)
     // Keep a draft only if it holds real work; otherwise let the current plan
     // seed, so a plan change (like the Thursday bike -> row swap) takes effect.
-    if (saved && draftHasWork(saved)) return saved
+    if (saved && draftHasWork(saved.items)) return saved.items
     return seedFrom(plan)
   })
   const swapPlan = (p: DayPlan) => {
@@ -349,7 +368,11 @@ export default function SessionSheet({
    */
   // Sticky across a re-open of the same session, so editing does not silently
   // clear the flag that made its numbers make sense.
-  const [notFullStrength, setNotFullStrength] = useState(workout?.notFullStrength ?? false)
+  const [notFullStrength, setNotFullStrength] = useState(() => {
+    if (workout) return workout.notFullStrength ?? false
+    const saved = loadDraft(date)
+    return !!(saved && draftHasWork(saved.items) && saved.notFullStrength)
+  })
 
   const missingWeight = useMemo(
     () =>
@@ -371,11 +394,14 @@ export default function SessionSheet({
   useEffect(() => {
     if (workout) return
     try {
-      localStorage.setItem(draftKey(date), JSON.stringify({ date, items } satisfies Draft))
+      localStorage.setItem(
+        draftKey(date),
+        JSON.stringify({ date, items, planWeekday: plan?.weekday, notFullStrength } satisfies Draft),
+      )
     } catch {
       // Storage being full or blocked is not a reason to stop logging.
     }
-  }, [date, items, workout])
+  }, [date, items, workout, plan?.weekday, notFullStrength])
 
   const detail = (name: string) => byName(name)
 
@@ -994,7 +1020,9 @@ const fmtWeight = (n: number): string => (Number.isInteger(n) ? String(n) : n.to
             const row: Omit<Workout, 'id'> = {
               date,
               kind: groups.length > 0 && groups.every((g) => g === 'Cardio') ? 'cardio' : 'strength',
-              name: plan ? plan.name.split(' — ')[0] : describeSession(groups),
+              // An edit keeps the name it was logged under; only a new session
+              // is named for its plan, or described from its muscle groups.
+              name: workout ? workout.name : plan ? plan.name.split(' — ')[0] : describeSession(groups),
               durationMin: minutes,
               kcal,
               sets: items.flatMap((i) =>
