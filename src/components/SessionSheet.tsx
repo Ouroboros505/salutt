@@ -20,6 +20,8 @@ import {
   exerciseMinutes,
   fromDisplayWeight,
   planFor,
+  WEEK,
+  type DayPlan,
   toDisplayWeight,
   totalLoadKg,
   type Exercise,
@@ -251,7 +253,24 @@ export default function SessionSheet({
 }) {
   const unit = settings.liftUnit ?? 'lb'
   const setUnit = (u: 'kg' | 'lb') => void db.settings.update('settings', { liftUnit: u })
-  const plan = planFor(date)
+  /**
+   * Which day's plan this session follows. Normally the weekday's own, but a
+   * week that has to be reshuffled — ill on Monday, so Push moves to Tuesday
+   * and Thursday's cardio is dropped — needs the sheet to open with the right
+   * exercises rather than making him rebuild the day by hand. The swap is only
+   * offered while nothing has been ticked, so it can never wipe logged work.
+   */
+  const [plan, setPlan] = useState<DayPlan | null>(() => planFor(date))
+  const seedFrom = (p: DayPlan | null): Done[] =>
+    (p?.exercises ?? [])
+      .map(byName)
+      .filter((e): e is Exercise => !!e)
+      .map((ex, i) => ({
+        key: `${ex.name}-${i}`,
+        name: ex.name,
+        sets: startingSets(ex, settings.intervals?.[ex.name]),
+        minutes: ex.byMinutes ? ex.sets : undefined,
+      }))
 
   const [restored] = useState(() => {
     if (workout) return false
@@ -264,16 +283,15 @@ export default function SessionSheet({
     // Keep a draft only if it holds real work; otherwise let the current plan
     // seed, so a plan change (like the Thursday bike -> row swap) takes effect.
     if (saved && draftHasWork(saved)) return saved
-    return (plan?.exercises ?? [])
-      .map(byName)
-      .filter((e): e is Exercise => !!e)
-      .map((ex, i) => ({
-        key: `${ex.name}-${i}`,
-        name: ex.name,
-        sets: startingSets(ex, settings.intervals?.[ex.name]),
-        minutes: ex.byMinutes ? ex.sets : undefined,
-      }))
+    return seedFrom(plan)
   })
+  const swapPlan = (p: DayPlan) => {
+    setPlan(p)
+    setItems(seedFrom(p))
+  }
+  // Offered only while the sheet holds no logged work, so a swap can never
+  // discard a set that was already ticked.
+  const canSwap = !workout && !draftHasWork(items)
   const [adding, setAdding] = useState<MuscleGroup | null>(null)
   const [saving, setSaving] = useState(false)
   const [demoName, setDemoName] = useState<string | null>(null)
@@ -551,6 +569,21 @@ const fmtWeight = (n: number): string => (Number.isInteger(n) ? String(n) : n.to
         one moment where leaving to log it costs enough to skip it. */}
     <WaterFab settings={settings} />
     <Sheet title={plan ? plan.name : 'Session'} onClose={onClose}>
+      {canSwap && (
+        <div className="scroll-x" aria-label="Use another day's plan">
+          {WEEK.map((p) => (
+            <button
+              key={p.weekday}
+              className="chip"
+              aria-pressed={plan?.weekday === p.weekday}
+              onClick={() => swapPlan(p)}
+            >
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][p.weekday]}{' '}
+              <span className="muted">{p.name.split(/\s*[\u2014,]\s*/)[0]}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <div className="row between">
         <span className="tiny muted grow">
           {restored
