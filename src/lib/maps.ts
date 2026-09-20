@@ -70,15 +70,24 @@ export interface PlannedRoute {
   climbM?: number
   descentM?: number
   polyline: string
+  /** The roads Google names it by, e.g. "Grant St" — empty if it named none. */
+  summary?: string
   /** 'driving' when Google had no cycling route and fell back — read with care. */
   mode: 'bicycling' | 'driving'
 }
 
-/** Measure a bike route between two points: distance, time, and metres climbed. */
+/**
+ * Every way Google knows of riding between two points, best first.
+ *
+ * Google Maps shows a cyclist the quick road and the long quiet trail and
+ * lets them choose. Taking only the first meant the app quoted a route he
+ * might not ride, and a distance that disagrees with the phone in his pocket
+ * is a distance he stops believing.
+ */
 export async function planRoute(
   from: { lat: number; lng: number },
   to: { lat: number; lng: number },
-): Promise<PlannedRoute | null> {
+): Promise<PlannedRoute[] | null> {
   const res = await fetch('/api/maps', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
@@ -86,7 +95,9 @@ export async function planRoute(
   })
   if (res.status === 404) return null
   if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || `Route failed (${res.status})`)
-  return res.json()
+  const body = (await res.json()) as PlannedRoute & { options?: PlannedRoute[] }
+  // A server from before alternatives returns one route flat, with no options.
+  return body.options?.length ? body.options : [body]
 }
 
 export interface MapsUsage {

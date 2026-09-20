@@ -145,23 +145,43 @@ interface Pt {
   lng: number
 }
 
+/**
+ * Every way Google knows of getting there, not just its favourite.
+ *
+ * Google Maps offers a cyclist the fast road and the quiet trail and lets them
+ * choose; taking routes[0] silently picked the fast road every time, and a
+ * number that disagrees with what the phone shows is a number he stops
+ * trusting. `alternatives=true` costs nothing extra on the directions call.
+ *
+ * Capped at three so a plan cannot quietly become a dozen elevation lookups.
+ */
+const MAX_OPTIONS = 3
+
 async function directions(env: Env, from: Pt, to: Pt, mode: 'bicycling' | 'driving') {
   const u =
     `${G}/directions/json?origin=${from.lat},${from.lng}` +
-    `&destination=${to.lat},${to.lng}&mode=${mode}&key=${env.GOOGLE_MAPS_API_KEY}`
+    `&destination=${to.lat},${to.lng}&mode=${mode}&alternatives=true&key=${env.GOOGLE_MAPS_API_KEY}`
   const r = (await fetch(u).then((x) => x.json())) as {
     status: string
     error_message?: string
-    routes: { overview_polyline: { points: string }; legs: { distance: { value: number }; duration: { value: number } }[] }[]
+    routes: {
+      summary?: string
+      overview_polyline: { points: string }
+      legs: { distance: { value: number }; duration: { value: number } }[]
+    }[]
   }
   if (r.status === 'ZERO_RESULTS') return { notFound: true as const }
   if (r.status !== 'OK') return { error: r.error_message || r.status }
-  const leg = r.routes[0].legs[0]
-  return {
-    km: leg.distance.value / 1000,
-    minutes: leg.duration.value / 60,
-    polyline: r.routes[0].overview_polyline.points,
-  }
+  const options = r.routes.slice(0, MAX_OPTIONS).map((rt) => {
+    const leg = rt.legs[0]
+    return {
+      km: leg.distance.value / 1000,
+      minutes: leg.duration.value / 60,
+      polyline: rt.overview_polyline.points,
+      summary: rt.summary || '',
+    }
+  })
+  return { options }
 }
 
 /** Total metres climbed and descended along an encoded path. */
@@ -235,15 +255,26 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       return json({ notFound: true }, 404)
     }
 
-    const elev = await elevation(env, dir.polyline, dir.km * 1000)
-    await addUsage(env, { directions: directionsCalls, elevation: 1 })
+    // A climb per option, because that is the whole reason to prefer the long
+    // way round: the trail is often flatter than the road that beats it on time.
+    const options = []
+    for (const o of dir.options) {
+      const elev = await elevation(env, o.polyline, o.km * 1000)
+      options.push({
+        km: Math.round(o.km * 100) / 100,
+        minutes: Math.round(o.minutes),
+        climbM: 'error' in elev ? undefined : elev.climbM,
+        descentM: 'error' in elev ? undefined : elev.descentM,
+        polyline: o.polyline,
+        summary: o.summary,
+        mode,
+      })
+    }
+    await addUsage(env, { directions: directionsCalls, elevation: options.length })
     return json({
-      km: Math.round(dir.km * 100) / 100,
-      minutes: Math.round(dir.minutes),
-      climbM: 'error' in elev ? undefined : elev.climbM,
-      descentM: 'error' in elev ? undefined : elev.descentM,
-      polyline: dir.polyline,
-      mode,
+      options,
+      // The first option repeated flat, so an older client keeps working.
+      ...options[0],
     })
   }
 

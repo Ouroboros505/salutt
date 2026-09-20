@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
-import { geocode, planRoute, NoSyncError, type PlannedRoute } from '../lib/maps'
+import { geocode, geoDoubt, planRoute, NoSyncError, type PlannedRoute } from '../lib/maps'
 import { Field, Icon, Sheet } from './ui'
 import PlacesSheet from './PlacesSheet'
 
@@ -33,7 +33,11 @@ export default function RoutePlannerSheet({
   const [newName, setNewName] = useState('')
   const [newAddress, setNewAddress] = useState('')
 
-  const [result, setResult] = useState<PlannedRoute | null>(null)
+  // Every route Google offered, and which one he picked. Google's own order
+  // is best-first, so index 0 is the default until he says otherwise.
+  const [options, setOptions] = useState<PlannedRoute[] | null>(null)
+  const [picked, setPicked] = useState(0)
+  const result = options ? (options[picked] ?? options[0]) : null
   const [routeName, setRouteName] = useState('')
   const [busy, setBusy] = useState(false)
   const [managing, setManaging] = useState(false)
@@ -48,7 +52,8 @@ export default function RoutePlannerSheet({
   const measure = async () => {
     if (!from) return
     setBusy(true)
-    setResult(null)
+    setOptions(null)
+    setPicked(0)
     try {
       // Resolve the destination: an existing place, or geocode + save a new one.
       let toPlace = savedTo
@@ -57,6 +62,13 @@ export default function RoutePlannerSheet({
         const g = await geocode(newAddress.trim())
         if (!g) {
           toast(`Couldn't find "${newAddress.trim()}"`)
+          return
+        }
+        // The same guard the places sheet uses: a street centroid saved here
+        // would give every future ride to this place a plausible wrong length.
+        const doubt = geoDoubt(g)
+        if (doubt) {
+          toast(`${doubt} Google found: ${g.formatted}`)
           return
         }
         const id = await db.places.add({
@@ -78,14 +90,15 @@ export default function RoutePlannerSheet({
       }
       if (!toPlace) return
 
-      const r = await planRoute({ lat: from.lat, lng: from.lng }, { lat: toPlace.lat, lng: toPlace.lng })
-      if (!r) {
+      const rs = await planRoute({ lat: from.lat, lng: from.lng }, { lat: toPlace.lat, lng: toPlace.lng })
+      if (!rs?.length) {
         toast('No route found between those places')
         return
       }
-      setResult(r)
+      setOptions(rs)
+      setPicked(0)
       setRouteName(`${from.name} → ${toName}`)
-      if (r.mode === 'driving') toast('No cycling route there — showing the driving distance')
+      if (rs[0].mode === 'driving') toast('No cycling route there — showing the driving distance')
     } catch (e) {
       toast(e instanceof NoSyncError ? 'Set up sync first (Settings) to plan routes' : 'Route lookup failed')
     } finally {
@@ -133,7 +146,7 @@ export default function RoutePlannerSheet({
               value={fromId ?? ''}
               onChange={(e) => {
                 setFromId(e.target.value ? Number(e.target.value) : null)
-                setResult(null)
+                setOptions(null)
               }}
             >
               <option value="">Choose a starting place…</option>
@@ -150,7 +163,7 @@ export default function RoutePlannerSheet({
               value={toChoice}
               onChange={(e) => {
                 setToChoice(e.target.value)
-                setResult(null)
+                setOptions(null)
               }}
             >
               <option value="">Choose a destination…</option>
@@ -184,12 +197,35 @@ export default function RoutePlannerSheet({
             {busy ? 'Measuring…' : addingNew ? 'Save place & measure' : 'Get distance & climb'}
           </button>
 
-          {result && (
+          {options && result && (
             <div className="card">
+              {options.length > 1 && (
+                <>
+                  <div className="stat-label">
+                    {options.length} ways to ride it — pick the one you actually take
+                  </div>
+                  <div className="stack tight">
+                    {options.map((o, i) => (
+                      <button
+                        key={i}
+                        className={`btn block ${i === picked ? 'primary' : ''}`}
+                        onClick={() => setPicked(i)}
+                      >
+                        <span className="num">
+                          {o.km} km · {o.minutes} min
+                          {o.climbM != null ? ` · ↑${o.climbM} m` : ''}
+                        </span>
+                        {o.summary ? <span className="tiny muted"> via {o.summary}</span> : null}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
               <div className="row between">
                 <span className="stat-label">
                   {result.km} km · {result.minutes} min
                   {result.climbM != null ? ` · climb ${result.climbM} m` : ''}
+                  {result.summary ? ` · via ${result.summary}` : ''}
                 </span>
                 {result.mode === 'driving' && <span className="tiny muted">driving est.</span>}
               </div>
