@@ -96,17 +96,48 @@ async function addUsage(env: Env, delta: Partial<Usage>): Promise<void> {
   await env.SALUTT_KV.put(USAGE_KEY, JSON.stringify(u))
 }
 
+/**
+ * Address to point, and how much to trust the point.
+ *
+ * Google answers a query it cannot fully match by returning the nearest thing
+ * it *can* match, with no error: "2501 soldier home road" comes back as the
+ * middle of Soldiers Home Rd, nearly two kilometres from number 2501, status
+ * OK. A route to that centroid is a perfectly valid route to the wrong place,
+ * and it looked like the app was inventing distance.
+ *
+ * Two fields tell the difference. `partial_match` is Google admitting it
+ * dropped part of the query, and `types` says what kind of thing it landed on:
+ * a 'street_address' or 'premise' is a building, a 'route' is a whole road.
+ * Both travel back so the caller can say so before a place is saved for good.
+ */
 async function geocode(env: Env, query: string) {
   const u = `${G}/geocode/json?address=${encodeURIComponent(query)}&key=${env.GOOGLE_MAPS_API_KEY}`
   const r = (await fetch(u).then((x) => x.json())) as {
     status: string
     error_message?: string
-    results: { formatted_address: string; geometry: { location: { lat: number; lng: number } } }[]
+    results: {
+      formatted_address: string
+      geometry: { location: { lat: number; lng: number } }
+      types?: string[]
+      partial_match?: boolean
+    }[]
   }
   if (r.status === 'ZERO_RESULTS') return { notFound: true }
   if (r.status !== 'OK') return { error: r.error_message || r.status }
   const g = r.results[0]
-  return { formatted: g.formatted_address, lat: g.geometry.location.lat, lng: g.geometry.location.lng }
+  const types = g.types ?? []
+  const precision = types.some((t) => t === 'street_address' || t === 'premise' || t === 'subpremise')
+    ? ('address' as const)
+    : types.includes('route')
+      ? ('road' as const)
+      : ('area' as const)
+  return {
+    formatted: g.formatted_address,
+    lat: g.geometry.location.lat,
+    lng: g.geometry.location.lng,
+    precision,
+    partial: g.partial_match === true,
+  }
 }
 
 interface Pt {

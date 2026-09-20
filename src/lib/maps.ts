@@ -32,6 +32,24 @@ export interface GeoPoint {
   lat: number
   lng: number
   formatted: string
+  /**
+   * How specific the point is. 'address' is a building; 'road' is the middle
+   * of a whole street, which is what Google returns when it cannot match the
+   * house number and is how a ride to a friend's house became 2.2 km too long.
+   */
+  precision?: 'address' | 'road' | 'area'
+  /** Google matched only part of what was typed. */
+  partial?: boolean
+}
+
+/** Why a geocoded point should not be trusted yet, or null if it is fine. */
+export function geoDoubt(g: GeoPoint): string | null {
+  if (g.precision === 'road')
+    return 'That matched the street, not a building — distances will be off. Add the house number, town and state.'
+  if (g.precision === 'area')
+    return 'That matched an area rather than an address — distances will be rough. Add the street, town and state.'
+  if (g.partial) return 'Google could not match all of that. Check the address below is the right one.'
+  return null
 }
 
 /** Turn a typed address into a point, or null if Google found nothing. */
