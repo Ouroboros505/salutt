@@ -27,13 +27,26 @@ const RANGES = [
   { value: 'all', label: 'All' },
 ]
 
-const TAPE: { key: keyof Measurement; label: string }[] = [
-  { key: 'waist', label: 'Waist' },
-  { key: 'hips', label: 'Hips' },
-  { key: 'chest', label: 'Chest' },
-  { key: 'neck', label: 'Neck' },
-  { key: 'arm', label: 'Arm' },
-  { key: 'thigh', label: 'Thigh' },
+/**
+ * Which way is progress, per measurement.
+ *
+ * A tape reading is not good or bad on its own: a waist falling and an arm
+ * falling mean opposite things, and colouring both green for down told him his
+ * bicep was shrinking nicely. `good` says which direction earns the green.
+ *
+ * Chest and neck are left null on purpose. Both are genuinely ambiguous — a
+ * chest shrinks as fat leaves it and grows as the muscle underneath is built,
+ * and which one is happening depends on the phase rather than the number. A
+ * neck is mostly lean tissue but also the denominator of the Navy estimate.
+ * Colouring a number nobody can interpret is worse than leaving it plain.
+ */
+const TAPE: { key: keyof Measurement; label: string; good: 'down' | 'up' | null }[] = [
+  { key: 'waist', label: 'Waist', good: 'down' },
+  { key: 'hips', label: 'Hips', good: 'down' },
+  { key: 'chest', label: 'Chest', good: null },
+  { key: 'neck', label: 'Neck', good: null },
+  { key: 'arm', label: 'Arm', good: 'up' },
+  { key: 'thigh', label: 'Thigh', good: 'up' },
 ]
 
 export default function Body({
@@ -101,6 +114,23 @@ export default function Body({
    * neck paired with today's waist is a small inaccuracy; showing nothing at
    * all was a larger one.
    */
+  /**
+   * The first time a given measurement was ever taken.
+   *
+   * Per field rather than per record, because they are not always taken
+   * together: a Sunday where only the waist went on the tape must not reset
+   * what the arm is compared against. `measurements` is newest first, so the
+   * baseline is the last row that carries the field at all.
+   */
+  const baselineFor = (key: keyof Measurement): number | undefined => {
+    for (let i = measurements.length - 1; i >= 0; i--) {
+      const v = measurements[i][key]
+      if (v != null) return v as number
+    }
+    return undefined
+  }
+  const baseDate = measurements.length ? measurements[measurements.length - 1].date : undefined
+
   const last = measurements.length
     ? ({ ...measurements[0], ...latestMeasures(measurements) } as Measurement)
     : undefined
@@ -209,15 +239,27 @@ export default function Body({
             <div className="grid-3">
               {TAPE.map((t) => {
                 const v = last[t.key] as number | undefined
-                const prev = measurements.slice(1).find((m) => m[t.key] != null)
-                const pv = prev ? (prev[t.key] as number) : undefined
-                const d = v != null && pv != null ? v - pv : null
+                /**
+                 * Measured against the first reading, not the one before it.
+                 *
+                 * Week to week a waist moves a millimetre or two and the figure
+                 * reads as noise; against the start it reads as the thing that
+                 * actually happened. The whole point of a tape is the months.
+                 */
+                const base = baselineFor(t.key)
+                const d = v != null && base != null ? v - base : null
+                const tone =
+                  d == null || d === 0 || t.good == null
+                    ? ''
+                    : (d < 0) === (t.good === 'down')
+                      ? 'delta-good'
+                      : 'delta-bad'
                 return (
                   <div key={String(t.key)} className="stack tight">
                     <div className="stat-label">{t.label}</div>
                     <div className="stat-value num">{v != null ? v.toFixed(1) : '—'}</div>
                     {d != null && d !== 0 && (
-                      <div className={`tiny num ${d < 0 ? 'delta-good' : 'delta-bad'}`}>
+                      <div className={`tiny num ${tone}`}>
                         {d > 0 ? '+' : ''}
                         {d.toFixed(1)} cm
                       </div>
@@ -226,7 +268,10 @@ export default function Body({
                 )
               })}
             </div>
-            <div className="tiny muted">Last measured {formatShort(last.date)} · centimetres</div>
+            <div className="tiny muted">
+              Last measured {formatShort(last.date)} · centimetres
+              {baseDate && baseDate !== last.date ? <> · change since {formatShort(baseDate)}</> : null}
+            </div>
           </>
         ) : (
           <div className="empty">
