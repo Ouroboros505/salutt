@@ -9,6 +9,7 @@ import {
   projectGoal,
   stoolOffset,
   trendSlopeKgPerWeek,
+  RATE_WINDOW_DAYS,
   weightSeries,
   weightTrend,
 } from '../lib/metrics'
@@ -99,7 +100,7 @@ export default function Body({
     undefined,
   )
   const lastCounted = lastReading != null && full.some((p) => p.date === lastReading.date)
-  const rate = trendSlopeKgPerWeek(full)
+  const rate = trendSlopeKgPerWeek(full, RATE_WINDOW_DAYS)
   /**
    * The most recent value for each measurement, which is not the same as the
    * most recent record.
@@ -185,13 +186,18 @@ export default function Body({
           <Stat label="7 days" value={week} />
           <Stat label="30 days" value={month} />
           <div className="stack tight">
+            {/* Says which window, because Today shows a different figure for
+                the same body: this one is the CURRENT rate, fitted through the
+                last three weeks, and Today's is the average since he began.
+                Both are right and the gap between them is the story, but
+                unlabelled they just look like a contradiction. */}
             <div className="stat-label">Rate</div>
             <div
               className={`stat-value num ${rate == null ? '' : rate < 0 ? 'delta-good' : rate > 0 ? 'delta-bad' : ''}`}
             >
               {rate != null ? `${rate > 0 ? '+' : ''}${rate.toFixed(2)}` : '—'}
             </div>
-            <div className="tiny muted">kg / week</div>
+            <div className="tiny muted">kg / week · last {RATE_WINDOW_DAYS} d</div>
           </div>
         </div>
       </div>

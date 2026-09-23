@@ -382,7 +382,20 @@ export function weightSeries(weighIns: WeighIn[], halfLifeDays: number): TrendPo
 }
 
 /** Least-squares slope of trend weight, converted to kg per week. */
-export function trendSlopeKgPerWeek(points: TrendPoint[], windowDays = 21): number | null {
+/**
+ * How far back the "Rate" figure looks.
+ *
+ * Exported so the number and the label under it cannot drift apart: the Body
+ * screen prints "last {RATE_WINDOW_DAYS} d" from this same constant. Three
+ * weeks is long enough to outlast a salty weekend and short enough to notice
+ * a real change of pace within a fortnight of it happening.
+ */
+export const RATE_WINDOW_DAYS = 21
+
+export function trendSlopeKgPerWeek(
+  points: TrendPoint[],
+  windowDays = RATE_WINDOW_DAYS,
+): number | null {
   if (points.length < 2) return null
   const last = points[points.length - 1].date
   const from = addDays(last, -windowDays)

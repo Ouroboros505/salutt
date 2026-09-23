@@ -464,8 +464,13 @@ export default function Today({
             </span>
           </div>
           <div className="tiny muted num">
-            {progress.fromKg.toFixed(2)} → {progress.toKg.toFixed(2)} kg on the trend line ·{' '}
-            {((progress.changeKg / progress.days) * 7).toFixed(2)} kg/week against{' '}
+            {/* "average since you began", not "the rate now" — Body shows the
+                current three-week rate and the two legitimately differ. Saying
+                which is which here stops them reading as a contradiction. And
+                the opening figure is an average of the first readings rather
+                than a trend value, so do not call it one. */}
+            {progress.fromKg.toFixed(2)} → {progress.toKg.toFixed(2)} kg ·{' '}
+            {((progress.changeKg / progress.days) * 7).toFixed(2)} kg/week on average against{' '}
             {Math.round(targets.goalKgPerWeek * 100) / 100} planned
           </div>
           {!progress.settled && (
