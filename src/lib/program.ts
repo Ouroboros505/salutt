@@ -226,6 +226,7 @@ export const CATALOGUE: Exercise[] = [
   E('Leg Press', 'Legs', 3, '12', 5.5, 110, 'Leg press machine'),
   E('Leg Extension', 'Legs', 3, '12', 4.5, 95, 'Leg extension machine'),
   E('Hip Thrust', 'Legs', 3, '12', 5.5, 110, 'Bench, barbell'),
+  E('Glute Bridge', 'Legs', 3, '12-15', 3.5, 90, 'Floor; a dumbbell on the hips to load it'),
   E('Walking Lunges', 'Legs', 3, '12/leg', 6, 120, 'Dumbbells'),
 
   // ----------------------------------------------------------------- Core
@@ -309,7 +310,7 @@ const BODYWEIGHT = [
   'Push-Ups', 'Dips', 'Pull-Ups', 'Plank', 'Side Plank', 'Bird Dog', 'Mountain Climbers',
   'Dead Bug', 'Hollow Hold', 'Hanging Knee Raise', 'Captain’s Chair Leg Raise',
   'Captain’s Chair Knee Raise', 'Calf Raises', 'Lateral Band Walks',
-  'Banded Terminal Knee Extension', 'Movement Prep (bands, circles, bridges)',
+  'Banded Terminal Knee Extension', 'Movement Prep (bands, circles, bridges)', 'Glute Bridge',
   'Cool-Down Stretch', 'Yoga Flow', 'Pigeon Pose', 'Legs-Up-The-Wall',
 ]
 
@@ -619,6 +620,10 @@ export const ALT_BY_NAME: Record<string, string> = {
   'Triceps Rope Pushdown': 'Overhead Triceps Extension (dumbbell)',
   'Overhead Triceps Extension (cable)': 'Overhead Triceps Extension (dumbbell)',
   'Leg Curl': 'Romanian Deadlift',
+  // Not a busy machine but a sore hip. The split squat is single-leg stance
+  // under load, which is the position that irritates a gluteal tendon; the
+  // bridge trains the same glutes lying down, with nothing pressing on it.
+  'Bulgarian Split Squat': 'Glute Bridge',
   'Leg Extension': 'Goblet Squat',
   'Leg Press': 'Goblet Squat',
   'Cable Crunch': 'Hanging Knee Raise',
