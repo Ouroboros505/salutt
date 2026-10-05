@@ -169,9 +169,11 @@ export default function Today({
    * what the target *would be* once its imagined food is included, or it would
    * quietly under-report the room left by about 8% of whatever it adds.
    */
-  const targetsFor = (intakeKcal: number) => {
+  // Planned activity goes through the same door as logged activity, so a
+  // what-if hike moves the target exactly as the real one would once logged.
+  const targetsFor = (intakeKcal: number, extraActivityKcal = 0) => {
     const e = currentKg
-      ? dayEnergy(settings, currentKg, intakeKcal, todayActivity, maintenance, usual, meanIntake)
+      ? dayEnergy(settings, currentKg, intakeKcal, todayActivity + extraActivityKcal, maintenance, usual, meanIntake)
       : null
     return computeTargets(settings, currentKg, adaptive, e)
   }
@@ -929,6 +931,7 @@ export default function Today({
           date={date}
           targets={targets}
           targetsFor={targetsFor}
+          kg={currentKg}
           fibreGoal={fibreTarget(targets.kcal, settings.fibreTargetG)}
           fibreCeiling={settings.fibreCeilingG ?? FIBRE_PLENTY}
           onClose={() => setPlanning(false)}
