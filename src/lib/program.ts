@@ -95,6 +95,15 @@ export function totalLoadKg(typedKg: number, load?: LoadStyle): number {
 export const LOAD_BAR: LoadStyle = { label: 'plates on ONE side', factor: 2, barKg: 20.41 }
 /** A Smith machine bar is counterbalanced, so it weighs far less than it looks. */
 export const LOAD_SMITH: LoadStyle = { label: 'plates on ONE side', factor: 2, barKg: 9 }
+/**
+ * A fixed barbell: plates welded or bolted on, the total stamped on the end.
+ *
+ * The rack of straight bars at the CoRec is this, and it is what he uses for
+ * Romanian deadlifts. The number on the bar is the whole weight, so it is
+ * typed as is — treating it as plates on one side read his 40 lb bar as
+ * 125 lb, and every estimate built on it was three times too high.
+ */
+export const LOAD_FIXED_BAR: LoadStyle = { label: 'the number on the fixed bar', factor: 1 }
 
 /**
  * Bars weigh something, and forgetting that is the commonest way a lifting
@@ -318,7 +327,7 @@ const LOAD_BY_NAME: Record<string, LoadStyle> = {
   'Barbell Bench Press': LOAD_BAR,
   'Incline Barbell Press': LOAD_BAR,
   'Close-Grip Bench Press': LOAD_BAR,
-  'Romanian Deadlift': LOAD_BAR,
+  'Romanian Deadlift': LOAD_FIXED_BAR,
   'Hip Thrust': LOAD_BAR,
   'Skull Crushers': { label: 'plates on ONE side', factor: 2, barKg: 11.34 },
   'Flat DB Bench Press': LOAD_EACH_HAND,
