@@ -1,4 +1,4 @@
-import type { Entry, ISODate, Measurement, Settings, WeighIn } from '../db/db'
+import type { DayTarget, Entry, ISODate, Measurement, Settings, WeighIn } from '../db/db'
 import { addDays, daysBetween, todayISO } from './date'
 
 /** Energy density of body tissue lost/gained, kcal per kg. */
@@ -867,4 +867,43 @@ export function progressSoFar(trend: TrendPoint[]): Progress | null {
 /** Grams of body tissue a calorie balance accounts for. */
 export function gramsFromKcal(kcal: number): number {
   return Math.round((kcal / KCAL_PER_KG) * 1000)
+}
+
+/**
+ * The rules a finished day was priced under, from what was known by its end.
+ *
+ * A day is frozen the first time it is opened after it ends, and that used to
+ * capture the rules as they stood at that moment — the next morning's
+ * weigh-in included. One heavier morning moved the trend, the trend moved the
+ * maintenance estimate, and a day he closed 36 under re-read as 4 over: the
+ * snapshot was meant to stop exactly that. So everything here is cut off at
+ * the day itself, which is what the screen was showing him that night: the
+ * weigh-ins and entries up to and including it, and the activity before it.
+ */
+export function rulesAsOf(
+  settings: Settings,
+  weighIns: WeighIn[],
+  entries: Entry[],
+  workouts: { date: ISODate; kcal?: number }[],
+  date: ISODate,
+): Omit<DayTarget, 'id' | 'date' | 'createdAt' | 'updatedAt'> | null {
+  const known = weighIns.filter((w) => w.date <= date)
+  const trend = weightTrend(known, settings.trendHalfLifeDays)
+  if (!trend.length) return null
+  const kg = trend[trend.length - 1].trend
+  const adaptive = adaptiveTDEE(
+    entries.filter((e) => e.date <= date),
+    trend,
+  )
+  const usual = usualActivity(workouts, date)
+  return {
+    goalKgPerWeek: goalPerWeek(settings, kg),
+    maintenance: adaptive && adaptive.confidence !== 'low' ? adaptive.kcal : null,
+    usualMean: usual?.mean ?? 0,
+    usualTrust: usual?.trust ?? 0,
+    usualLogged: usual?.logged ?? 0,
+    usualDays: usual?.days ?? 14,
+    meanIntake: adaptive?.meanIntake ?? null,
+    kg,
+  }
 }

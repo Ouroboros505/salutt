@@ -29,6 +29,7 @@ import {
   dayEnergy,
   gramsFromKcal,
   progressSoFar,
+  rulesAsOf,
   usualActivity,
   weightTrend,
 } from '../lib/metrics'
@@ -216,21 +217,14 @@ export default function Today({
   useEffect(() => {
     if (isToday || frozen !== null || !currentKg || !dayLoaded) return
     // Check and add in one transaction, so a double effect run cannot throw.
+    // The rules as they stood when the day ended, not as they stand now: a
+    // weigh-in from the morning after must not reach back and reprice it.
+    const rules = rulesAsOf(settings, weighIns, allEntries, allWorkouts, date)
+    if (!rules) return
     void db.transaction('rw', db.dayTargets, async () => {
       const already = await db.dayTargets.where('date').equals(date).first()
       if (already) return
-      await db.dayTargets.add({
-        date,
-        goalKgPerWeek: liveTargets.goalKgPerWeek,
-        maintenance,
-        usualMean: usual?.mean ?? 0,
-        usualTrust: usual?.trust ?? 0,
-        usualLogged: usual?.logged ?? 0,
-        usualDays: usual?.days ?? 14,
-        meanIntake,
-        kg: currentKg,
-        createdAt: Date.now(),
-      })
+      await db.dayTargets.add({ date, ...rules, createdAt: Date.now() })
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, isToday, frozen === null, currentKg, dayLoaded])
