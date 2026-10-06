@@ -73,7 +73,7 @@ class Boundary extends Component<{ children: ReactNode }, { error: Error | null 
 
 async function boot() {
   // A wedged worker cannot fix itself, so this has to work before anything
-  // else runs: salutt.montejongas.com/?reset-sw
+  // else runs: salutt.stipe.app/?reset-sw
   if (new URLSearchParams(location.search).has('reset-sw')) {
     await resetServiceWorker()
     location.replace('/')

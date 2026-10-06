@@ -11,7 +11,7 @@
 import { readFileSync } from 'node:fs'
 import { fetchRemote, setApiBase } from '../src/lib/syncCrypto'
 
-const SITE = process.env.SALUTT_URL ?? 'https://salutt.montejongas.com'
+const SITE = process.env.SALUTT_URL ?? 'https://salutt.stipe.app'
 
 function secretFromFile(): string {
   const text = readFileSync(new URL('../SECRETS.local.md', import.meta.url), 'utf8')

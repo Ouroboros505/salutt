@@ -4,7 +4,7 @@
 # Needs CLOUDFLARE_API_TOKEN in the environment, with permission
 #   Account -> Cloudflare Pages -> Edit
 # and, to attach the domain, also
-#   Zone -> DNS -> Edit   (on the montejongas.com zone)
+#   Zone -> DNS -> Edit   (on the stipe.app zone)
 #
 # Re-running is safe: deploys are incremental and the domain step is skipped if
 # it already exists.
@@ -21,7 +21,7 @@ if [[ -f "$(dirname "$0")/../.env.local" ]]; then
 fi
 
 PROJECT="${PAGES_PROJECT:-salutt}"
-DOMAIN="${PAGES_DOMAIN:-salutt.montejongas.com}"
+DOMAIN="${PAGES_DOMAIN:-salutt.stipe.app}"
 API="https://api.cloudflare.com/client/v4"
 
 if [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
@@ -31,7 +31,7 @@ CLOUDFLARE_API_TOKEN is not set.
   1. https://dash.cloudflare.com/profile/api-tokens -> Create Token -> Custom
      Permissions: Account | Cloudflare Pages  | Edit
                   Account | Account Settings  | Read
-                  Zone    | DNS               | Edit   (zone: montejongas.com)
+                  Zone    | DNS               | Edit   (zone: stipe.app)
   2. write it to .env.local in the project root:
          CLOUDFLARE_API_TOKEN=<token>
      (gitignored; this script sources it automatically)

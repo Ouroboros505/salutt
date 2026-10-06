@@ -12,7 +12,7 @@
 import { readFileSync } from 'node:fs'
 import { fetchRemote, pushPayload, setApiBase } from '../src/lib/syncCrypto'
 
-const SITE = process.env.SALUTT_URL ?? 'https://salutt.montejongas.com'
+const SITE = process.env.SALUTT_URL ?? 'https://salutt.stipe.app'
 const DRY = process.argv.includes('--dry')
 
 function secret(): string {
