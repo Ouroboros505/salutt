@@ -40,13 +40,13 @@ function barPath(x: number, y: number, w: number, h: number, r = 4): string {
   )
 }
 
-interface Tip {
+export interface Tip {
   x: number
   y: number
   lines: string[]
 }
 
-function Tooltip({ tip, width }: { tip: Tip; width: number }) {
+export function Tooltip({ tip, width }: { tip: Tip; width: number }) {
   // Keep the bubble inside the plot rather than letting it clip at the edges.
   const left = Math.max(4, Math.min(width - 4, tip.x))
   const anchor = left < 70 ? 'left' : left > width - 70 ? 'right' : 'center'

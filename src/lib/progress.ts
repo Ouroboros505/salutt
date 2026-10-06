@@ -1,0 +1,306 @@
+import type { ISODate, Workout } from '../db/db'
+import { addDays, daysBetween, startOfWeek } from './date'
+import { byName, canonicalName, type MuscleGroup } from './program'
+
+/**
+ * What the training log says about one lift, and about the training as a whole.
+ *
+ * Everything here is worked out from the sets as typed — the number on the
+ * dumbbell or the stack — because that is the number he sees at the gym and
+ * the one double progression moves. Pure functions only: the charts read
+ * these, and they can be checked without a browser.
+ */
+
+export interface SetRec {
+  reps: number
+  kg: number
+  band?: number
+}
+
+export interface ExSession {
+  date: ISODate
+  sets: SetRec[]
+  /** Heaviest weight used, and the most reps done at it. */
+  topKg: number
+  topReps: number
+  /** Best estimated one-rep max across the sets (Epley), 0 when unweighted. */
+  e1rm: number
+  /** Reps times weight, summed. */
+  volume: number
+  reps: number
+  /** Most reps in any one set, the measure for bodyweight work. */
+  bestReps: number
+  /** Logged while ill or tired: shown, but not a number to beat. */
+  notFull: boolean
+}
+
+/** Epley. Generous above about fifteen reps, but consistent, which is what a trend needs. */
+export function epley(kg: number, reps: number): number {
+  if (!(kg > 0) || !(reps > 0)) return 0
+  return reps === 1 ? kg : kg * (1 + reps / 30)
+}
+
+/** Every session that included this exercise, oldest first. */
+export function exerciseHistory(workouts: Workout[], name: string): ExSession[] {
+  const key = canonicalName(name)
+  const out: ExSession[] = []
+  for (const w of workouts) {
+    const sets = w.sets
+      .filter((s) => canonicalName(s.exercise) === key && s.minutes == null && s.hardSec == null)
+      .map((s) => ({ reps: s.reps, kg: s.weightKg, band: s.band }))
+      .filter((s) => s.reps > 0)
+    if (!sets.length) continue
+    const topKg = Math.max(...sets.map((s) => s.kg))
+    out.push({
+      date: w.date,
+      sets,
+      topKg,
+      topReps: Math.max(...sets.filter((s) => s.kg === topKg).map((s) => s.reps)),
+      e1rm: Math.max(...sets.map((s) => epley(s.kg, s.reps))),
+      volume: sets.reduce((t, s) => t + s.reps * s.kg, 0),
+      reps: sets.reduce((t, s) => t + s.reps, 0),
+      bestReps: Math.max(...sets.map((s) => s.reps)),
+      notFull: !!w.notFullStrength,
+    })
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date))
+}
+
+export function isWeighted(history: ExSession[]): boolean {
+  return history.some((s) => s.topKg > 0)
+}
+
+export interface ToBeat {
+  /** What last time's best looked like. */
+  last: ExSession
+  /** True when every set at the top weight reached the ceiling: time to go up. */
+  readyToMoveUp: boolean
+  /** The one-line instruction. */
+  headline: 'up' | 'rep' | 'reps-bw'
+  /** Reps to aim for at the top weight (one more than last time). */
+  targetReps: number
+}
+
+/**
+ * The next thing to beat, by his own double-progression rule.
+ *
+ * He stays at a weight until every set at it reaches the top of the range,
+ * then moves up — and the reps fall back after each increase, which is the
+ * rule working rather than a stall. So the target is one more rep at the top
+ * weight, until the top weight is done, and then a step up. A session logged
+ * while ill is skipped, as it is everywhere else.
+ */
+export function toBeat(history: ExSession[], ceiling = 15): ToBeat | null {
+  const last = [...history].reverse().find((s) => !s.notFull)
+  if (!last) return null
+  if (last.topKg <= 0) {
+    return { last, readyToMoveUp: false, headline: 'reps-bw', targetReps: last.bestReps + 1 }
+  }
+  const atTop = last.sets.filter((s) => s.kg === last.topKg)
+  const done = atTop.length >= 2 && atTop.every((s) => s.reps >= ceiling)
+  return {
+    last,
+    readyToMoveUp: done,
+    headline: done ? 'up' : 'rep',
+    targetReps: Math.min(ceiling, Math.min(...atTop.map((s) => s.reps)) + 1),
+  }
+}
+
+export interface Records {
+  heaviest: { kg: number; reps: number; date: ISODate } | null
+  bestE1rm: { kg: number; date: ISODate } | null
+  bestVolume: { kg: number; date: ISODate } | null
+  mostReps: { reps: number; date: ISODate } | null
+}
+
+export function records(history: ExSession[]): Records {
+  let heaviest: Records['heaviest'] = null
+  let bestE1rm: Records['bestE1rm'] = null
+  let bestVolume: Records['bestVolume'] = null
+  let mostReps: Records['mostReps'] = null
+  for (const s of history) {
+    if (s.topKg > 0 && (!heaviest || s.topKg > heaviest.kg || (s.topKg === heaviest.kg && s.topReps > heaviest.reps)))
+      heaviest = { kg: s.topKg, reps: s.topReps, date: s.date }
+    if (s.e1rm > 0 && (!bestE1rm || s.e1rm > bestE1rm.kg)) bestE1rm = { kg: s.e1rm, date: s.date }
+    if (s.volume > 0 && (!bestVolume || s.volume > bestVolume.kg)) bestVolume = { kg: s.volume, date: s.date }
+    if (!mostReps || s.bestReps > mostReps.reps) mostReps = { reps: s.bestReps, date: s.date }
+  }
+  return { heaviest, bestE1rm, bestVolume, mostReps }
+}
+
+/**
+ * Change in estimated strength over a window, as a fraction.
+ *
+ * Compared best-to-best — the best of the latest window against the best of
+ * the one before — so a single tired session does not read as going backward.
+ */
+export function strengthChange(history: ExSession[], today: ISODate, days = 28): number | null {
+  const recent = history.filter((s) => s.date > addDays(today, -days) && s.e1rm > 0 && !s.notFull)
+  const before = history.filter(
+    (s) => s.date <= addDays(today, -days) && s.date > addDays(today, -2 * days) && s.e1rm > 0 && !s.notFull,
+  )
+  if (!recent.length || !before.length) return null
+  const a = Math.max(...before.map((s) => s.e1rm))
+  const b = Math.max(...recent.map((s) => s.e1rm))
+  return a > 0 ? (b - a) / a : null
+}
+
+/** Days since the exercise was last done, or null if never. */
+export function daysSince(history: ExSession[], today: ISODate): number | null {
+  const last = history[history.length - 1]
+  return last ? daysBetween(last.date, today) : null
+}
+
+/* ------------------------------------------------------------ the calendar */
+
+export type DayKind = 'push' | 'pull' | 'legs' | 'core' | 'ride'
+
+const KIND_OF: Partial<Record<MuscleGroup, DayKind>> = {
+  Chest: 'push',
+  Shoulders: 'push',
+  Triceps: 'push',
+  Back: 'pull',
+  Biceps: 'pull',
+  Legs: 'legs',
+  Core: 'core',
+  Cardio: 'core',
+  Mobility: 'core',
+}
+
+/**
+ * What kind of session a workout was, from what was actually in it.
+ *
+ * Counted by sets rather than read from the name, because the name is
+ * whatever the plan or a free-form entry said, and a legs day carries a few
+ * sets of pulldowns and raises without being a pull day.
+ */
+export function kindOf(w: Workout): DayKind | null {
+  if (w.kind === 'ride') return 'ride'
+  const tally = new Map<DayKind, number>()
+  for (const s of w.sets) {
+    const g = byName(s.exercise)?.group
+    const k = g ? KIND_OF[g] : undefined
+    if (k) tally.set(k, (tally.get(k) ?? 0) + 1)
+  }
+  if (!tally.size) return w.kind === 'cardio' ? 'core' : null
+  return [...tally.entries()].sort((a, b) => b[1] - a[1])[0][0]
+}
+
+export interface CalDay {
+  date: ISODate
+  /** The main session of the day, if there was one. */
+  session: DayKind | null
+  sessionName?: string
+  sets: number
+  rideMin: number
+  rides: number
+}
+
+/** Every day in the last `weeks` whole weeks, Monday first, ending this week. */
+export function trainingCalendar(workouts: Workout[], today: ISODate, weeks = 12): CalDay[][] {
+  const first = addDays(startOfWeek(today), -7 * (weeks - 1))
+  const byDate = new Map<ISODate, Workout[]>()
+  for (const w of workouts) {
+    if (w.date < first) continue
+    const list = byDate.get(w.date) ?? []
+    list.push(w)
+    byDate.set(w.date, list)
+  }
+  const cols: CalDay[][] = []
+  for (let wk = 0; wk < weeks; wk++) {
+    const col: CalDay[] = []
+    for (let d = 0; d < 7; d++) {
+      const date = addDays(first, wk * 7 + d)
+      const ws = byDate.get(date) ?? []
+      const lifts = ws.filter((w) => w.kind !== 'ride')
+      const main = lifts.sort((a, b) => b.sets.length - a.sets.length)[0]
+      const rides = ws.filter((w) => w.kind === 'ride')
+      col.push({
+        date,
+        session: main ? kindOf(main) : null,
+        sessionName: main?.name,
+        sets: lifts.reduce((t, w) => t + w.sets.length, 0),
+        rideMin: rides.reduce((t, w) => t + (w.durationMin ?? 0), 0),
+        rides: rides.length,
+      })
+    }
+    cols.push(col)
+  }
+  return cols
+}
+
+/** Weeks in a row, ending this one or last, with at least `min` sessions. */
+export function weekStreak(cal: CalDay[][], today: ISODate, min = 3): number {
+  const done = cal.map((col) => col.filter((d) => d.session && d.date <= today).length)
+  let i = done.length - 1
+  // The week in progress counts once it qualifies, but does not break the
+  // streak just because it is only Tuesday.
+  if (done[i] < min) i--
+  let n = 0
+  for (; i >= 0 && done[i] >= min; i--) n++
+  return n
+}
+
+/* --------------------------------------------------- sets per muscle group */
+
+export const VOLUME_GROUPS: MuscleGroup[] = ['Back', 'Shoulders', 'Chest', 'Legs', 'Biceps', 'Triceps', 'Core']
+
+export interface GroupVolume {
+  group: MuscleGroup
+  /** Average hard sets a week over the window. */
+  perWeek: number
+  /** Sets so far in the current week. */
+  thisWeek: number
+}
+
+/**
+ * Hard sets per muscle group per week.
+ *
+ * Sets, not tonnage: across a range of rep counts the number of hard sets is
+ * what tracks muscle growth, and it is the number a plan can be checked
+ * against — roughly ten to twenty a week per muscle is the range most of the
+ * research lands on. Averaged over the last whole weeks, with the current
+ * week shown separately so a Tuesday does not look like a bad week.
+ */
+export function weeklySets(workouts: Workout[], today: ISODate, weeks = 4): GroupVolume[] {
+  const thisMonday = startOfWeek(today)
+  const from = addDays(thisMonday, -7 * weeks)
+  const window = new Map<MuscleGroup, number>()
+  const current = new Map<MuscleGroup, number>()
+  for (const w of workouts) {
+    if (w.kind === 'ride' || w.date < from || w.date > today) continue
+    for (const s of w.sets) {
+      if (s.minutes != null || !(s.reps > 0)) continue
+      const g = byName(s.exercise)?.group
+      if (!g) continue
+      const into = w.date >= thisMonday ? current : window
+      into.set(g, (into.get(g) ?? 0) + 1)
+    }
+  }
+  return VOLUME_GROUPS.map((group) => ({
+    group,
+    perWeek: (window.get(group) ?? 0) / weeks,
+    thisWeek: current.get(group) ?? 0,
+  }))
+}
+
+/** Every weighted or repped exercise ever logged, most recently done first. */
+export function loggedExercises(workouts: Workout[]): { name: string; last: ISODate; sessions: number }[] {
+  const seen = new Map<string, { name: string; last: ISODate; sessions: Set<ISODate> }>()
+  for (const w of workouts) {
+    if (w.kind === 'ride') continue
+    for (const s of w.sets) {
+      if (s.minutes != null || s.hardSec != null || !(s.reps > 0)) continue
+      const ex = byName(s.exercise)
+      if (!ex || ex.group === 'Cardio' || ex.group === 'Mobility') continue
+      const name = canonicalName(s.exercise)
+      const e = seen.get(name) ?? { name, last: w.date, sessions: new Set<ISODate>() }
+      if (w.date > e.last) e.last = w.date
+      e.sessions.add(w.date)
+      seen.set(name, e)
+    }
+  }
+  return [...seen.values()]
+    .map((e) => ({ name: e.name, last: e.last, sessions: e.sessions.size }))
+    .sort((a, b) => b.last.localeCompare(a.last) || b.sessions - a.sessions)
+}

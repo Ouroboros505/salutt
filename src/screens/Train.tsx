@@ -6,6 +6,7 @@ import { Field, Icon, NumberInput, Segmented, Sheet } from '../components/ui'
 import RideSheet from '../components/RideSheet'
 import { getLiveRide, clearLiveRide, liveMinutes, type LiveRide } from '../lib/liveRide'
 import SessionSheet from '../components/SessionSheet'
+import { TrainProgress } from '../components/progress'
 import { planFor, toDisplayWeight, fromDisplayWeight, programWeek } from '../lib/program'
 import { ageFrom, bmrMifflin } from '../lib/metrics'
 
@@ -236,6 +237,9 @@ export default function Train({
           </div>
         </button>
       )}
+
+      {/* How it is going, under what is happening today. */}
+      <TrainProgress unit={unit} today={todayISO()} />
 
       {sessionEdit && (
         <SessionSheet

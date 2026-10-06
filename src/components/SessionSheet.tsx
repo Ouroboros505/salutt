@@ -33,6 +33,7 @@ import {
 import { Icon, Meter, NumberInput, Sheet } from './ui'
 import { formatShort } from '../lib/date'
 import DemoSheet from './DemoSheet'
+import { ExerciseProgress } from './progress'
 import WaterFab from './WaterFab'
 
 interface SetRow {
@@ -314,6 +315,8 @@ export default function SessionSheet({
   const [adding, setAdding] = useState<MuscleGroup | null>(null)
   const [saving, setSaving] = useState(false)
   const [demoName, setDemoName] = useState<string | null>(null)
+  // The lift whose history is open: one tap between sets for what to beat.
+  const [progressName, setProgressName] = useState<string | null>(null)
   // The rest clock starts the moment a set is ticked — that is when rest
   // begins — and a hold clock counts a timed exercise down to a buzz. Only one
   // runs at a time, so the bar never shows two things at once.
@@ -665,6 +668,16 @@ const fmtWeight = (n: number): string => (Number.isInteger(n) ? String(n) : n.to
                     )
                   })()}
                 </div>
+                {i.minutes == null && lastTime.has(canonicalName(i.name)) && (
+                  <button
+                    className="iconbtn"
+                    aria-label={`Progress on ${i.name}`}
+                    title={`Progress on ${i.name}`}
+                    onClick={() => setProgressName(i.name)}
+                  >
+                    <Icon.chart />
+                  </button>
+                )}
                 <button
                   className="iconbtn"
                   aria-label={`How to do ${i.name}`}
@@ -1084,6 +1097,9 @@ const fmtWeight = (n: number): string => (Number.isInteger(n) ? String(n) : n.to
       </button>
 
       {demoName && <DemoSheet name={demoName} onClose={() => setDemoName(null)} />}
+      {progressName && (
+        <ExerciseProgress name={progressName} unit={unit} today={date} onClose={() => setProgressName(null)} />
+      )}
     </Sheet>
     </>
   )
