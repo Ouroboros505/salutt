@@ -17,8 +17,9 @@
  */
 import { readFileSync } from 'node:fs'
 import { fetchRemote, pushPayload, setApiBase } from '../src/lib/syncCrypto'
+import { computeTargets, dayEnergy, rulesAsOf } from '../src/lib/metrics'
 
-const SITE = process.env.SALUTT_URL ?? 'https://salutt.montejongas.com'
+const SITE = process.env.SALUTT_URL ?? 'https://salutt.stipe.app'
 const DRY = process.argv.includes('--dry')
 
 type Row = Record<string, any>
@@ -66,48 +67,37 @@ const summarise = (data: Data) =>
  */
 function change(data: Data): string[] {
   const notes: string[] = []
-
   /**
-   * Rescale every logged session to the net-of-resting formula.
+   * Re-freeze every snapshot taken under the old rule.
    *
-   * The code fix alone would have been worse than the bug for a fortnight.
-   * The daily target compares today's activity against the average of the
-   * last two weeks, so changing the formula without touching history would
-   * have put new days on one basis and the average on another, and every
-   * training day would have read as unusually light until the old sessions
-   * aged out. A quiet two weeks of under-eating to correct a 24 g/week bias
-   * is a bad trade.
-   *
-   * Each stored figure was met x kg x hours. The new one is (met - 1) x kg x
-   * hours. Without re-deriving every exercise, the ratio of the two is what
-   * the session's blended MET implies — so scale by (met - 1) / met using the
-   * MET the session's own kcal and duration reveal.
-   *
-   * Rides carry their own kcal from the same gross formula and are rescaled
-   * the same way.
+   * Until 2026-10-06 a day was frozen with everything known when it was first
+   * opened, the next morning's weigh-in included. These rows are rebuilt from
+   * data up to and including their own day, which is what the screen showed
+   * that night. The 2026-09-06 to 09-11 rows were written by hand under the
+   * rules he was following then, and are left alone.
    */
-  const kg = 67.4 // his trend weight; the ratio barely moves with it
-  let touched = 0
-  let before = 0
-  let after = 0
-
-  for (const w of data.workouts ?? []) {
-    const kcal = Number(w.kcal) || 0
-    const min = Number(w.durationMin) || 0
-    if (kcal <= 0 || min <= 0) continue
-    // Back out the gross MET this session was priced at.
-    const grossMet = (kcal * 200) / (3.5 * kg * min)
-    if (!(grossMet > 1)) continue
-    const scaled = Math.round(kcal * ((grossMet - 1) / grossMet))
-    before += kcal
-    after += scaled
-    w.kcal = scaled
-    touch(w)
-    touched++
+  const settings = data.settings[0] as any
+  const today = new Date().toISOString().slice(0, 10)
+  for (const row of (data.dayTargets ?? []).slice().sort((a: Row, b: Row) => a.date.localeCompare(b.date))) {
+    if (row.date < '2026-09-12' || row.date >= today) continue
+    const rules = rulesAsOf(settings, data.weighIns as any, data.entries as any, data.workouts as any, row.date)
+    if (!rules) continue
+    const price = (r: any) => {
+      const eaten = data.entries.filter((e: Row) => e.date === row.date).reduce((a: number, e: Row) => a + e.kcal, 0)
+      const act = data.workouts.filter((w: Row) => w.date === row.date).reduce((a: number, w: Row) => a + (w.kcal ?? 0), 0)
+      const e = dayEnergy({ ...settings, goalPctPerWeek: undefined, goalKgPerWeek: r.goalKgPerWeek }, r.kg, eaten, act, r.maintenance,
+        { mean: r.usualMean, trust: r.usualTrust, logged: r.usualLogged, days: r.usualDays }, r.meanIntake)
+      const t = computeTargets({ ...settings, goalPctPerWeek: undefined, goalKgPerWeek: r.goalKgPerWeek }, r.kg,
+        r.maintenance != null ? { kcal: r.maintenance, days: 28, windowDays: 29, loggedDays: 28, meanIntake: r.meanIntake ?? 0, trendChangeKg: 0, confidence: 'high' } as any : null, e)
+      return Math.round(t.kcal - eaten)
+    }
+    const before = price(row)
+    const after = price(rules)
+    if (Math.abs(before - after) < 1 && Math.abs((row.maintenance ?? 0) - (rules.maintenance ?? 0)) < 1) continue
+    notes.push(`${row.date}: left ${before >= 0 ? '+' : ''}${before} -> ${after >= 0 ? '+' : ''}${after}   (maint ${row.maintenance} -> ${rules.maintenance}, kg ${row.kg.toFixed(2)} -> ${rules.kg.toFixed(2)})`)
+    Object.assign(row, rules)
+    touch(row)
   }
-  notes.push(`rescaled ${touched} sessions: ${before} -> ${after} kcal total (${(before - after)} removed)`)
-  notes.push(`  average per session: ${(before / touched).toFixed(0)} -> ${(after / touched).toFixed(0)}`)
-
   return notes
 }
 
