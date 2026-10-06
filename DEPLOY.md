@@ -41,6 +41,14 @@ Capacitor build.
 
 ## 1. Host it — Cloudflare Pages, on a domain you own
 
+> **Current address: `https://salutt.stipe.app`** (since 2026-10-06).
+> `salutt.montejongas.com` is a second custom domain on the *same* Pages
+> project and still serves the identical app, until every device has moved;
+> then it becomes a redirect. A deploy goes to the project, so it is live on
+> both at once — there is nothing per-domain about deploying. DNS for
+> stipe.app is managed with the stipe token (`~/Hackathon/.env.local`), not
+> the Salutt token, which only covers the montejongas.com zone.
+
 Same Cloudflare account as `montejongas.com`. That site is a Next.js app
 deployed as a **Worker** (OpenNext); Salutt is pure static files, so it belongs
 in **Pages** — a separate project in the same account. They do not interact.
@@ -50,7 +58,7 @@ Chosen over GitHub Pages because Pages free tier serves project sites from
 own. TWA verification claims a whole origin via `/.well-known/assetlinks.json`
 at its root, so a subpath deploy makes step 3 messy.
 
-### Use `salutt.montejongas.com`, not `salutt.pages.dev`
+### Use your own domain (now `salutt.stipe.app`), not `salutt.pages.dev`
 
 Both are free and both get automatic certificates. Prefer the one on your own
 domain, for a reason that only shows up years later:
@@ -66,7 +74,7 @@ automatically — nothing to configure by hand.
 
 ### How private is it, really
 
-Chosen hostname: **`salutt.montejongas.com`**.
+Chosen hostname: **`salutt.stipe.app`** (originally `salutt.montejongas.com`).
 
 **Out of Google: yes, reliably.** Every response carries
 `X-Robots-Tag: noindex, nofollow, noarchive, nosnippet` (see `public/_headers`).
@@ -78,7 +86,7 @@ keeps it out of the index.
 
 **Unknowable: no, and nothing can achieve that.** Every publicly-trusted
 certificate is published to Certificate Transparency logs, so anyone querying
-crt.sh can enumerate subdomains of `montejongas.com`. Unavoidable for any real
+crt.sh can enumerate subdomains of `stipe.app`. Unavoidable for any real
 HTTPS certificate anywhere.
 
 That costs nothing in practice. A stranger who finds the URL gets an **empty
@@ -102,7 +110,8 @@ This box has no browser, so prefer an API token over the OAuth flow:
 2. **Create Token → Custom token**, with three permissions:
    - Account → **Cloudflare Pages** → Edit  (deploys)
    - Account → **Account Settings** → Read  (so the script can find your account id)
-   - Zone → **DNS** → Edit, zone `montejongas.com`  (creates the subdomain record)
+   - Zone → **DNS** → Edit, on the zone the hostname lives in  (creates the subdomain record;
+     for stipe.app this is the separate stipe token)
 3. Then here:
 
 Write it to `.env.local` in the project root — gitignored, and sourced
@@ -163,7 +172,7 @@ behaviour. No Play Store account required; you can host the APK yourself and
 download it on the phone, allowing "install unknown apps" once.
 
 ```bash
-npx @bubblewrap/cli init --manifest https://salutt.montejongas.com/manifest.webmanifest
+npx @bubblewrap/cli init --manifest https://salutt.stipe.app/manifest.webmanifest
 npx @bubblewrap/cli build
 ```
 
@@ -174,7 +183,7 @@ It prints a signing-key fingerprint and generates an `assetlinks.json`. That
 file must be served at:
 
 ```
-https://salutt.montejongas.com/.well-known/assetlinks.json
+https://salutt.stipe.app/.well-known/assetlinks.json
 ```
 
 Put it in `public/.well-known/assetlinks.json` and redeploy — Vite copies
