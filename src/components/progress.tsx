@@ -2,9 +2,11 @@ import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type ISODate, type Workout } from '../db/db'
 import { formatShort } from '../lib/date'
-import { byName, repUnit, toDisplayWeight } from '../lib/program'
+import { BAND_LEVELS, byName, repUnit, toDisplayWeight } from '../lib/program'
 import {
+  chartBasis,
   daysSince,
+  last28,
   exerciseHistory,
   isWeighted,
   loggedExercises,
@@ -70,7 +72,13 @@ function smooth(pts: [number, number][]): string {
 
 function setsText(s: ExSession, unit: Unit, secs: boolean): string {
   return s.sets
-    .map((x) => (x.kg > 0 ? `${x.reps}×${fmt(w(x.kg, unit))}` : `${x.reps}${secs ? 's' : ''}`))
+    .map((x) =>
+      x.kg > 0
+        ? `${x.reps}×${fmt(w(x.kg, unit))}`
+        : x.band != null
+          ? `${x.reps} ${BAND_LEVELS[x.band]?.label ?? ''} band`
+          : `${x.reps}${secs ? 's' : ''}`,
+    )
     .join(' · ')
 }
 
@@ -99,6 +107,7 @@ export function ExerciseProgress({
   )
   const secs = repUnit(byName(name)?.reps ?? '') === 's'
   const weighted = isWeighted(history)
+  const basis = chartBasis(name)
 
   if (all === undefined) return <Sheet title={name} onClose={onClose}><div className="empty">Loading…</div></Sheet>
   if (!history.length)
@@ -129,13 +138,19 @@ export function ExerciseProgress({
                 : '–'
           }
           unit={rec.heaviest ? `${unit} × ${rec.heaviest.reps}` : secs ? 's' : 'reps'}
-          sub={rec.heaviest ? formatShort(rec.heaviest.date) : rec.mostReps ? formatShort(rec.mostReps.date) : ''}
+          sub={
+            rec.heaviest
+              ? `${formatShort(rec.heaviest.date)}${basis.label === 'on the bar' ? ' · per side' : basis.label ? ` · ${basis.label}` : ''}`
+              : rec.mostReps
+                ? formatShort(rec.mostReps.date)
+                : ''
+          }
         />
         {weighted && rec.bestE1rm ? (
           <StatTile
             label="Est. 1-rep max"
             value={fmt(Math.round(w(rec.bestE1rm.kg, unit)))}
-            unit={unit}
+            unit={basis.label === 'on the bar' ? `${unit} on bar` : basis.label === 'each hand' ? `${unit} each` : unit}
             badge={change}
           />
         ) : (
@@ -163,13 +178,15 @@ export function ExerciseProgress({
             </span>
           )}
         </div>
-        <StrengthChart history={shown} unit={unit} weighted={weighted} secs={secs} height={full ? 210 : 170} />
+        <StrengthChart history={shown} unit={unit} weighted={weighted} secs={secs} height={full ? 210 : 170} onBar={basis.label === 'on the bar'} />
       </div>
 
       <div className="card tight stack tight">
         <div className="row between">
           <span className="stat-label">Every set, last {Math.min(shown.length, full ? 10 : 6)} sessions</span>
-          <span className="tiny muted">{secs ? 'bar = seconds held' : weighted ? 'bar = reps · darker = heavier' : 'bar = reps'}</span>
+          <span className="tiny muted">
+            {secs ? 'bar = seconds held' : weighted ? `bar = reps · darker = heavier${basis.label === 'on the bar' ? ' · weights per side' : ''}` : 'bar = reps'}
+          </span>
         </div>
         <SetLadder history={shown.slice(-(full ? 10 : 6))} unit={unit} secs={secs} />
       </div>
@@ -299,12 +316,14 @@ function StrengthChart({
   weighted,
   secs,
   height,
+  onBar = false,
 }: {
   history: ExSession[]
   unit: Unit
   weighted: boolean
   secs: boolean
   height: number
+  onBar?: boolean
 }) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const [tip, setTip] = useState<(Tip & { i: number }) | null>(null)
@@ -320,7 +339,7 @@ function StrengthChart({
   const t1 = Math.max(t(history[history.length - 1].date), t0 + 86400000)
   const x = (d: ISODate) => (history.length === 1 ? padL + W / 2 : padL + ((t(d) - t0) / (t1 - t0)) * W)
 
-  const top = history.map((s) => (weighted ? w(s.topKg, unit) : s.bestReps))
+  const top = history.map((s) => (weighted ? w(s.topLoad, unit) : s.bestReps))
   const est = history.map((s) => w(s.e1rm, unit))
   const lo = Math.min(...top) * (weighted ? 0.85 : 0.8)
   const hi = Math.max(...(weighted ? est : top)) * 1.06
@@ -380,7 +399,7 @@ function StrengthChart({
             </linearGradient>
           </defs>
           <text x={padL - 6} y={padT - 4} textAnchor="end" fontSize="9" fill="var(--text-muted)">
-            {weighted ? unit : secs ? 's' : 'reps'}
+            {weighted ? (onBar ? `${unit} on bar` : unit) : secs ? 's' : 'reps'}
           </text>
           {ticks.map((v) => (
             <g key={v}>
@@ -637,9 +656,8 @@ function TrainingCalendar({ workouts, today }: { workouts: Workout[]; today: ISO
   const cell = width > 0 ? Math.min(24, (width - padL - gap * (weeks - 1)) / weeks) : 0
   const height = padT + 7 * cell + 6 * gap + 2
 
-  const last4 = cal.slice(-4).flat().filter((d) => d.session && d.date <= today).length
+  const { sessions: last4, rideHours } = last28(cal, today)
   const streak = weekStreak(cal, today)
-  const rideHours = cal.slice(-4).flat().reduce((t, d) => t + d.rideMin, 0) / 60
   const used = new Set(cal.flat().map((d) => d.session).filter(Boolean) as DayKind[])
 
   const show = (d: CalDay, cx: number, cy: number) =>
@@ -656,9 +674,9 @@ function TrainingCalendar({ workouts, today }: { workouts: Workout[]; today: ISO
   return (
     <div className="stack tight">
       <div className="row" style={{ gap: 8 }}>
-        <MiniStat value={String(last4)} label="sessions, 4 wk" />
+        <MiniStat value={String(last4)} label="sessions, 28 days" />
         <MiniStat value={String(streak)} label={`week streak (3+)`} />
-        <MiniStat value={rideHours.toFixed(1)} label="h riding, 4 wk" />
+        <MiniStat value={rideHours.toFixed(1)} label="h riding, 28 days" />
       </div>
       <div ref={ref} style={{ position: 'relative', height }} onPointerLeave={() => setTip(null)}>
         {width > 0 && (

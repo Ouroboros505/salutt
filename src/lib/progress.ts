@@ -1,6 +1,6 @@
 import type { ISODate, Workout } from '../db/db'
 import { addDays, daysBetween, startOfWeek } from './date'
-import { byName, canonicalName, type MuscleGroup } from './program'
+import { byName, canonicalName, totalLoadKg, type MuscleGroup } from './program'
 
 /**
  * What the training log says about one lift, and about the training as a whole.
@@ -20,10 +20,15 @@ export interface SetRec {
 export interface ExSession {
   date: ISODate
   sets: SetRec[]
+  /** The top set's load on the chart's basis: the whole bar for barbell work. */
+  topLoad: number
   /** Heaviest weight used, and the most reps done at it. */
   topKg: number
   topReps: number
-  /** Best estimated one-rep max across the sets (Epley), 0 when unweighted. */
+  /**
+   * Best estimated one-rep max across the sets (Epley), 0 when unweighted.
+   * On the chart's basis, so a barbell lift is the whole bar, not one side.
+   */
   e1rm: number
   /** Reps times weight, summed. */
   volume: number
@@ -40,27 +45,56 @@ export function epley(kg: number, reps: number): number {
   return reps === 1 ? kg : kg * (1 + reps / 30)
 }
 
-/** Every session that included this exercise, oldest first. */
+/**
+ * What the chart and the estimated max are measured in.
+ *
+ * Barbell work is typed as the plates on one side, which is what you load —
+ * but a one-rep max of one side of a bar is not a number anyone lifts. So for
+ * anything with a bar the chart and the max use the whole bar, and the typed
+ * figure is kept for what to load next. Dumbbells stay as one dumbbell, the
+ * way they are typed and the way people talk about them.
+ */
+export function chartBasis(name: string): { toLoad: (typedKg: number) => number; label: string | null } {
+  const load = byName(name)?.load
+  if (load?.barKg) return { toLoad: (kg) => (kg > 0 ? totalLoadKg(kg, load) : 0), label: 'on the bar' }
+  // Typed as one dumbbell while two are held: the label says so, the number stays one.
+  if (load && load.factor === 2) return { toLoad: (kg) => kg, label: 'each hand' }
+  return { toLoad: (kg) => kg, label: null }
+}
+
+/** Every session that included this exercise, oldest first, one per day. */
 export function exerciseHistory(workouts: Workout[], name: string): ExSession[] {
   const key = canonicalName(name)
-  const out: ExSession[] = []
+  const { toLoad } = chartBasis(key)
+  // Two sessions on one day are one day of training on the chart: merged, so
+  // a day never appears twice and its sets stay together.
+  const byDate = new Map<ISODate, { sets: SetRec[]; notFull: boolean }>()
   for (const w of workouts) {
     const sets = w.sets
       .filter((s) => canonicalName(s.exercise) === key && s.minutes == null && s.hardSec == null)
       .map((s) => ({ reps: s.reps, kg: s.weightKg, band: s.band }))
       .filter((s) => s.reps > 0)
     if (!sets.length) continue
+    const day = byDate.get(w.date) ?? { sets: [], notFull: false }
+    day.sets.push(...sets)
+    day.notFull = day.notFull || !!w.notFullStrength
+    byDate.set(w.date, day)
+  }
+  const out: ExSession[] = []
+  for (const [date, { sets, notFull }] of byDate) {
     const topKg = Math.max(...sets.map((s) => s.kg))
+    const topReps = Math.max(...sets.filter((s) => s.kg === topKg).map((s) => s.reps))
     out.push({
-      date: w.date,
+      date,
       sets,
       topKg,
-      topReps: Math.max(...sets.filter((s) => s.kg === topKg).map((s) => s.reps)),
-      e1rm: Math.max(...sets.map((s) => epley(s.kg, s.reps))),
+      topLoad: toLoad(topKg),
+      topReps,
+      e1rm: Math.max(...sets.map((s) => epley(toLoad(s.kg), s.reps))),
       volume: sets.reduce((t, s) => t + s.reps * s.kg, 0),
       reps: sets.reduce((t, s) => t + s.reps, 0),
       bestReps: Math.max(...sets.map((s) => s.reps)),
-      notFull: !!w.notFullStrength,
+      notFull,
     })
   }
   return out.sort((a, b) => a.date.localeCompare(b.date))
@@ -227,6 +261,16 @@ export function trainingCalendar(workouts: Workout[], today: ISODate, weeks = 12
     cols.push(col)
   }
   return cols
+}
+
+/** Sessions, and hours of riding, in the last 28 days up to and including today. */
+export function last28(cal: CalDay[][], today: ISODate): { sessions: number; rideHours: number } {
+  const from = addDays(today, -27)
+  const days = cal.flat().filter((d) => d.date >= from && d.date <= today)
+  return {
+    sessions: days.filter((d) => d.session).length,
+    rideHours: days.reduce((t, d) => t + d.rideMin, 0) / 60,
+  }
 }
 
 /** Weeks in a row, ending this one or last, with at least `min` sessions. */
