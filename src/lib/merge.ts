@@ -48,6 +48,20 @@ function tombstoneIndex(lists: Tombstone[][]): Map<string, number> {
  * Never destructive beyond what a tombstone explicitly asks for: a row missing
  * from the remote copy is a row the remote has not seen, not a deletion.
  */
+/** Above both of these at once, a merge is refused rather than applied. */
+const MASS_DELETE_ROWS = 50
+const MASS_DELETE_SHARE = 0.2
+
+export class MassDeletionError extends Error {
+  constructor(doomed: number, total: number) {
+    super(
+      `Sync stopped: it would have deleted ${doomed} of ${total} records at once, which is never a real ` +
+        'edit. Nothing was changed on this device or the server.',
+    )
+    this.name = 'MassDeletionError'
+  }
+}
+
 export async function mergeInto(remote: Backup): Promise<MergeReport> {
   const report: MergeReport = { pulled: 0, pushed: 0, removed: 0 }
   const remoteTombs = ((remote.data.tombstones ?? []) as Tombstone[]) ?? []
@@ -57,6 +71,34 @@ export async function mergeInto(remote: Backup): Promise<MergeReport> {
     [...SYNCED_TABLES.map((t) => db.table(t)), db.tombstones, db.settings],
     async () => {
       const graves = tombstoneIndex([remoteTombs, await db.tombstones.toArray()])
+
+      /**
+       * Refuse to delete most of the log in one sync.
+       *
+       * Every real deletion is one tap on one thing. A sync that would remove
+       * a large share of the rows at once is a bug somewhere — the restore
+       * that wiped the server on 2026-10-06 looked exactly like this — so it
+       * stops before touching anything, and the throw rolls the transaction
+       * back. Counted both ways: rows here that would be deleted, and rows on
+       * the server that would be skipped as already deleted.
+       */
+      let doomed = 0
+      let total = 0
+      for (const name of SYNCED_TABLES) {
+        const local = (await db.table(name).toArray()) as Row[]
+        const incoming = ((remote.data[name] ?? []) as Row[]) ?? []
+        const ids = new Set<string | number>()
+        for (const row of [...local, ...incoming]) {
+          if (row.id == null || ids.has(row.id)) continue
+          ids.add(row.id)
+          total++
+          const buried = graves.get(`${name}:${row.id}`)
+          if (buried != null && buried >= stamp(row)) doomed++
+        }
+      }
+      if (doomed > MASS_DELETE_ROWS && doomed > total * MASS_DELETE_SHARE) {
+        throw new MassDeletionError(doomed, total)
+      }
 
       for (const name of SYNCED_TABLES) {
         const table = db.table(name)

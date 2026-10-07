@@ -1,4 +1,4 @@
-import { db, saveSettings } from '../db/db'
+import { db, saveSettings, withoutTombstones } from '../db/db'
 import { todayISO } from './date'
 
 const FORMAT = 'salutt-backup'
@@ -105,7 +105,10 @@ export async function importBackup(file: File, replace: boolean): Promise<Import
   if (parsed.version > VERSION) throw new Error('Backup is from a newer version of Salutt')
 
   const counts: Record<string, number> = {}
-  await db.transaction('rw', TABLES.map((t) => db.table(t)), async () => {
+  // Clearing a table to load a backup into it is not deleting anything, and
+  // must not leave a tombstone per row: see `withoutTombstones`.
+  const run = replace ? withoutTombstones : <T,>(fn: () => Promise<T>) => fn()
+  await run(() => db.transaction('rw', TABLES.map((t) => db.table(t)), async () => {
     for (const name of TABLES) {
       // A backup written before a table existed carries no key for it. Clearing
       // on that basis would delete live data to match a file that never had an
@@ -126,6 +129,6 @@ export async function importBackup(file: File, replace: boolean): Promise<Import
       }
       counts[name] = rows.length
     }
-  })
+  }))
   return { counts }
 }

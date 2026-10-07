@@ -583,6 +583,28 @@ const SYNCED_AT_V3 = [
   'recipes',
 ] as const
 
+/**
+ * Deletions that are not deletions.
+ *
+ * A restore clears every table before loading the backup into it, and Dexie
+ * reports each cleared row to the deleting hook like any other delete. Each
+ * one left a tombstone stamped *now* — newer than the restored row carrying
+ * the same id — so the next sync concluded that every row had been deleted
+ * after it was last written, deleted it, and pushed that to the server and
+ * from there to every other device. On 2026-10-06 that wiped the server
+ * twice in eighteen minutes. Anything that replaces the database wholesale
+ * runs inside `withoutTombstones`, so only a real deletion leaves a mark.
+ */
+let quietDeletes = 0
+export async function withoutTombstones<T>(fn: () => Promise<T>): Promise<T> {
+  quietDeletes++
+  try {
+    return await fn()
+  } finally {
+    quietDeletes--
+  }
+}
+
 class SaluttDB extends Dexie {
   foods!: Table<Food, number>
   entries!: Table<Entry, number>
@@ -670,6 +692,7 @@ class SaluttDB extends Dexie {
       hooks('updating', ((mods: Record<string, unknown>) =>
         'updatedAt' in mods ? undefined : { updatedAt: Date.now() }) as never)
       hooks('deleting', ((key: number) => {
+        if (quietDeletes > 0) return
         /**
          * The hook runs inside the transaction that is doing the deleting, and
          * that transaction is scoped to the table being deleted from — writing
