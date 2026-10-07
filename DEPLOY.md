@@ -41,13 +41,11 @@ Capacitor build.
 
 ## 1. Host it — Cloudflare Pages, on a domain you own
 
-> **Current address: `https://salutt.stipe.app`** (since 2026-10-06).
-> `salutt.montejongas.com` is a second custom domain on the *same* Pages
-> project and still serves the identical app, until every device has moved;
-> then it becomes a redirect. A deploy goes to the project, so it is live on
-> both at once — there is nothing per-domain about deploying. DNS for
-> stipe.app is managed with the stipe token (`~/Hackathon/.env.local`), not
-> the Salutt token, which only covers the montejongas.com zone.
+> **The only address: `https://salutt.stipe.app`** (since 2026-10-06).
+> `salutt.montejongas.com` was the original address; it was removed for good
+> (custom domain and DNS record) the night of the move. DNS for stipe.app is
+> managed with the stipe token (`~/Hackathon/.env.local`), not the Salutt
+> token, which only covers the montejongas.com zone.
 
 Same Cloudflare account as `montejongas.com`. That site is a Next.js app
 deployed as a **Worker** (OpenNext); Salutt is pure static files, so it belongs
