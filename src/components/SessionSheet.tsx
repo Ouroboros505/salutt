@@ -33,7 +33,8 @@ import {
 import { Icon, Meter, NumberInput, Sheet } from './ui'
 import { formatShort } from '../lib/date'
 import DemoSheet from './DemoSheet'
-import { ExerciseProgress } from './progress'
+import { ExerciseProgress, SessionScorecard } from './progress'
+import { compareSession } from '../lib/progress'
 import WaterFab from './WaterFab'
 
 interface SetRow {
@@ -317,6 +318,8 @@ export default function SessionSheet({
   const [demoName, setDemoName] = useState<string | null>(null)
   // The lift whose history is open: one tap between sets for what to beat.
   const [progressName, setProgressName] = useState<string | null>(null)
+  // The just-logged session, shown against last time before the sheet closes.
+  const [scorecard, setScorecard] = useState<Workout | null>(null)
   // The rest clock starts the moment a set is ticked — that is when rest
   // begins — and a hold clock counts a timed exercise down to a buzz. Only one
   // runs at a time, so the bar never shows two things at once.
@@ -1060,7 +1063,11 @@ const fmtWeight = (n: number): string => (Number.isInteger(n) ? String(n) : n.to
             else await db.workouts.add(row)
             if (!workout) localStorage.removeItem(draftKey(date))
             toast(workout ? 'Session updated' : `${minutes} min logged — ${kcal} kcal`)
-            onClose()
+            // A new session ends on how it went against last time, when there
+            // is anything to compare; an edit or a cardio-only day just closes.
+            if (!workout && compareSession(await db.workouts.toArray(), row as Workout).length > 0) {
+              setScorecard(row as Workout)
+            } else onClose()
           } finally {
             setSaving(false)
           }
@@ -1100,6 +1107,7 @@ const fmtWeight = (n: number): string => (Number.isInteger(n) ? String(n) : n.to
       {progressName && (
         <ExerciseProgress name={progressName} unit={unit} today={date} onClose={() => setProgressName(null)} />
       )}
+      {scorecard && <SessionScorecard workout={scorecard} unit={unit} onClose={onClose} />}
     </Sheet>
     </>
   )

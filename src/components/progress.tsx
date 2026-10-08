@@ -5,7 +5,10 @@ import { formatShort } from '../lib/date'
 import { BAND_LEVELS, byName, repUnit, toDisplayWeight } from '../lib/program'
 import {
   chartBasis,
+  compareSession,
   daysSince,
+  overloadByWeek,
+  tally,
   last28,
   exerciseHistory,
   isWeighted,
@@ -19,6 +22,9 @@ import {
   type CalDay,
   type DayKind,
   type ExSession,
+  type LiftCompare,
+  type Verdict,
+  type WeekOverload,
 } from '../lib/progress'
 import { niceTicks, Tooltip, useWidth, type Tip } from './charts'
 import { Icon, Sheet } from './ui'
@@ -543,6 +549,7 @@ export function TrainProgress({ unit, today }: { unit: Unit; today: ISODate }) {
 
   return (
     <>
+      <OverloadCard workouts={all} today={today} unit={unit} />
       <div className="card stack tight">
         <h3>Training calendar</h3>
         <TrainingCalendar workouts={all} today={today} />
@@ -818,3 +825,339 @@ function MuscleVolume({ workouts, today }: { workouts: Workout[]; today: ISODate
     </div>
   )
 }
+
+/* ======================================================== beating last time */
+
+const VERDICT: Record<Verdict, { mark: string; color: string; label: string }> = {
+  up: { mark: '▲', color: 'var(--series-3)', label: 'beat it' },
+  same: { mark: '=', color: 'var(--text-muted)', label: 'matched' },
+  down: { mark: '▼', color: 'var(--serious)', label: 'below' },
+  new: { mark: '✦', color: 'var(--series-5)', label: 'first time' },
+}
+
+/** What changed, in the words a training journal would use. */
+function whyText(c: LiftCompare, unit: Unit, secs: boolean): string {
+  const { now, before } = c
+  if (!before) return 'First time logged — next session has a number to beat.'
+  if (now.topKg > 0 || before.topKg > 0) {
+    const a = fmt(w(before.topKg, unit))
+    const b = fmt(w(now.topKg, unit))
+    if (Math.abs(now.topKg - before.topKg) >= 0.05) {
+      return now.topKg > before.topKg ? `Top weight up: ${a} → ${b} ${unit}` : `Top weight down: ${a} → ${b} ${unit}`
+    }
+    const at = (x: ExSession) => x.sets.filter((y) => Math.abs(y.kg - x.topKg) < 0.05).reduce((t, y) => t + y.reps, 0)
+    const d = at(now) - at(before)
+    return d === 0 ? `Same reps at ${b} ${unit}` : `${d > 0 ? '+' : '−'}${Math.abs(d)} rep${Math.abs(d) === 1 ? '' : 's'} at ${b} ${unit}`
+  }
+  const d = now.reps - before.reps
+  const u = secs ? 's' : ' reps'
+  return d === 0 ? `Same total, ${now.reps}${u}` : `${d > 0 ? '+' : '−'}${Math.abs(d)}${u} in total`
+}
+
+/**
+ * The session, lift by lift, against last time.
+ *
+ * Shown the moment a session is logged, because that is when the answer is
+ * wanted, and again from the Train screen for any past session. The headline
+ * is the count that beat last time; the bar under it is the whole session at
+ * a glance; each row says what moved, in plain words.
+ */
+export function SessionScorecard({ workout, unit, onClose }: { workout: Workout; unit: Unit; onClose: () => void }) {
+  const all = useLiveQuery(() => db.workouts.toArray(), [])
+  const cmp = useMemo(() => (all ? compareSession(all, workout) : []), [all, workout])
+  if (!all) return null
+  const t = tally(cmp)
+  const judged = t.up + t.same + t.down
+  const segs: [Verdict, number][] = [
+    ['up', t.up],
+    ['same', t.same],
+    ['down', t.down],
+    ['new', t.fresh],
+  ]
+  const headline =
+    judged === 0
+      ? 'A first session for these lifts'
+      : t.up === judged
+        ? `Every lift beat last time`
+        : `${t.up} of ${judged} lifts beat last time`
+
+  return (
+    <Sheet title="Session scorecard" onClose={onClose}>
+      <div
+        className="card tight stack tight"
+        style={{
+          background:
+            judged > 0 && t.up / judged >= 0.6
+              ? 'linear-gradient(135deg, color-mix(in srgb, var(--series-3) 22%, transparent), transparent 70%)'
+              : undefined,
+        }}
+      >
+        <div className="stat-label">{workout.name} · {formatShort(workout.date)}</div>
+        <div style={{ fontSize: 21, fontWeight: 700, lineHeight: 1.2 }}>
+          {headline}
+          {judged > 0 && t.up === judged ? ' 🔥' : ''}
+        </div>
+        <div style={{ display: 'flex', height: 10, borderRadius: 99, overflow: 'hidden', background: 'var(--ghost)' }}>
+          {segs.map(([v, n]) =>
+            n > 0 ? <div key={v} style={{ flex: n, background: VERDICT[v].color, opacity: v === 'same' ? 0.5 : 1 }} /> : null,
+          )}
+        </div>
+        <div className="row tiny" style={{ gap: 12, flexWrap: 'wrap' }}>
+          {segs.map(([v, n]) =>
+            n > 0 ? (
+              <span key={v} style={{ color: VERDICT[v].color, fontWeight: 600 }}>
+                {VERDICT[v].mark} {n} {VERDICT[v].label}
+              </span>
+            ) : null,
+          )}
+          {t.records > 0 && (
+            <span style={{ color: 'var(--series-4)', fontWeight: 600 }}>
+              ★ {t.records} record{t.records === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
+        {workout.notFullStrength && (
+          <div className="tiny" style={{ color: 'var(--warning)' }}>
+            Logged as not at full strength: shown for the record, but it will not count against you or
+            become a target.
+          </div>
+        )}
+      </div>
+
+      <div className="card tight">
+        {cmp.map((c) => {
+          const v = VERDICT[c.verdict]
+          const secs = repUnit(byName(c.name)?.reps ?? '') === 's'
+          return (
+            <div key={c.name} className="row" style={{ gap: 10, padding: '9px 0', borderTop: '1px solid var(--border)', alignItems: 'flex-start' }}>
+              <div
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 8,
+                  flex: 'none',
+                  display: 'grid',
+                  placeItems: 'center',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: c.verdict === 'same' ? 'var(--text-secondary)' : '#fff',
+                  background: c.verdict === 'same' ? 'var(--ghost)' : v.color,
+                }}
+              >
+                {v.mark}
+              </div>
+              <div className="grow" style={{ minWidth: 0 }}>
+                <div className="row between" style={{ gap: 8 }}>
+                  <span className="small truncate" style={{ fontWeight: 600 }}>{c.name}</span>
+                  {c.record && (
+                    <span className="tiny" style={{ color: 'var(--series-4)', fontWeight: 700, flex: 'none' }}>★ Record</span>
+                  )}
+                </div>
+                <div className="tiny" style={{ color: c.verdict === 'same' ? 'var(--text-secondary)' : v.color }}>{whyText(c, unit, secs)}</div>
+                <div className="tiny num truncate" style={{ color: 'var(--text-secondary)' }}>now {setsText(c.now, unit, secs)}</div>
+                {c.before && (
+                  <div className="tiny muted num truncate">
+                    was {setsText(c.before, unit, secs)} · {formatShort(c.before.date)}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+        {cmp.length === 0 && <div className="empty">No lifts in this session to compare.</div>}
+      </div>
+
+      <button className="btn primary block" onClick={onClose}>
+        Done
+      </button>
+    </Sheet>
+  )
+}
+
+/**
+ * Progressive overload, week by week.
+ *
+ * Two panels on one time axis, rather than one chart with two scales: the
+ * volume on top, and underneath, every lift of the week stacked by whether it
+ * beat, matched or fell short of last time. A healthy block is a tall green
+ * column under a rising volume bar; a week of red is visible from across the
+ * room. Below the chart, the last sessions, each opening its own scorecard.
+ */
+function OverloadCard({ workouts, today, unit }: { workouts: Workout[]; today: ISODate; unit: Unit }) {
+  const weeks = useMemo(() => overloadByWeek(workouts, today, 10), [workouts, today])
+  const recent = useMemo(
+    () =>
+      workouts
+        .filter((x) => x.kind !== 'ride' && x.sets.some((s) => s.minutes == null && s.hardSec == null && s.reps > 0))
+        .sort((a, b) => b.date.localeCompare(a.date) || (b.id ?? 0) - (a.id ?? 0))
+        .slice(0, 5),
+    [workouts],
+  )
+  const [open, setOpen] = useState<Workout | null>(null)
+  const cur = weeks[weeks.length - 1]
+  // Volume compares the last two finished weeks: this week is never finished,
+  // and set against a whole one it always reads as a drop.
+  const last = weeks[weeks.length - 2]
+  const before = weeks[weeks.length - 3]
+  const judged = (k: WeekOverload) => k.up + k.same + k.down
+
+  return (
+    <div className="card stack tight">
+      <h3>Progressive overload</h3>
+      <div className="row" style={{ gap: 8 }}>
+        <MiniStat value={judged(cur) ? `${cur.up}/${judged(cur)}` : '–'} label="beat it, this week" />
+        <MiniStat value={String(cur.records)} label="PRs, this week" />
+        <MiniStat
+          value={
+            last && before && before.volumeKg > 0
+              ? `${last.volumeKg >= before.volumeKg ? '+' : '−'}${Math.abs(Math.round(((last.volumeKg - before.volumeKg) / before.volumeKg) * 100))}%`
+              : '–'
+          }
+          label="volume, last wk"
+        />
+      </div>
+      <OverloadChart weeks={weeks} unit={unit} />
+      <div className="stat-label" style={{ paddingTop: 6 }}>Last sessions</div>
+      {recent.map((r) => (
+        <SessionRow key={r.id ?? r.date + r.name} workout={r} workouts={workouts} onOpen={() => setOpen(r)} />
+      ))}
+      {open && <SessionScorecard workout={open} unit={unit} onClose={() => setOpen(null)} />}
+    </div>
+  )
+}
+
+function SessionRow({ workout, workouts, onOpen }: { workout: Workout; workouts: Workout[]; onOpen: () => void }) {
+  const t = useMemo(() => tally(compareSession(workouts, workout)), [workouts, workout])
+  return (
+    <button className="item" onClick={onOpen}>
+      <div className="grow" style={{ minWidth: 0 }}>
+        <div className="item-title truncate">{workout.name}</div>
+        <div className="tiny muted">{formatShort(workout.date)}{workout.notFullStrength ? ' · not 100%' : ''}</div>
+      </div>
+      <span className="tiny num row" style={{ gap: 8, flex: 'none', fontWeight: 600 }}>
+        {t.up > 0 && <span style={{ color: VERDICT.up.color }}>▲{t.up}</span>}
+        {t.same > 0 && <span style={{ color: VERDICT.same.color }}>={t.same}</span>}
+        {t.down > 0 && <span style={{ color: VERDICT.down.color }}>▼{t.down}</span>}
+        {t.fresh > 0 && <span style={{ color: VERDICT.new.color }}>✦{t.fresh}</span>}
+        {t.records > 0 && <span style={{ color: 'var(--series-4)' }}>★{t.records}</span>}
+      </span>
+      <span className="muted"><Icon.chevron /></span>
+    </button>
+  )
+}
+
+function OverloadChart({ weeks, unit }: { weeks: WeekOverload[]; unit: Unit }) {
+  const [ref, width] = useWidth<HTMLDivElement>()
+  const [tip, setTip] = useState<Tip | null>(null)
+  const padL = 34
+  const topH = 74
+  const gap = 14
+  const botH = 70
+  const padB = 18
+  const height = topH + gap + botH + padB
+  const n = weeks.length
+  const W = Math.max(0, width - padL)
+  const col = n ? W / n : 0
+  const bw = Math.max(6, Math.min(26, col * 0.62))
+  const vols = weeks.map((k) => w(k.volumeKg, unit))
+  const vMax = Math.max(1, ...vols)
+  const vTicks = niceTicks(0, vMax, 2).filter((v) => v > 0)
+  const counts = weeks.map((k) => k.up + k.same + k.down + k.fresh)
+  const cMax = Math.max(1, ...counts)
+  const yV = (v: number) => topH - (v / vMax) * (topH - 8)
+  const yC = (c: number) => topH + gap + botH - (c / cMax) * botH
+  const k = (v: number) => (v >= 1000 ? `${Math.round(v / 100) / 10}k` : String(Math.round(v)))
+
+  return (
+    <div ref={ref} style={{ position: 'relative', height }} onPointerLeave={() => setTip(null)}>
+      {width > 0 && (
+        <svg width={width} height={height} style={{ display: 'block' }}>
+          <text x={padL - 6} y={8} textAnchor="end" fontSize="9" fill="var(--text-muted)">{unit}</text>
+          {vTicks.map((v) => (
+            <g key={v}>
+              <line x1={padL} x2={width} y1={yV(v)} y2={yV(v)} stroke="var(--grid)" strokeDasharray="2 4" />
+              <text x={padL - 6} y={yV(v) + 3} textAnchor="end" fontSize="9.5" fill="var(--text-muted)">{k(v)}</text>
+            </g>
+          ))}
+          <text x={padL - 6} y={topH + gap + 8} textAnchor="end" fontSize="9" fill="var(--text-muted)">lifts</text>
+          {weeks.map((wk, i) => {
+            const cx = padL + i * col + (col - bw) / 2
+            const current = i === n - 1
+            let yy = topH + gap + botH
+            const stack: [Verdict, number][] = [
+              ['up', wk.up],
+              ['same', wk.same],
+              ['down', wk.down],
+              ['new', wk.fresh],
+            ]
+            return (
+              <g
+                key={wk.weekStart}
+                onPointerDown={() =>
+                  setTip({
+                    x: cx + bw / 2,
+                    y: Math.min(yV(vols[i]), topH),
+                    lines: [
+                      `Week of ${formatShort(wk.weekStart)}${current ? ' (so far)' : ''}`,
+                      `${Math.round(vols[i]).toLocaleString()} ${unit} · ${wk.sessions} session${wk.sessions === 1 ? '' : 's'}`,
+                      `▲${wk.up}  =${wk.same}  ▼${wk.down}${wk.fresh ? `  ✦${wk.fresh}` : ''}${wk.records ? `  ★${wk.records}` : ''}`,
+                    ],
+                  })
+                }
+              >
+                <rect x={padL + i * col} y={0} width={col} height={height - padB} fill="transparent" />
+                <rect
+                  x={cx}
+                  y={yV(vols[i])}
+                  width={bw}
+                  height={Math.max(0, topH - yV(vols[i]))}
+                  rx={Math.min(5, bw / 2)}
+                  fill="var(--accent)"
+                  opacity={current ? 0.45 : 0.9}
+                />
+                {stack.map(([v, c]) => {
+                  if (!c) return null
+                  const h = (c / cMax) * botH
+                  yy -= h
+                  return (
+                    <rect
+                      key={v}
+                      x={cx}
+                      y={yy}
+                      width={bw}
+                      height={Math.max(1, h - 1.5)}
+                      rx={2}
+                      fill={VERDICT[v].color}
+                      opacity={(v === 'same' ? 0.45 : 0.9) * (current ? 0.6 : 1)}
+                    />
+                  )
+                })}
+                {wk.records > 0 && (
+                  <text x={cx + bw / 2} y={yC(counts[i]) - 3} textAnchor="middle" fontSize="9" fill="var(--series-4)" fontWeight="700">
+                    ★{wk.records}
+                  </text>
+                )}
+                {(i % 2 === n % 2 || current) && (
+                  <text x={cx + bw / 2} y={height - 4} textAnchor="middle" fontSize="9" fill="var(--text-muted)">
+                    {current ? 'now' : formatShort(wk.weekStart)}
+                  </text>
+                )}
+              </g>
+            )
+          })}
+        </svg>
+      )}
+      {tip && <Tooltip tip={tip} width={width} />}
+      <div className="row tiny muted" style={{ gap: 10, flexWrap: 'wrap', paddingTop: 2 }}>
+        <span className="row" style={{ gap: 4 }}><span className="swatch" style={{ background: 'var(--accent)' }} /> volume</span>
+        <span className="row" style={{ gap: 4 }}><span className="swatch" style={{ background: VERDICT.up.color }} /> beat last time</span>
+        <span className="row" style={{ gap: 4 }}><span className="swatch" style={{ background: VERDICT.same.color, opacity: 0.5 }} /> matched</span>
+        <span className="row" style={{ gap: 4 }}><span className="swatch" style={{ background: VERDICT.down.color }} /> below</span>
+        <span className="row" style={{ gap: 4 }}><span className="swatch" style={{ background: VERDICT.new.color }} /> first time</span>
+        <span style={{ color: 'var(--series-4)' }}>★ records</span>
+      </div>
+      <div style={{ height: 6 }} />
+    </div>
+  )
+}
+

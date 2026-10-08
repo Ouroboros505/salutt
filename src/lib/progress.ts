@@ -348,3 +348,127 @@ export function loggedExercises(workouts: Workout[]): { name: string; last: ISOD
     .map((e) => ({ name: e.name, last: e.last, sessions: e.sessions.size }))
     .sort((a, b) => b.last.localeCompare(a.last) || b.sessions - a.sessions)
 }
+
+/* ---------------------------------------------------- beating last time */
+
+export type Verdict = 'up' | 'same' | 'down' | 'new'
+
+export interface LiftCompare {
+  name: string
+  verdict: Verdict
+  now: ExSession
+  /** The session it was measured against: the last one at full strength. */
+  before: ExSession | null
+  /** Beat every session before it on top weight or on estimated max. */
+  record: boolean
+}
+
+/** Equal to the hundredth of a kilo: lb typed in, converted, never quite exact. */
+const sameKg = (a: number, b: number) => Math.abs(a - b) < 0.05
+
+/**
+ * Did this lift beat last time — the gym journal's one question.
+ *
+ * By the rule he trains to: more weight on the top set is progress; at the
+ * same top weight, more total reps at that weight is progress. A lighter top
+ * set is a step back, even with more reps, because the top weight is the
+ * thing double progression moves. Bodyweight work and holds compare their
+ * total reps or seconds. Compared against the last session at full strength, so a week
+ * logged ill is neither a target nor a setback.
+ */
+export function judge(now: ExSession, before: ExSession | null): Verdict {
+  if (!before) return 'new'
+  if (now.topKg > 0 || before.topKg > 0) {
+    if (!sameKg(now.topKg, before.topKg)) return now.topKg > before.topKg ? 'up' : 'down'
+    const at = (s: ExSession) => s.sets.filter((x) => sameKg(x.kg, s.topKg)).reduce((t, x) => t + x.reps, 0)
+    const a = at(now)
+    const b = at(before)
+    return a > b ? 'up' : a < b ? 'down' : 'same'
+  }
+  const bandOf = (s: ExSession) => Math.max(-1, ...s.sets.map((x) => x.band ?? -1))
+  if (bandOf(now) !== bandOf(before)) return bandOf(now) > bandOf(before) ? 'up' : 'down'
+  // Total reps (or seconds, for a hold): one more rep or second anywhere counts.
+  return now.reps > before.reps ? 'up' : now.reps < before.reps ? 'down' : 'same'
+}
+
+/** Every lift in one session, each against its last full-strength outing. */
+export function compareSession(workouts: Workout[], session: Workout): LiftCompare[] {
+  const names: string[] = []
+  for (const s of session.sets) {
+    if (s.minutes != null || s.hardSec != null || !(s.reps > 0)) continue
+    const g = byName(s.exercise)?.group
+    if (g === 'Cardio' || g === 'Mobility') continue
+    const n = canonicalName(s.exercise)
+    if (!names.includes(n)) names.push(n)
+  }
+  const earlier = workouts.filter((w) => w.date < session.date)
+  return names.map((name) => {
+    const now = exerciseHistory([session], name)[0]
+    const past = exerciseHistory(earlier, name)
+    const before = [...past].reverse().find((p) => !p.notFull) ?? null
+    const record =
+      past.length > 0 &&
+      ((now.topKg > 0 && past.every((p) => now.topKg > p.topKg + 0.05)) ||
+        (now.e1rm > 0 && past.every((p) => now.e1rm > p.e1rm + 0.05)))
+    return { name, verdict: judge(now, before), now, before, record }
+  })
+}
+
+export interface ScoreTally {
+  up: number
+  same: number
+  down: number
+  fresh: number
+  records: number
+}
+
+export function tally(cmp: LiftCompare[]): ScoreTally {
+  return {
+    up: cmp.filter((c) => c.verdict === 'up').length,
+    same: cmp.filter((c) => c.verdict === 'same').length,
+    down: cmp.filter((c) => c.verdict === 'down').length,
+    fresh: cmp.filter((c) => c.verdict === 'new').length,
+    records: cmp.filter((c) => c.record).length,
+  }
+}
+
+export interface WeekOverload extends ScoreTally {
+  weekStart: ISODate
+  /** Reps times the weight as typed, the same figure the week card shows. */
+  volumeKg: number
+  sessions: number
+}
+
+/**
+ * The overload, week by week.
+ *
+ * Volume is reps times the weight as typed, matching the week card, so a
+ * dumbbell lift counts one dumbbell and bodyweight work counts nothing: the
+ * same convention every week, which is all a trend needs. The verdicts tally
+ * how many lifts beat, matched or fell short of last time. A session logged
+ * as not at full strength adds its volume but no verdicts.
+ */
+export function overloadByWeek(workouts: Workout[], today: ISODate, weeks = 12): WeekOverload[] {
+  const first = addDays(startOfWeek(today), -7 * (weeks - 1))
+  const out: WeekOverload[] = []
+  for (let i = 0; i < weeks; i++) {
+    out.push({ weekStart: addDays(first, 7 * i), volumeKg: 0, sessions: 0, up: 0, same: 0, down: 0, fresh: 0, records: 0 })
+  }
+  for (const w of workouts) {
+    if (w.kind === 'ride' || w.date < first || w.date > today) continue
+    const wk = out[Math.floor(daysBetween(first, w.date) / 7)]
+    if (!wk) continue
+    const lifts = w.sets.filter((s) => s.minutes == null && s.hardSec == null && s.reps > 0)
+    if (!lifts.length) continue
+    wk.sessions++
+    wk.volumeKg += lifts.reduce((t, s) => t + s.reps * s.weightKg, 0)
+    if (w.notFullStrength) continue
+    const t = tally(compareSession(workouts, w))
+    wk.up += t.up
+    wk.same += t.same
+    wk.down += t.down
+    wk.fresh += t.fresh
+    wk.records += t.records
+  }
+  return out
+}
