@@ -228,6 +228,7 @@ export default function Train({
             <span className="muted"><Icon.chevron /></span>
           </div>
           <div className="small">{planFor(date)!.name}</div>
+          {planFor(date)!.note && <div className="tiny muted">{planFor(date)!.note}</div>}
           <div className="tiny muted">
             {loggedToday
               ? `${loggedToday.name} · ${loggedToday.durationMin ?? 0} min · ${loggedToday.kcal ?? 0} kcal recorded`

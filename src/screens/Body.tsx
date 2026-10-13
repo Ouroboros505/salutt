@@ -44,6 +44,7 @@ const RANGES = [
 const TAPE: { key: keyof Measurement; label: string; good: 'down' | 'up' | null }[] = [
   { key: 'waist', label: 'Waist', good: 'down' },
   { key: 'hips', label: 'Hips', good: 'down' },
+  { key: 'shoulders', label: 'Shoulders', good: 'up' },
   { key: 'chest', label: 'Chest', good: null },
   { key: 'neck', label: 'Neck', good: null },
   { key: 'arm', label: 'Arm', good: 'up' },
@@ -278,6 +279,17 @@ export default function Body({
               Last measured {formatShort(last.date)} · centimetres
               {baseDate && baseDate !== last.date ? <> · change since {formatShort(baseDate)}</> : null}
             </div>
+            {/* The shape he is training for, as one number. Shoulders over
+                waist rather than chest over waist: a chest tape includes the
+                back and moves with fat, while the deltoids are what widen the
+                top of the V. Around 1.4-1.6 is the athletic range. */}
+            {last.shoulders != null && last.waist != null && (
+              <div className="small">
+                V-taper (shoulders ÷ waist){' '}
+                <strong className="num">{(last.shoulders / last.waist).toFixed(2)}</strong>
+                <span className="tiny muted"> · athletic range 1.4–1.6</span>
+              </div>
+            )}
           </>
         ) : (
           <div className="empty">
@@ -603,14 +615,18 @@ function MeasureSheet({
         className="btn primary block"
         disabled={Object.values(vals).every((v) => !v)}
         onClick={async () => {
-          const num = (k: string) => (vals[k] ? parseFloat(vals[k]) : undefined)
           const existing = await db.measurements.where('date').equals(date).first()
+          // A second save on the same day adds to the first rather than
+          // replacing it: shoulders measured after the waist must not wipe it.
+          const num = (k: keyof Measurement) =>
+            vals[k] ? parseFloat(vals[k]) : (existing?.[k] as number | undefined)
           await db.measurements.put({
             ...(existing?.id ? { id: existing.id } : {}),
             date,
             waist: num('waist'),
             hips: num('hips'),
             chest: num('chest'),
+            shoulders: num('shoulders'),
             neck: num('neck'),
             arm: num('arm'),
             thigh: num('thigh'),

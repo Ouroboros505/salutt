@@ -211,6 +211,8 @@ export interface Measurement {
   waist?: number
   hips?: number
   chest?: number
+  /** Around the deltoids at their widest, arms relaxed: the V-taper's top. */
+  shoulders?: number
   neck?: number
   arm?: number
   thigh?: number

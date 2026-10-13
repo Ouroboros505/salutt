@@ -38,7 +38,7 @@ export function bmi(kg: number, cm: number): number {
  */
 export function latestMeasures(newestFirst: Measurement[]): Partial<Measurement> {
   const out: Partial<Measurement> = {}
-  for (const k of ['waist', 'hips', 'chest', 'neck', 'arm', 'thigh'] as const) {
+  for (const k of ['waist', 'hips', 'chest', 'shoulders', 'neck', 'arm', 'thigh'] as const) {
     const found = newestFirst.find((m) => m[k] != null)
     if (found) out[k] = found[k]
   }

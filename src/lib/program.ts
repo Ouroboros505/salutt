@@ -186,57 +186,61 @@ const C = (name: string, met: number, minutes: number, equipment?: string, plann
 
 export const CATALOGUE: Exercise[] = [
   // ---------------------------------------------------------------- Chest
-  E('Barbell Bench Press', 'Chest', 3, '12', 5, 105, 'Barbell, flat bench', true),
-  E('Flat DB Bench Press', 'Chest', 3, '12', 5, 105, 'Dumbbells, flat bench', true),
+  E('Barbell Bench Press', 'Chest', 3, '8-12', 5, 105, 'Barbell, flat bench', true),
+  E('Flat DB Bench Press', 'Chest', 3, '8-12', 5, 105, 'Dumbbells, flat bench', true),
   E('Incline Barbell Press', 'Chest', 3, '12', 5, 105, 'Barbell, incline bench'),
-  E('Incline DB Press', 'Chest', 3, '12', 5, 105, 'Dumbbells, incline bench', true),
-  E('Cable Fly', 'Chest', 3, '15', 4.5, 95, 'Cable crossover', true),
-  E('Machine Chest Press', 'Chest', 3, '12', 5, 100, 'Chest press machine'),
+  E('Incline DB Press', 'Chest', 3, '8-12', 5, 105, 'Dumbbells, incline bench', true),
+  E('Cable Fly', 'Chest', 3, '12-15', 4.5, 95, 'Cable crossover', true),
+  E('Machine Chest Press', 'Chest', 3, '10-12', 5, 100, 'Chest press machine'),
   E('Push-Ups', 'Chest', 3, '15', 5, 80, 'Bodyweight'),
   E('Dips', 'Chest', 3, '10', 5.5, 100, 'Dip station'),
 
   // ----------------------------------------------------------------- Back
-  E('Lat Pulldown', 'Back', 3, '12', 5, 105, 'Cable machine', true),
-  E('Seated Cable Row', 'Back', 3, '12', 5, 105, 'Cable machine', true),
+  E('Lat Pulldown', 'Back', 3, '8-12', 5, 105, 'Cable machine', true),
+  E('Seated Cable Row', 'Back', 3, '8-12', 5, 105, 'Cable machine', true),
   E('Single-Arm DB Row', 'Back', 3, '12/side', 5, 120, 'Dumbbell, bench', true),
   E('Face Pulls', 'Back', 3, '15', 4, 90, 'Cable, rope', true),
-  E('Pull-Ups', 'Back', 3, '8', 6, 110, 'Pull-up bar'),
-  E('Chest-Supported Row', 'Back', 3, '12', 5, 105, 'Incline bench, dumbbells'),
-  E('Straight-Arm Pulldown', 'Back', 2, '15', 4, 90, 'Cable machine', true),
+  E('Pull-Ups', 'Back', 3, '6-10', 6, 110, 'Pull-up bar'),
+  E('Chest-Supported Row', 'Back', 3, '10-12', 5, 105, 'Incline bench, dumbbells'),
+  E('Straight-Arm Pulldown', 'Back', 3, '12-15', 4, 90, 'Cable machine', true),
 
   // ------------------------------------------------------------ Shoulders
-  E('Seated DB Shoulder Press', 'Shoulders', 3, '12', 5, 105, 'Dumbbells, bench', true),
-  E('Lateral Raises', 'Shoulders', 3, '15', 4, 90, 'Light dumbbells', true),
+  E('Seated DB Shoulder Press', 'Shoulders', 3, '8-12', 5, 105, 'Dumbbells, bench', true),
+  E('Lateral Raises', 'Shoulders', 3, '12-20', 4, 90, 'Light dumbbells', true),
   E('Rear Delt Fly', 'Shoulders', 3, '15', 4, 90, 'Dumbbells or pec deck'),
   E('Arnold Press', 'Shoulders', 3, '12', 5, 105, 'Dumbbells'),
 
   // --------------------------------------------------------------- Biceps
-  E('DB Bicep Curl', 'Biceps', 3, '12', 4, 90, 'Dumbbells', true),
-  E('Hammer Curl', 'Biceps', 2, '12', 4, 90, 'Dumbbells', true),
+  E('DB Bicep Curl', 'Biceps', 3, '10-12', 4, 90, 'Dumbbells', true),
+  E('Hammer Curl', 'Biceps', 3, '10-12', 4, 90, 'Dumbbells', true),
   E('Cable Curl', 'Biceps', 3, '12', 4, 90, 'Cable machine'),
   E('Preacher Curl', 'Biceps', 3, '10', 4, 95, 'Preacher bench'),
 
   // -------------------------------------------------------------- Triceps
-  E('Triceps Rope Pushdown', 'Triceps', 3, '15', 4, 90, 'Cable, rope', true),
-  E('Overhead Triceps Extension (cable)', 'Triceps', 3, '12', 4, 95, 'Cable, rope', true),
+  E('Triceps Rope Pushdown', 'Triceps', 3, '12-15', 4, 90, 'Cable, rope', true),
+  E('Overhead Triceps Extension (cable)', 'Triceps', 3, '12-15', 4, 95, 'Cable, rope', true),
   E('Overhead Triceps Extension (dumbbell)', 'Triceps', 3, '12', 4, 95, 'One dumbbell, both hands'),
   E('Skull Crushers', 'Triceps', 3, '12', 4.5, 95, 'EZ bar or dumbbells'),
   E('Close-Grip Bench Press', 'Triceps', 3, '10', 5, 105, 'Barbell, flat bench'),
 
   // ----------------------------------------------------------------- Legs
-  E('Goblet Squat', 'Legs', 3, '12', 5.5, 110, 'Dumbbell or kettlebell', true),
-  E('Romanian Deadlift', 'Legs', 3, '10', 6, 120, 'Barbell or dumbbells', true),
+  E('Goblet Squat', 'Legs', 3, '12-15', 5.5, 110, 'Dumbbell or kettlebell', true),
+  E('Romanian Deadlift', 'Legs', 3, '10-12', 6, 120, 'Barbell or dumbbells', true),
   E('Bulgarian Split Squat', 'Legs', 3, '10/leg', 6, 130, 'Bench, dumbbells', true),
   E('Step-Ups', 'Legs', 3, '10/leg', 5.5, 120, 'Bench/box, dumbbells', true),
-  E('Leg Curl', 'Legs', 3, '12', 4.5, 95, 'Leg curl machine', true),
+  E('Leg Curl', 'Legs', 3, '12-15', 4.5, 95, 'Leg curl machine', true),
   E('Lateral Band Walks', 'Legs', 2, '15 steps/side', 4, 90, 'Mini band', true),
   E('Banded Terminal Knee Extension', 'Legs', 2, '15', 3.5, 80, 'Band, low anchor', true),
   E('Calf Raises', 'Legs', 2, '15', 3.5, 75, 'Bodyweight or dumbbells', true),
   E('Leg Press', 'Legs', 3, '12', 5.5, 110, 'Leg press machine'),
   E('Leg Extension', 'Legs', 3, '12', 4.5, 95, 'Leg extension machine'),
-  E('Hip Thrust', 'Legs', 3, '12', 5.5, 110, 'Bench, barbell'),
+  E('Hip Thrust', 'Legs', 3, '12-15', 5.5, 110, 'Bench, barbell'),
   E('Glute Bridge', 'Legs', 3, '12-15', 3.5, 90, 'Floor; a dumbbell on the hips to load it'),
   E('Walking Lunges', 'Legs', 3, '12/leg', 6, 120, 'Dumbbells'),
+  // Barefoot or in socks, standing tall with the pelvis level. Trains the foot
+  // and the hip abductors together, which is the pairing his arches and the
+  // gluteal tendon both ask for; the hip must not drop on the free side.
+  E('Single-Leg Balance', 'Mobility', 2, '30s/side', 2.5, 75, 'Floor', true),
 
   // ----------------------------------------------------------------- Core
   // A timed hold's secPerSet is the hold plus 45s of rest after it — checked
@@ -247,12 +251,12 @@ export const CATALOGUE: Exercise[] = [
   E('Mountain Climbers', 'Core', 3, '20s', 6, 65, 'Floor', true),
   E('Pallof Press', 'Core', 2, '10-12/side', 3.5, 90, 'Cable machine', true),
   E('Dead Bug', 'Core', 3, '10/side', 3, 75, 'Floor'),
-  E('Hanging Knee Raise', 'Core', 3, '12', 4, 90, 'Pull-up bar'),
+  E('Hanging Knee Raise', 'Core', 3, '10-15', 4, 90, 'Pull-up bar'),
   // Forearms on the pads, back to the rest, legs lifted to horizontal. Harder
   // than a knee raise because the lever is long and the hip flexors hold it.
-  E('Captain’s Chair Leg Raise', 'Core', 3, '12', 4.5, 95, 'Captain’s chair / power tower'),
+  E('Captain’s Chair Leg Raise', 'Core', 3, '10-15', 4.5, 95, 'Captain’s chair / power tower'),
   E('Captain’s Chair Knee Raise', 'Core', 3, '15', 4, 90, 'Captain’s chair / power tower'),
-  E('Cable Crunch', 'Core', 3, '15', 4, 90, 'Cable machine'),
+  E('Cable Crunch', 'Core', 3, '10-15', 4, 90, 'Cable machine'),
   E('Hollow Hold', 'Core', 3, '30s', 4, 75, 'Floor'),
 
   // --------------------------------------------------------------- Cardio
@@ -286,25 +290,27 @@ export const CATALOGUE: Exercise[] = [
   E('Movement Prep (bands, circles, bridges)', 'Mobility', 1, '3 min', 3, 180, 'Band, floor', true),
   E('Cool-Down Stretch', 'Mobility', 1, '8 min', 2.3, 480, 'Floor', true),
   {
-    ...E('Yoga Flow', 'Mobility', 8, '20 min', 2.5, 150, 'Mat', true),
-    // The plan's own station, in an order that flows: move first, then the
-    // hips it asks for, then the spine, then lying down. Its six poses come to
-    // about twelve minutes, so two are added to fill the slot — Low Lunge and
-    // Thread the Needle — chosen for what an hour a day in the saddle and a
-    // pressing day actually shorten, which the plan's hip work does not reach:
-    // it opens the glutes and external rotators, not the flexors at the front.
+    ...E('Yoga Flow', 'Mobility', 7, '8 min', 2.5, 69, 'Mat', true),
+    // Rebuilt for the second block around the right gluteal tendon. Out went
+    // every pose where a knee crosses the midline — Pigeon, 90/90, Thread the
+    // Needle, the spinal twist — because that adduction presses the tendon
+    // against the bone, which is how this flared in September. What he needs
+    // opened is the front of the hip and the inner thigh, shortened by desk
+    // hours and the saddle, and those are worked with the knees wide.
+    //
+    // Eight minutes, because it now takes the cool-down's slot on legs day
+    // rather than adding to it. Active range over long passive holds.
     //
     // The hold is in the name because it is the thing you need on the mat, and
     // the minutes beside it carry the changing over between sides.
     steps: [
-      { name: 'Down Dog to Cobra — 5 slow reps', min: 2 },
-      { name: 'Low Lunge — 2 x 45s/side', min: 3 },
-      { name: 'Pigeon Pose — 2 x 45s/side', min: 3 },
-      { name: '90/90 Hip Stretch — 2 x 45s/side', min: 3 },
-      { name: 'Thread the Needle — 2 x 30s/side', min: 2 },
-      { name: 'Seated Forward Fold — 2 x 45s', min: 2 },
-      { name: 'Supine Spinal Twist — 45s/side', min: 2 },
-      { name: 'Quiet breathing to close', min: 3 },
+      { name: 'Cat-Cow — 8 slow reps', min: 1 },
+      { name: 'Down Dog to Cobra — 5 slow reps', min: 1 },
+      { name: 'Low Lunge — 30s/side', min: 1.5 },
+      { name: 'Wide-Knee Child’s Pose — 45s', min: 1 },
+      { name: 'Malasana, knees wide — 45s', min: 1 },
+      { name: 'Windshield Wipers, feet wide — 8/side', min: 1.5 },
+      { name: 'Bridge — 10 slow reps', min: 1 },
     ],
   },
   E('Pigeon Pose', 'Mobility', 2, '45s/side', 2.3, 100, 'Mat', true),
@@ -317,7 +323,7 @@ export const CATALOGUE: Exercise[] = [
  */
 const BODYWEIGHT = [
   'Push-Ups', 'Dips', 'Pull-Ups', 'Plank', 'Side Plank', 'Bird Dog', 'Mountain Climbers',
-  'Dead Bug', 'Hollow Hold', 'Hanging Knee Raise', 'Captain’s Chair Leg Raise',
+  'Dead Bug', 'Hollow Hold', 'Hanging Knee Raise', 'Single-Leg Balance', 'Captain’s Chair Leg Raise',
   'Captain’s Chair Knee Raise', 'Calf Raises', 'Lateral Band Walks',
   'Banded Terminal Knee Extension', 'Movement Prep (bands, circles, bridges)', 'Glute Bridge',
   'Cool-Down Stretch', 'Yoga Flow', 'Pigeon Pose', 'Legs-Up-The-Wall',
@@ -375,6 +381,21 @@ export function expectsWeight(name: string): boolean {
   // plate — so the factor alone cannot separate "no weight is an omission"
   // from "no weight is the exercise". The bodyweight list can.
   return (ex.load?.factor ?? 1) > 0 && !BODYWEIGHT.includes(ex.name)
+}
+
+/**
+ * The top of the prescribed range: 12 for "8-12", 20 for "12-20", 15 for "15".
+ *
+ * It is where double progression says to move up. The first block was 15
+ * across the board, so 15 was written in as a constant; the second puts the
+ * presses at 8-12, and a bench press would never have been told to go up
+ * until it did fifteen. A prescription with no count in it — a timed hold, a
+ * round of intervals — falls back to 15.
+ */
+export function repTop(reps: string): number {
+  if (/hard|min/i.test(reps) || repUnit(reps) === 's') return 15
+  const m = /^\s*(\d+)(?:\s*-\s*(\d+))?/.exec(reps)
+  return m ? Number(m[2] ?? m[1]) : 15
 }
 
 /**
@@ -528,78 +549,93 @@ export interface DayPlan {
   weekday: number
   name: string
   exercises: string[]
+  /** One line under the name, for a day that is not like the others. */
+  note?: string
 }
 
+/**
+ * The second block, from 2026-10-12.
+ *
+ * The first block had two cardio days, and he rides an hour a day already, so
+ * those minutes now go to lifting. Each day is held to the set count of the
+ * day it replaces (about 18-20 working sets, his hour), so adding a lifting
+ * day did not lengthen any day.
+ *
+ * What moved: chest goes from 6 sets a week to 15-18 — it was the one muscle
+ * below the growth zone and half of the chest-to-waist ratio. Abs get loaded
+ * flexion two to three times a week, because planks hold the trunk still and
+ * do not grow the rectus. Delts and lats keep their place; they are the width.
+ * Obliques get nothing direct, at his request.
+ *
+ * Presses, rows and pulldowns drop to 8-12 reps. In a deficit, heavy loads are
+ * the signal that keeps muscle, and the move-up rule follows each exercise's
+ * own top number. Legs stay hip-safe: no single-leg stance under load while
+ * the gluteal tendon is settling, bridges progressing to hip thrusts.
+ *
+ * Monday to Thursday carry every muscle on their own. Friday is the flex day:
+ * a bonus in a normal week, a make-up for a missed day, or skipped.
+ */
 export const WEEK: DayPlan[] = [
   {
     weekday: 1,
-    name: 'Push — chest, shoulders, triceps',
+    name: 'Push — chest first, shoulders, triceps',
     exercises: [
-      // Cable Fly and the leg raise came out. Chest was never the limit on the
-      // shape he is chasing, and the abdominal work belonged to a week that
-      // already carries plenty of it on Tuesday and Thursday. Both slots go to
-      // the side delts instead, which are the muscles that actually widen a
-      // shoulder once the collarbone has stopped growing.
       'Movement Prep (bands, circles, bridges)', 'Barbell Bench Press', 'Incline DB Press',
-      'Seated DB Shoulder Press', 'Lateral Raises', 'Triceps Rope Pushdown',
-      'Overhead Triceps Extension (cable)', 'Face Pulls', 'Cool-Down Stretch',
+      'Cable Fly', 'Seated DB Shoulder Press', 'Lateral Raises', 'Triceps Rope Pushdown',
+      'Cool-Down Stretch',
     ],
   },
   {
     weekday: 2,
-    name: 'Cardio, core and yoga',
+    name: 'Legs and abs — quads, hamstrings, glutes, abs',
     exercises: [
-      'StairMaster Intervals', 'Easy pace ramp / cool-down', 'Plank', 'Side Plank',
-      'Bird Dog', 'Mountain Climbers', 'Yoga Flow',
+      // The yoga takes the cool-down's slot and its eight minutes, so the day
+      // is no longer than the old legs day: fourteen leg sets and six of abs
+      // where the pulldowns and raises used to be. Single-leg balance was
+      // here and pushed it two minutes over; it went to his morning routine
+      // at home, where it costs no gym time.
+      'Movement Prep (bands, circles, bridges)', 'Goblet Squat', 'Romanian Deadlift',
+      'Glute Bridge', 'Leg Curl', 'Calf Raises', 'Cable Crunch', 'Hanging Knee Raise',
+      'Yoga Flow',
     ],
   },
   {
     weekday: 3,
-    name: 'Pull — back, shoulders, biceps',
+    name: 'Pull — back width, rear delts, biceps',
     exercises: [
-      // The pulldown had been carrying the lats alone. Straight-Arm Pulldown
-      // joins it because it works the lat without the arms giving out first,
-      // and the lateral raises appear here for the second time in the week —
-      // the same total sets spread over more days grows a muscle better than
-      // one long session does.
       'Movement Prep (bands, circles, bridges)', 'Lat Pulldown', 'Seated Cable Row',
-      'Single-Arm DB Row', 'Straight-Arm Pulldown', 'Lateral Raises', 'Face Pulls',
-      'DB Bicep Curl', 'Hammer Curl', 'Cool-Down Stretch',
+      'Straight-Arm Pulldown', 'Lateral Raises', 'Face Pulls', 'DB Bicep Curl',
+      'Cool-Down Stretch',
     ],
   },
   {
     weekday: 4,
-    name: 'Cardio, core and yoga',
+    name: 'Upper B — chest and back again, abs',
     exercises: [
-      // Same shape as Tuesday, down to the order of the core work — the two
-      // days are the same session and only the machine changes, so anything
-      // that differs between them is a difference to be explained rather than
-      // a choice. The yoga is literally the same exercise, so it follows along
-      // on its own.
-      // Rowing, not the bike: an hour of commuting already covers cycling, so
-      // this day trains the posterior chain and upper back instead — a
-      // different pattern that rests the legs the commute and Tuesday hammer.
-      'Rower Intervals', 'Easy pace ramp / cool-down', 'Plank', 'Side Plank',
-      'Bird Dog', 'Mountain Climbers', 'Yoga Flow',
+      // The second hit of the week for chest and lats, on different
+      // equipment from Monday and Wednesday so it is not the same session
+      // twice.
+      'Movement Prep (bands, circles, bridges)', 'Flat DB Bench Press', 'Machine Chest Press',
+      'Pull-Ups', 'Chest-Supported Row', 'Lateral Raises', 'Captain’s Chair Leg Raise',
+      'Cool-Down Stretch',
     ],
   },
   {
     weekday: 5,
-    name: 'Legs, and width — quads, hamstrings, delts, lats',
+    name: 'Flex — bonus chest, delts, arms, abs',
+    note: 'Optional. Busy week: skip it. Missed a day: do that day instead.',
     exercises: [
-      // Step-Ups went because Bulgarians already train the same pattern
-      // harder; the band walks and the knee extension are knee-rehab work he
-      // no longer needs; the cable crunch is the one exercise in the week that
-      // works against him, since a thicker waist is the opposite of a taper on
-      // a rib cage as broad as his. Fourteen sets still sits inside the range
-      // that grows legs. What the four slots buy is a third day of lateral
-      // raises and a second of pulldowns.
-      'Movement Prep (bands, circles, bridges)', 'Goblet Squat', 'Romanian Deadlift',
-      'Bulgarian Split Squat', 'Leg Curl', 'Calf Raises', 'Lat Pulldown', 'Lateral Raises',
+      'Movement Prep (bands, circles, bridges)', 'Incline DB Press', 'Rear Delt Fly',
+      'Lateral Raises', 'Hammer Curl', 'Overhead Triceps Extension (cable)', 'Cable Crunch',
       'Cool-Down Stretch',
     ],
   },
 ]
+
+// "In your plan" means in this week's plan. Hand-set flags went stale with the
+// block: Pigeon and the StairMaster would still have said so.
+const IN_WEEK = new Set(WEEK.flatMap((d) => d.exercises))
+for (const ex of CATALOGUE) ex.planned = IN_WEEK.has(ex.name)
 
 /** Which week of the block a date falls in, 1-based; null if before it starts. */
 export function programWeek(startISO: string | undefined, dateISO: string): number | null {
@@ -638,7 +674,17 @@ export const ALT_BY_NAME: Record<string, string> = {
   'Cable Crunch': 'Hanging Knee Raise',
   'Pallof Press': 'Side Plank',
   'Captain\u2019s Chair Leg Raise': 'Hanging Knee Raise',
-  'Machine Chest Press': 'Flat DB Bench Press',
+  // Thursday already has the flat dumbbells, so the busy machine falls back
+  // to push-ups rather than doubling the lift before it.
+  'Machine Chest Press': 'Push-Ups',
+  'Flat DB Bench Press': 'Machine Chest Press',
+  'Barbell Bench Press': 'Flat DB Bench Press',
+  'Incline DB Press': 'Incline Barbell Press',
+  'Pull-Ups': 'Lat Pulldown',
+  'Chest-Supported Row': 'Single-Arm DB Row',
+  'Rear Delt Fly': 'Face Pulls',
+  'Hip Thrust': 'Glute Bridge',
+  'Hanging Knee Raise': 'Captain\u2019s Chair Knee Raise',
   'Straight-Arm Pulldown': 'Single-Arm DB Row',
   'Cable Curl': 'DB Bicep Curl',
   'Preacher Curl': 'DB Bicep Curl',

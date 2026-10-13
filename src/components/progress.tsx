@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type ISODate, type Workout } from '../db/db'
 import { formatShort } from '../lib/date'
-import { BAND_LEVELS, byName, repUnit, toDisplayWeight } from '../lib/program'
+import { BAND_LEVELS, byName, repTop, repUnit, toDisplayWeight } from '../lib/program'
 import {
   chartBasis,
   compareSession,
@@ -112,6 +112,7 @@ export function ExerciseProgress({
     [all, name, today, full],
   )
   const secs = repUnit(byName(name)?.reps ?? '') === 's'
+  const ceiling = repTop(byName(name)?.reps ?? '')
   const weighted = isWeighted(history)
   const basis = chartBasis(name)
 
@@ -123,7 +124,7 @@ export function ExerciseProgress({
       </Sheet>
     )
 
-  const next = toBeat(history)
+  const next = toBeat(history, ceiling)
   const rec = records(history)
   const change = strengthChange(history, today)
   const since = daysSince(history, today)
@@ -131,7 +132,7 @@ export function ExerciseProgress({
 
   return (
     <Sheet title={name} onClose={onClose}>
-      {next && <NextTarget next={next} unit={unit} secs={secs} />}
+      {next && <NextTarget next={next} unit={unit} secs={secs} ceiling={ceiling} />}
 
       <div className="row" style={{ gap: 8 }}>
         <StatTile
@@ -194,7 +195,7 @@ export function ExerciseProgress({
             {secs ? 'bar = seconds held' : weighted ? `bar = reps · darker = heavier${basis.label === 'on the bar' ? ' · weights per side' : ''}` : 'bar = reps'}
           </span>
         </div>
-        <SetLadder history={shown.slice(-(full ? 10 : 6))} unit={unit} secs={secs} />
+        <SetLadder history={shown.slice(-(full ? 10 : 6))} unit={unit} secs={secs} ceiling={ceiling} />
       </div>
 
       {full && (
@@ -213,7 +214,17 @@ export function ExerciseProgress({
   )
 }
 
-function NextTarget({ next, unit, secs }: { next: NonNullable<ReturnType<typeof toBeat>>; unit: Unit; secs: boolean }) {
+function NextTarget({
+  next,
+  unit,
+  secs,
+  ceiling,
+}: {
+  next: NonNullable<ReturnType<typeof toBeat>>
+  unit: Unit
+  secs: boolean
+  ceiling: number
+}) {
   const top = fmt(w(next.last.topKg, unit))
   const atTop = next.last.sets.filter((s) => s.kg === next.last.topKg)
   const lowest = Math.min(...atTop.map((s) => s.reps))
@@ -225,7 +236,7 @@ function NextTarget({ next, unit, secs }: { next: NonNullable<ReturnType<typeof 
         : `${next.targetReps}${secs ? ' s' : ' reps'}`
   const why =
     next.headline === 'up'
-      ? `Every set at ${top} ${unit} reached 15 on ${formatShort(next.last.date)}. Next weight up, and the reps start over.`
+      ? `Every set at ${top} ${unit} reached ${ceiling} on ${formatShort(next.last.date)}. Next weight up, and the reps start over.`
       : next.headline === 'rep'
         ? `On your lowest set at ${top} ${unit} — it was ${lowest} on ${formatShort(next.last.date)}.`
         : `One more than your best set on ${formatShort(next.last.date)}.`
@@ -475,7 +486,17 @@ function StrengthChart({
  * the dashed line at fifteen, then a darker column starting lower when the
  * weight goes up.
  */
-function SetLadder({ history, unit, secs }: { history: ExSession[]; unit: Unit; secs: boolean }) {
+function SetLadder({
+  history,
+  unit,
+  secs,
+  ceiling,
+}: {
+  history: ExSession[]
+  unit: Unit
+  secs: boolean
+  ceiling: number
+}) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const height = 132
   const padT = 12
@@ -483,12 +504,12 @@ function SetLadder({ history, unit, secs }: { history: ExSession[]; unit: Unit; 
   const H = height - padT - padB
   const n = history.length
   const colW = n ? width / n : 0
-  const maxReps = Math.max(15, ...history.flatMap((s) => s.sets.map((x) => x.reps)))
+  const maxReps = Math.max(ceiling, ...history.flatMap((s) => s.sets.map((x) => x.reps)))
   const kgs = history.flatMap((s) => s.sets.map((x) => x.kg))
   const kLo = Math.min(...kgs)
   const kHi = Math.max(...kgs)
   const shade = (kg: number) => (kHi > kLo ? 0.35 + 0.65 * ((kg - kLo) / (kHi - kLo)) : 0.85)
-  const yCeil = padT + H - (15 / maxReps) * H
+  const yCeil = padT + H - (ceiling / maxReps) * H
 
   return (
     <div ref={ref} style={{ height }}>
@@ -497,7 +518,7 @@ function SetLadder({ history, unit, secs }: { history: ExSession[]; unit: Unit; 
           {!secs && (
             <>
               <line x1={0} x2={width} y1={yCeil} y2={yCeil} stroke="var(--series-3)" strokeDasharray="3 4" strokeOpacity="0.8" />
-              <text x={width} y={yCeil - 3} textAnchor="end" fontSize="9" fill="var(--success-text)">15</text>
+              <text x={width} y={yCeil - 3} textAnchor="end" fontSize="9" fill="var(--success-text)">{ceiling}</text>
             </>
           )}
           {history.map((s, ci) => {

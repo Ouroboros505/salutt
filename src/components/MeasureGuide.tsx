@@ -66,6 +66,17 @@ const GUIDES: Partial<Record<Key, Guide>> = {
       'Measure at the end of a normal breath out — not a full chest.',
     ],
   },
+  shoulders: {
+    band: { cx: 60, cy: 63, rx: 33, ry: 6 },
+    where: 'Around the widest point of the shoulders',
+    steps: [
+      'Arms relaxed at your sides, standing tall.',
+      'Tape around the outside of both deltoids at their widest — usually just below the bony point of the shoulder.',
+      'Level all the way round; a mirror or a helper makes this much easier.',
+      'Measure at the end of a normal breath out.',
+    ],
+    note: 'Divided by the waist, this is the V-taper. It moves slowly, so every two to four weeks is enough.',
+  },
   hips: {
     band: { cx: 60, cy: 124, rx: 26, ry: 7 },
     where: 'The widest part of the buttocks',
