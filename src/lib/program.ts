@@ -257,6 +257,10 @@ export const CATALOGUE: Exercise[] = [
   E('Captain’s Chair Leg Raise', 'Core', 3, '10-15', 4.5, 95, 'Captain’s chair / power tower'),
   E('Captain’s Chair Knee Raise', 'Core', 3, '15', 4, 90, 'Captain’s chair / power tower'),
   E('Cable Crunch', 'Core', 3, '10-15', 4, 90, 'Cable machine'),
+  // The plate-loaded one at the CoRec. He prefers it to the cable crunch, and
+  // the fixed path lets the load climb a plate at a time. Straight crunch
+  // only: it also rotates for obliques, which he does not want loaded.
+  E('Ab Crunch Machine (Hammer Strength)', 'Core', 3, '10-15', 4, 90, 'Plate-loaded machine'),
   E('Hollow Hold', 'Core', 3, '30s', 4, 75, 'Floor'),
 
   // --------------------------------------------------------------- Cardio
@@ -352,6 +356,7 @@ const LOAD_BY_NAME: Record<string, LoadStyle> = {
   'Goblet Squat': LOAD_ONE,
   'Overhead Triceps Extension (dumbbell)': LOAD_ONE,
   'Preacher Curl': LOAD_ONE,
+  'Ab Crunch Machine (Hammer Strength)': { label: 'plates loaded', factor: 1 },
 }
 for (const ex of CATALOGUE) {
   ex.load =
@@ -595,7 +600,7 @@ export const WEEK: DayPlan[] = [
       // here and pushed it two minutes over; it went to his morning routine
       // at home, where it costs no gym time.
       'Movement Prep (bands, circles, bridges)', 'Goblet Squat', 'Romanian Deadlift',
-      'Glute Bridge', 'Leg Curl', 'Calf Raises', 'Cable Crunch', 'Hanging Knee Raise',
+      'Glute Bridge', 'Leg Curl', 'Calf Raises', 'Ab Crunch Machine (Hammer Strength)', 'Hanging Knee Raise',
       'Yoga Flow',
     ],
   },
@@ -626,7 +631,7 @@ export const WEEK: DayPlan[] = [
     note: 'Optional. Busy week: skip it. Missed a day: do that day instead.',
     exercises: [
       'Movement Prep (bands, circles, bridges)', 'Incline DB Press', 'Rear Delt Fly',
-      'Lateral Raises', 'Hammer Curl', 'Overhead Triceps Extension (cable)', 'Cable Crunch',
+      'Lateral Raises', 'Hammer Curl', 'Overhead Triceps Extension (cable)', 'Ab Crunch Machine (Hammer Strength)',
       'Cool-Down Stretch',
     ],
   },
@@ -672,6 +677,7 @@ export const ALT_BY_NAME: Record<string, string> = {
   'Leg Extension': 'Goblet Squat',
   'Leg Press': 'Goblet Squat',
   'Cable Crunch': 'Hanging Knee Raise',
+  'Ab Crunch Machine (Hammer Strength)': 'Cable Crunch',
   'Pallof Press': 'Side Plank',
   'Captain\u2019s Chair Leg Raise': 'Hanging Knee Raise',
   // Thursday already has the flat dumbbells, so the busy machine falls back
