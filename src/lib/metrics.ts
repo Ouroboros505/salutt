@@ -598,20 +598,6 @@ export interface DayEnergy {
 const TEF_FRACTION = 0.1
 
 /**
- * How much of a day above the usual one is handed back as food.
- *
- * Not all of it, for two reasons with evidence behind them: activity
- * estimates run high, and the body quietly moves less after a hard day. Not a
- * fixed number either. A flat cap of 300 kcal stood here and starved exactly
- * the days that needed food: on 2026-10-16 (gym, four rides, ~650 kcal above a
- * usual day) it held the target at 2,207 when the day had burned 3,200, and
- * read "349 over" on a day that had met the plan to the gram. He asked for
- * the activity to count, and he is right: the closed loop corrects a
- * systematic error in the ride estimates through measured maintenance.
- */
-const EAT_BACK = 0.75
-
-/**
  * Only a sanity limit now: a ride logged twice, a session left running for
  * hours. Real days, even a four-hour hike, sit under it.
  */
@@ -769,17 +755,26 @@ export function computeTargets(
      * the target never drops under resting metabolism, whatever the goal asks.
      */
     const computed = energy.total - deficit
+    kcal = baseKcal + energy.trust * (computed - baseKcal)
     /**
-     * Asymmetric, because the two directions have different risks.
+     * Only the upside is limited, and only against logging mistakes.
      *
-     * Above the usual day, three quarters of the extra comes back as food (see
-     * EAT_BACK), up to a limit that only a logging mistake would reach. Below
-     * it, the whole shortfall comes off: the real protection there is the
-     * resting-metabolism floor, and discounting the downside would break the
-     * flat deficit on exactly the quiet days it is meant to hold.
+     * Move more, eat more, one for one: a day above the usual one gets all of
+     * its extra back. A flat 300 kcal cap stood here first and starved exactly
+     * the days that needed food: on 2026-10-16 (gym, four rides, ~600 kcal
+     * above a usual day) it held the target at 2,207 against 3,200 burned.
+     * Handing back three quarters replaced it for an evening and was no better
+     * in kind: the card read "155 over" in red while "Down by" read 84 g of 82
+     * planned in green, because the two were pricing two different burns.
+     * With all of it handed back they are one sum, so they cannot disagree; a
+     * systematic error in the activity estimates is corrected where it
+     * belongs, by the measured maintenance.
+     *
+     * The limit is for a ride logged twice or a session left running. Below,
+     * the protection is the resting-metabolism floor rather than a distance
+     * from the average, and capping the downside would break the flat deficit
+     * on exactly the quiet days it is meant to hold.
      */
-    const swing = computed - baseKcal
-    kcal = baseKcal + energy.trust * (swing > 0 ? swing * EAT_BACK : swing)
     kcal = Math.min(baseKcal + MAX_DAILY_SWING, kcal)
   }
 
