@@ -597,8 +597,25 @@ export interface DayEnergy {
 /** Roughly a tenth of intake goes on digesting it, across a mixed diet. */
 const TEF_FRACTION = 0.1
 
-/** How far a single day's target may sit from the week's base figure. */
-const MAX_DAILY_SWING = 300
+/**
+ * How much of a day above the usual one is handed back as food.
+ *
+ * Not all of it, for two reasons with evidence behind them: activity
+ * estimates run high, and the body quietly moves less after a hard day. Not a
+ * fixed number either. A flat cap of 300 kcal stood here and starved exactly
+ * the days that needed food: on 2026-10-16 (gym, four rides, ~650 kcal above a
+ * usual day) it held the target at 2,207 when the day had burned 3,200, and
+ * read "349 over" on a day that had met the plan to the gram. He asked for
+ * the activity to count, and he is right: the closed loop corrects a
+ * systematic error in the ride estimates through measured maintenance.
+ */
+const EAT_BACK = 0.75
+
+/**
+ * Only a sanity limit now: a ride logged twice, a session left running for
+ * hours. Real days, even a four-hour hike, sit under it.
+ */
+const MAX_DAILY_SWING = 800
 
 export function dayEnergy(
   settings: Settings,
@@ -752,16 +769,17 @@ export function computeTargets(
      * the target never drops under resting metabolism, whatever the goal asks.
      */
     const computed = energy.total - deficit
-    kcal = baseKcal + energy.trust * (computed - baseKcal)
     /**
-     * A one-sided guard, because the two directions have different risks.
+     * Asymmetric, because the two directions have different risks.
      *
-     * Above, a mis-logged workout could hand over a target it had not earned,
-     * so the day may not run away upward. Below, the real protection is the
-     * resting-metabolism floor rather than a distance from the average, and
-     * capping the downside would break the flat deficit on exactly the quiet
-     * days it is meant to hold.
+     * Above the usual day, three quarters of the extra comes back as food (see
+     * EAT_BACK), up to a limit that only a logging mistake would reach. Below
+     * it, the whole shortfall comes off: the real protection there is the
+     * resting-metabolism floor, and discounting the downside would break the
+     * flat deficit on exactly the quiet days it is meant to hold.
      */
+    const swing = computed - baseKcal
+    kcal = baseKcal + energy.trust * (swing > 0 ? swing * EAT_BACK : swing)
     kcal = Math.min(baseKcal + MAX_DAILY_SWING, kcal)
   }
 
