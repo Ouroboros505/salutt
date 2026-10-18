@@ -189,7 +189,7 @@ export default function Body({
           <div className="stack tight">
             {/* Says which window, because Today shows a different figure for
                 the same body: this one is the CURRENT rate, fitted through the
-                last three weeks, and Today's is the average since he began.
+                last eight weeks, and Today's is the average since he began.
                 Both are right and the gap between them is the story, but
                 unlabelled they just look like a contradiction. */}
             <div className="stat-label">Rate</div>
@@ -198,7 +198,7 @@ export default function Body({
             >
               {rate != null ? `${rate > 0 ? '+' : ''}${rate.toFixed(2)}` : '—'}
             </div>
-            <div className="tiny muted">kg / week · last {RATE_WINDOW_DAYS} d</div>
+            <div className="tiny muted">kg / week · last {RATE_WINDOW_DAYS / 7} wk</div>
           </div>
         </div>
       </div>

@@ -386,11 +386,29 @@ export function weightSeries(weighIns: WeighIn[], halfLifeDays: number): TrendPo
  * How far back the "Rate" figure looks.
  *
  * Exported so the number and the label under it cannot drift apart: the Body
- * screen prints "last {RATE_WINDOW_DAYS} d" from this same constant. Three
- * weeks is long enough to outlast a salty weekend and short enough to notice
- * a real change of pace within a fortnight of it happening.
+ * screen prints the window from this same constant.
+ *
+ * Eight weeks, not the three it used to be. Three weeks swung from -0.37 to
+ * -0.66 kg/week inside a month of steady eating (Sep-Oct 2026), because one
+ * water drop entering or leaving the window was a fifth of everything in it,
+ * and the goal date on the Body screen jumped by a month with it. Over eight
+ * weeks the same data read -0.60 to -0.68. A real change of pace still shows,
+ * just over a few weeks instead of overnight.
  */
-export const RATE_WINDOW_DAYS = 21
+export const RATE_WINDOW_DAYS = 56
+
+/**
+ * How far back maintenance and the usual day's activity are measured.
+ *
+ * The same eight weeks as the rate, for the same reason: at 28 days the
+ * maintenance figure wandered over 110 kcal in a month with nothing real
+ * changing, and the daily target wandered with it. The two halves of the
+ * energy sum also have to describe the same days. Maintenance is everything
+ * spent on an average day of the window, and the usual activity is the part
+ * of it that was logged, so measuring one over four weeks and the other over
+ * two quietly mixed different months into one figure.
+ */
+export const MAINTENANCE_WINDOW_DAYS = 56
 
 export function trendSlopeKgPerWeek(
   points: TrendPoint[],
@@ -442,7 +460,7 @@ export interface AdaptiveTDEE {
 export function adaptiveTDEE(
   entries: Entry[],
   trend: TrendPoint[],
-  windowDays = 28,
+  windowDays = MAINTENANCE_WINDOW_DAYS,
   minLoggedDays = 10,
 ): AdaptiveTDEE | null {
   if (trend.length < 2) return null
@@ -643,7 +661,7 @@ export function dayEnergy(
     anchored,
     trust: usual?.trust ?? 0,
     logged: usual?.logged ?? 0,
-    days: usual?.days ?? 14,
+    days: usual?.days ?? MAINTENANCE_WINDOW_DAYS,
     // Non-exercise movement runs 150-450 for someone who is on their feet a
     // normal amount; anchoring collapses it to one number.
     restLow: anchored ? Math.round(rest) : 150,
@@ -682,7 +700,7 @@ export interface UsualActivity {
 export function usualActivity(
   workouts: { date: ISODate; kcal?: number }[],
   today: ISODate,
-  days = 14,
+  days = MAINTENANCE_WINDOW_DAYS,
 ): UsualActivity | null {
   const start = new Date(today)
   start.setDate(start.getDate() - days)
@@ -915,7 +933,7 @@ export function rulesAsOf(
     usualMean: usual?.mean ?? 0,
     usualTrust: usual?.trust ?? 0,
     usualLogged: usual?.logged ?? 0,
-    usualDays: usual?.days ?? 14,
+    usualDays: usual?.days ?? MAINTENANCE_WINDOW_DAYS,
     meanIntake: adaptive?.meanIntake ?? null,
     kg,
   }

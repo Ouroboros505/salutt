@@ -9,6 +9,7 @@ import {
   computeTargets,
   KCAL_PER_KG,
   trendSlopeKgPerWeek,
+  usualActivity,
   weightTrend,
   goalPerWeek,
 } from '../lib/metrics'
@@ -27,12 +28,19 @@ export default function Insights({ settings }: { settings: Settings }) {
 
   const entries = useLiveQuery(() => db.entries.toArray(), []) ?? []
   const weighIns = useLiveQuery(() => db.weighIns.toArray(), []) ?? []
+  const workouts = useLiveQuery(() => db.workouts.toArray(), []) ?? []
 
   const trend = weightTrend(weighIns, settings.trendHalfLifeDays)
   const currentKg = trend.at(-1)?.trend ?? null
   const tdee = adaptiveTDEE(entries, trend)
   const targets = computeTargets(settings, currentKg, tdee)
   const rate = trendSlopeKgPerWeek(trend)
+  // Maintenance is an average day, rides and gym included. Taking the usual
+  // logged activity back out gives the quiet day, which is what a trip or a
+  // week off the bike actually burns. Only once the activity is fully trusted:
+  // a half-logged window would subtract too little and flatter the rest day.
+  const usual = usualActivity(workouts, todayISO())
+  const restDay = tdee && usual && usual.trust >= 1 ? Math.round(tdee.kcal - usual.mean) : null
 
   const formulaTDEE = currentKg
     ? Math.round(bmrMifflin(currentKg, settings.heightCm, ageFrom(settings.birthDate), settings.sex) * settings.activity)
@@ -114,6 +122,14 @@ export default function Insights({ settings }: { settings: Settings }) {
               moved <strong className="num">{tdee.trendChangeKg >= 0 ? '+' : ''}{tdee.trendChangeKg.toFixed(2)} kg</strong>{' '}
               over {tdee.days} days.
             </div>
+            {restDay != null && usual && (
+              <div className="small secondary">
+                A day with no rides or gym burns about{' '}
+                <strong className="num">{restDay.toLocaleString()}</strong>; your usual day adds{' '}
+                <strong className="num">{Math.round(usual.mean)}</strong> kcal of logged activity on top. Anything
+                logged beyond that is added to the day one for one.
+              </div>
+            )}
             {formulaTDEE && (
               <div className="tiny muted">
                 The Mifflin-St Jeor formula would have guessed {formulaTDEE.toLocaleString()} kcal — a{' '}
