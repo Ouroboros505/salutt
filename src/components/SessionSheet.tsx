@@ -397,7 +397,9 @@ export default function SessionSheet({
    * seconds and attention between sets, when the app already knows last time
    * and the rule for what comes next. The suggestion fills the fields greyed
    * out; it becomes the record only when he ticks the set or finishes, and any
-   * field he types in is his number instead.
+   * field he types in is his number instead. No line explaining it: he asked
+   * for the numbers alone (the change from one session to the next is the
+   * explanation).
    */
   // The last real training day of any kind: a break is time away from the
   // gym, not one lift that has not come round for a fortnight.
@@ -449,23 +451,6 @@ export default function SessionSheet({
   const placeholderWeight = (kg: number | undefined) =>
     kg ? fmtWeight(toDisplayWeight(kg, unit) ?? 0) : '—'
 
-  /** The one line that says which way today moves, and why. */
-  const suggestionLine = (sug: Suggestion): string => {
-    const w = (kg: number) => fmtWeight(toDisplayWeight(kg, unit) ?? 0)
-    const weights = [...new Set(sug.sets.map((x) => x.kg))]
-    const sets =
-      weights.length === 1
-        ? `${sug.sets.map((x) => x.reps).join('·')}${weights[0] > 0 ? ` at ${w(weights[0])} ${unit}` : ''}`
-        : sug.sets.map((x) => `${x.reps}×${w(x.kg)}`).join(' · ')
-    const why = {
-      rep: 'one more rep each',
-      up: `+${w(sug.stepKg)} ${unit}, every set hit the top`,
-      mixed: `+${w(sug.stepKg)} ${unit} where a set hit the top`,
-      back: 'back from a break, ~80%',
-      bw: 'one more rep each',
-    }[sug.why]
-    return `Today ${sets} — ${why}`
-  }
 
 
   /**
@@ -792,11 +777,7 @@ const fmtWeight = (n: number): string => (Number.isInteger(n) ? String(n) : n.to
                       </div>
                     )
                   })()}
-                  {suggestions.has(i.key) && (
-                    <div className="tiny num" style={{ color: 'var(--accent)' }}>
-                      {suggestionLine(suggestions.get(i.key)!)}
-                    </div>
-                  )}
+
                 </div>
                 {i.minutes == null && lastTime.has(canonicalName(i.name)) && (
                   <button
