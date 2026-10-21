@@ -108,6 +108,7 @@ export async function logRecipe(
     await db.entries.add({
       date,
       meal,
+      recipeId: recipe.id,
       name: recipe.name,
       grams,
       amountLabel,
@@ -131,9 +132,15 @@ export async function logRecipe(
 export async function logTemplate(template: MealTemplate, date: ISODate, meal?: Meal): Promise<number> {
   let logged = 0
   for (const item of template.items) {
-    const food = await db.foods.get(item.foodId)
-    if (!food) continue
-    await logFood(item.foodId, item.grams, date, meal ?? template.meal, `${item.grams} g`)
+    if (item.recipeId != null) {
+      const recipe = await db.recipes.get(item.recipeId)
+      if (!recipe) continue
+      await logRecipe(recipe, item.grams, date, meal ?? template.meal, `${item.grams} g`)
+    } else {
+      const food = item.foodId != null ? await db.foods.get(item.foodId) : undefined
+      if (!food) continue
+      await logFood(food.id!, item.grams, date, meal ?? template.meal, `${item.grams} g`)
+    }
     logged++
   }
   if (template.id) {
@@ -359,6 +366,7 @@ export async function logPlanned(planned: PlannedMeal, to?: ISODate): Promise<nu
         date: when,
         meal: planned.meal,
         foodId: it.foodId,
+        recipeId: it.recipeId,
         name: it.name,
         brand: it.brand,
         grams: it.grams,

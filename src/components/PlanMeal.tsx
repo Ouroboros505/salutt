@@ -133,7 +133,27 @@ export default function PlanMeal({
   const addTemplate = async (t: (typeof templates)[number]) => {
     const added: PlannedItem[] = []
     for (const ti of t.items) {
-      const food = await db.foods.get(ti.foodId)
+      if (ti.recipeId != null) {
+        const rec = await db.recipes.get(ti.recipeId)
+        if (!rec) continue
+        const p = per100(rec)
+        const fac = ti.grams / 100
+        const r = (v: number) => Math.round(v * fac * 10) / 10
+        added.push({
+          recipeId: rec.id,
+          name: rec.name,
+          grams: ti.grams,
+          amountLabel: `${ti.grams} g`,
+          kcal: Math.round(p.kcal * fac),
+          protein: r(p.protein),
+          carbs: r(p.carbs),
+          fat: r(p.fat),
+          fiber: r(p.fiber),
+          per100: { kcal: p.kcal, protein: p.protein, carbs: p.carbs, fat: p.fat, fiber: p.fiber },
+        })
+        continue
+      }
+      const food = ti.foodId != null ? await db.foods.get(ti.foodId) : undefined
       if (!food) continue
       added.push({
         foodId: food.id,

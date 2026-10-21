@@ -91,16 +91,24 @@ export default function WhatIf({
   const [query, setQuery] = useState('')
   const [foods, setFoods] = useState<Food[]>([])
   const recipes = useLiveQuery(() => db.recipes.toArray(), []) ?? []
-  // Saved meals are lists of food ids; total them here so a tap adds the lot.
+  // Saved meals are lists of foods and meal preps; total them here so a tap
+  // adds the lot.
   const templates =
     useLiveQuery(async () => {
       const ts = await db.mealTemplates.toArray()
       const foods = await db.foods.toArray()
+      const recs = await db.recipes.toArray()
       const byId = new Map(foods.map((f) => [f.id!, f]))
+      const recById = new Map(recs.map((r) => [r.id!, per100(r)]))
       return ts
         .map((t) => {
-          const parts = t.items.map((i) => ({ f: byId.get(i.foodId), grams: i.grams })).filter((x) => x.f)
-          const total = parts.reduce((s, x) => add(s, scale(x.f!, x.grams)), { ...ZERO })
+          const parts = t.items
+            .map((i) => ({
+              per: i.recipeId != null ? recById.get(i.recipeId) : i.foodId != null ? byId.get(i.foodId) : undefined,
+              grams: i.grams,
+            }))
+            .filter((x) => x.per)
+          const total = parts.reduce((s, x) => add(s, scale(x.per!, x.grams)), { ...ZERO })
           return { id: t.id!, name: t.name, meal: t.meal, total, count: parts.length, lastUsed: t.lastUsed ?? 0 }
         })
         .filter((t) => t.count > 0)

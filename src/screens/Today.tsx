@@ -114,6 +114,7 @@ export default function Today({
   const quick = useLiveQuery(() => quickFoods(10), [entries.length]) ?? []
   const templates =
     useLiveQuery(() => db.mealTemplates.orderBy('lastUsed').reverse().limit(6).toArray(), []) ?? []
+  const recipeNames = new Set(useLiveQuery(() => db.recipes.toArray(), [])?.map((r) => r.name))
   const workoutsRaw = useLiveQuery(() => db.workouts.where('date').equals(date).toArray(), [date])
   const workouts = workoutsRaw ?? []
 
@@ -777,7 +778,7 @@ export default function Today({
                     <div className="num small">{Math.round(e.kcal)}</div>
                   </button>
                 ))}
-                {items.some((e) => e.foodId != null) && (
+                {items.some((e) => e.foodId != null || e.recipeId != null || recipeNames.has(e.name)) && (
                   <button className="btn sm ghost muted" onClick={() => setSaving({ meal, items })}>
                     ★ Save as quick meal
                   </button>
@@ -957,7 +958,16 @@ function SaveTemplate({
   toast: (m: string) => void
 }) {
   const [name, setName] = useState(`My ${label(meal).toLowerCase()}`)
-  const usable = items.filter((e) => e.foodId != null)
+  const recipes = useLiveQuery(() => db.recipes.orderBy('lastUsed').reverse().toArray(), [])
+  // A portion of meal prep is saved as the recipe, so the quick meal logs it
+  // at today's numbers. Entries from before they carried a recipe id are
+  // matched by name, the most recently used recipe first.
+  const recipeOf = (e: Entry) =>
+    e.foodId != null
+      ? undefined
+      : (recipes?.find((r) => r.id === e.recipeId) ?? recipes?.find((r) => r.name === e.name))
+  const usable = items.filter((e) => e.foodId != null || recipeOf(e))
+  const skipped = recipes ? items.filter((e) => !usable.includes(e)) : []
 
   return (
     <Sheet title="Save as quick meal" onClose={onClose}>
@@ -976,16 +986,25 @@ function SaveTemplate({
             </div>
           ))}
         </div>
+        {skipped.length > 0 && (
+          <div className="tiny muted" style={{ paddingTop: 8 }}>
+            Left out, typed in by hand with no saved food behind it:{' '}
+            {skipped.map((e) => e.name).join(', ')}.
+          </div>
+        )}
       </div>
 
       <button
         className="btn primary block"
-        disabled={!name.trim() || usable.length === 0}
+        disabled={!name.trim() || usable.length === 0 || !recipes}
         onClick={async () => {
           await db.mealTemplates.add({
             name: name.trim(),
             meal,
-            items: usable.map((e) => ({ foodId: e.foodId!, grams: e.grams })),
+            items: usable.map((e) => {
+              const r = recipeOf(e)
+              return r ? { recipeId: r.id!, grams: e.grams } : { foodId: e.foodId!, grams: e.grams }
+            }),
             useCount: 0,
             lastUsed: Date.now(),
             createdAt: Date.now(),

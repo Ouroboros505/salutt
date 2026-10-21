@@ -86,6 +86,12 @@ export interface Entry {
   date: ISODate
   meal: Meal
   foodId?: number
+  /**
+   * The meal prep this portion came from, so the meal can be saved as a quick
+   * meal with the recipe in it. Entries logged before this field existed have
+   * only the recipe's name.
+   */
+  recipeId?: number
   name: string
   brand?: string
   grams: number
@@ -330,12 +336,15 @@ export interface Recipe {
   createdAt: number
 }
 
-/** A named group of foods logged together in one tap, e.g. "usual breakfast". */
+/**
+ * A named group of foods logged together in one tap, e.g. "usual breakfast".
+ * Each item is either a food or a portion of a meal prep.
+ */
 export interface MealTemplate {
   id?: number
   name: string
   meal: Meal
-  items: { foodId: number; grams: number }[]
+  items: { foodId?: number; recipeId?: number; grams: number }[]
   useCount: number
   lastUsed: number
   createdAt: number

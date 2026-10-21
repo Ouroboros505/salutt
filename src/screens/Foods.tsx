@@ -358,8 +358,19 @@ function EditTemplate({
   const [name, setName] = useState(template.name)
   const [items, setItems] = useState(template.items)
   const foods = useLiveQuery(() => db.foods.toArray(), []) ?? []
+  const recipes = useLiveQuery(() => db.recipes.toArray(), []) ?? []
   const byId = new Map(foods.map((f) => [f.id, f]))
-  const kcal = items.reduce((t, i) => t + ((byId.get(i.foodId)?.kcal ?? 0) * i.grams) / 100, 0)
+  const recById = new Map(recipes.map((r) => [r.id, r]))
+  // A food or a meal prep, with what 100 g of it comes to.
+  const what = (i: (typeof items)[number]) => {
+    if (i.recipeId != null) {
+      const r = recById.get(i.recipeId)
+      return { name: r?.name ?? 'Missing meal prep', kcal100: r ? per100(r).kcal : 0 }
+    }
+    const f = i.foodId != null ? byId.get(i.foodId) : undefined
+    return { name: f?.name ?? 'Missing food', kcal100: f?.kcal ?? 0 }
+  }
+  const kcal = items.reduce((t, i) => t + (what(i).kcal100 * i.grams) / 100, 0)
 
   return (
     <Sheet title="Quick meal" onClose={onClose}>
@@ -371,13 +382,13 @@ function EditTemplate({
         <h3>What is in it</h3>
         {items.length === 0 && <div className="empty">Nothing left in it.</div>}
         {items.map((i, idx) => {
-          const f = byId.get(i.foodId)
+          const w = what(i)
           return (
             <div className="row" key={idx} style={{ gap: 8, paddingBlock: 6 }}>
               <div className="grow" style={{ minWidth: 0 }}>
-                <div className="item-title truncate">{f?.name ?? 'Missing food'}</div>
+                <div className="item-title truncate">{w.name}</div>
                 <div className="tiny muted num">
-                  {Math.round(((f?.kcal ?? 0) * i.grams) / 100)} kcal
+                  {Math.round((w.kcal100 * i.grams) / 100)} kcal
                 </div>
               </div>
               <div style={{ width: 92, flex: 'none' }}>
@@ -391,7 +402,7 @@ function EditTemplate({
               </div>
               <button
                 className="iconbtn"
-                aria-label={`Remove ${f?.name ?? 'item'}`}
+                aria-label={`Remove ${w.name}`}
                 onClick={() => setItems(items.filter((_, j) => j !== idx))}
               >
                 <Icon.close />
