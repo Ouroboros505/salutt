@@ -23,6 +23,9 @@ import {
   WEEK,
   type DayPlan,
   toDisplayWeight,
+  repTop,
+  repUnit,
+  LB_PER_KG,
   totalLoadKg,
   type Exercise,
   type MuscleGroup,
@@ -34,7 +37,7 @@ import { Icon, Meter, NumberInput, Sheet } from './ui'
 import { formatShort } from '../lib/date'
 import DemoSheet from './DemoSheet'
 import { ExerciseProgress, SessionScorecard } from './progress'
-import { compareSession } from '../lib/progress'
+import { compareSession, exerciseHistory, suggestSets, type Suggestion } from '../lib/progress'
 import WaterFab from './WaterFab'
 
 interface SetRow {
@@ -135,8 +138,34 @@ function startingSets(ex: Exercise, saved?: { hard: number; easy: number }): Set
     const base = saved ?? parseProtocol(ex.reps) ?? { hard: 30, easy: 90 }
     return Array.from({ length: ex.sets }, () => ({ reps: 0, hard: base.hard, easy: base.easy }))
   }
-  return Array.from({ length: ex.sets }, () => ({ reps: parseInt(ex.reps, 10) || 10 }))
+  // A held position counts seconds, and its timer needs the number up front.
+  if (isTimed(ex)) return Array.from({ length: ex.sets }, () => ({ reps: planReps(ex) }))
+  // Plain lifts start empty: the fields show today's suggestion greyed out,
+  // and ticking the set or finishing takes it as done. Typing over it is the
+  // only work, and only when the day went differently. Anything counted in
+  // minutes keeps its number, as before.
+  return Array.from({ length: ex.sets }, () => ({ reps: suggestable(ex) ? 0 : planReps(ex) }))
 }
+
+/** The bottom of the prescribed range: 8 for "8-12". */
+const planReps = (ex: Exercise) => parseInt(ex.reps, 10) || 10
+
+/** Whether this lift gets a suggested weight and reps for each set. */
+const suggestable = (ex: Exercise | undefined): ex is Exercise =>
+  !!ex && !ex.byMinutes && !ex.steps && !isProtocol(ex) && !isTimed(ex) && repUnit(ex.reps) === 'reps'
+
+/**
+ * The smallest weight step before the log has taught a better one: a 5 lb
+ * dumbbell or pin, or 2.5 lb a side on a bar, which is typed per side.
+ */
+const fallbackStepKg = (ex: Exercise, unit: 'kg' | 'lb') =>
+  unit === 'lb' ? (ex.load?.barKg ? 2.5 : 5) / LB_PER_KG : ex.load?.barKg ? 1.25 : 2.5
+
+/** Free weights come in fixed sizes; stacks do not. */
+const gridKgFor = (ex: Exercise, unit: 'kg' | 'lb') =>
+  ex.load?.barKg || /dumbbell|barbell|\bbar\b|plate/i.test(ex.equipment ?? '')
+    ? unit === 'lb' ? 2.5 / LB_PER_KG : 1.25
+    : undefined
 
 /**
  * Logging the session as it happens.
@@ -362,6 +391,84 @@ export default function SessionSheet({
   }, [history])
 
   /**
+   * Today's suggested sets, per exercise in the sheet.
+   *
+   * He asked for this on 2026-10-21: typing every number from memory cost
+   * seconds and attention between sets, when the app already knows last time
+   * and the rule for what comes next. The suggestion fills the fields greyed
+   * out; it becomes the record only when he ticks the set or finishes, and any
+   * field he types in is his number instead.
+   */
+  // The last real training day of any kind: a break is time away from the
+  // gym, not one lift that has not come round for a fortnight.
+  const lastTrained = useMemo(
+    () =>
+      [...(history ?? [])]
+        .reverse()
+        .find((w) => w.kind === 'strength' && !w.notFullStrength && w.sets.some((x) => x.weightKg > 0))?.date,
+    [history],
+  )
+  const suggestions = useMemo(() => {
+    const out = new Map<string, Suggestion>()
+    const past = history ?? []
+    for (const i of items) {
+      const ex = byName(i.name)
+      if (!suggestable(ex) || i.minutes != null) continue
+      const sug = suggestSets(
+        exerciseHistory(past, i.name),
+        { low: planReps(ex), top: repTop(ex.reps) },
+        i.sets.length,
+        date,
+        fallbackStepKg(ex, unit),
+        lastTrained,
+        gridKgFor(ex, unit),
+      )
+      if (sug) out.set(i.key, sug)
+    }
+    return out
+  }, [history, items, date, unit, lastTrained])
+
+  /**
+   * A set as it would be logged: what was typed, and the suggestion wherever
+   * nothing was. A weight is only filled in for a lift that takes one and was
+   * not done with a band; a first-ever lift has no suggested weight, so the
+   * reminder below still fires for it.
+   */
+  const effective = (i: Done, idx: number, set: SetRow): SetRow => {
+    const ex = byName(i.name)
+    if (!suggestable(ex)) return set
+    const sug = suggestions.get(i.key)?.sets[idx]
+    const reps = set.reps || sug?.reps || planReps(ex)
+    const weightKg =
+      set.weightKg ??
+      (sug && sug.kg > 0 && takesLoad(ex) && set.band == null
+        ? fromDisplayWeight(toDisplayWeight(sug.kg, unit), unit)
+        : undefined)
+    return { ...set, reps, weightKg }
+  }
+  const placeholderWeight = (kg: number | undefined) =>
+    kg ? fmtWeight(toDisplayWeight(kg, unit) ?? 0) : '—'
+
+  /** The one line that says which way today moves, and why. */
+  const suggestionLine = (sug: Suggestion): string => {
+    const w = (kg: number) => fmtWeight(toDisplayWeight(kg, unit) ?? 0)
+    const weights = [...new Set(sug.sets.map((x) => x.kg))]
+    const sets =
+      weights.length === 1
+        ? `${sug.sets.map((x) => x.reps).join('·')}${weights[0] > 0 ? ` at ${w(weights[0])} ${unit}` : ''}`
+        : sug.sets.map((x) => `${x.reps}×${w(x.kg)}`).join(' · ')
+    const why = {
+      rep: 'one more rep each',
+      up: `+${w(sug.stepKg)} ${unit}, every set hit the top`,
+      mixed: `+${w(sug.stepKg)} ${unit} where a set hit the top`,
+      back: 'back from a break, ~80%',
+      bw: 'one more rep each',
+    }[sug.why]
+    return `Today ${sets} — ${why}`
+  }
+
+
+  /**
    * Exercises about to be logged with no weight against them, where a weight
    * is expected.
    *
@@ -388,11 +495,26 @@ export default function SessionSheet({
             expectsWeight(i.name) &&
             i.minutes == null &&
             i.sets.length > 0 &&
-            i.sets.every((st) => !st.weightKg && st.band == null),
+            i.sets.every((st, idx) => !effective(i, idx, st).weightKg && st.band == null),
         )
         .map((i) => i.name),
-    [items],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [items, suggestions],
   )
+
+  /**
+   * Lifts still showing nothing but the suggestion. Finishing logs them as
+   * suggested, which is right when he did them and forgot to tick, and wrong
+   * when he skipped one and left it in, so it is said before Finish.
+   */
+  const untouched = items
+    .filter(
+      (i) =>
+        suggestable(byName(i.name)) &&
+        i.sets.length > 0 &&
+        i.sets.every((st) => !st.done && !st.reps && st.weightKg == null && st.band == null),
+    )
+    .map((i) => i.name)
 
   // Written on every change, so closing the sheet mid-session costs nothing.
   // An edit of something already logged is not a draft and must not overwrite
@@ -670,6 +792,11 @@ const fmtWeight = (n: number): string => (Number.isInteger(n) ? String(n) : n.to
                       </div>
                     )
                   })()}
+                  {suggestions.has(i.key) && (
+                    <div className="tiny num" style={{ color: 'var(--accent)' }}>
+                      {suggestionLine(suggestions.get(i.key)!)}
+                    </div>
+                  )}
                 </div>
                 {i.minutes == null && lastTime.has(canonicalName(i.name)) && (
                   <button
@@ -779,6 +906,7 @@ const fmtWeight = (n: number): string => (Number.isInteger(n) ? String(n) : n.to
                         <NumberInput
                           value={i.sets[0]?.reps || undefined}
                           unit={repLabel(ex.reps)}
+                          placeholder={i.sets[0] && suggestable(ex) ? String(effective(i, 0, i.sets[0]).reps) : undefined}
                           onChange={(v) =>
                             update(i.key, { sets: i.sets.map((x) => ({ ...x, reps: v ?? 0 })) })
                           }
@@ -789,7 +917,7 @@ const fmtWeight = (n: number): string => (Number.isInteger(n) ? String(n) : n.to
                           <NumberInput
                             value={toDisplayWeight(i.sets[0]?.weightKg, unit)}
                             unit={unit}
-                            placeholder="—"
+                            placeholder={i.sets[0] ? placeholderWeight(effective(i, 0, i.sets[0]).weightKg) : '—'}
                             onChange={(v) =>
                               update(i.key, {
                                 sets: i.sets.map((x) => ({ ...x, weightKg: fromDisplayWeight(v, unit) })),
@@ -810,7 +938,11 @@ const fmtWeight = (n: number): string => (Number.isInteger(n) ? String(n) : n.to
                         className={`tickbox${set.done ? ' on' : ''}`}
                         aria-label={`Set ${idx + 1} ${set.done ? 'done' : 'not done'}`}
                         aria-pressed={!!set.done}
-                        onClick={() => setSet(i.key, idx, { done: !set.done })}
+                        onClick={() =>
+                          // Ticking a set takes the suggestion as what was done,
+                          // so the numbers are real the moment the set is.
+                          setSet(i.key, idx, set.done ? { done: false } : { ...effective(i, idx, set), done: true })
+                        }
                       >
                         {set.done ? <Icon.check /> : <span className="tiny num">{idx + 1}</span>}
                       </button>
@@ -854,6 +986,7 @@ const fmtWeight = (n: number): string => (Number.isInteger(n) ? String(n) : n.to
                             <NumberInput
                               value={set.reps || undefined}
                               unit={ex ? repLabel(ex.reps) : 'reps'}
+                              placeholder={suggestable(ex) ? String(effective(i, idx, set).reps) : undefined}
                               onChange={(v) => setSet(i.key, idx, { reps: v ?? 0 })}
                             />
                           </div>
@@ -896,7 +1029,7 @@ const fmtWeight = (n: number): string => (Number.isInteger(n) ? String(n) : n.to
                           <NumberInput
                             value={toDisplayWeight(set.weightKg, unit)}
                             unit={unit}
-                            placeholder="—"
+                            placeholder={placeholderWeight(effective(i, idx, set).weightKg)}
                             onChange={(v) => setSet(i.key, idx, { weightKg: fromDisplayWeight(v, unit) })}
                           />
                         </div>
@@ -1044,7 +1177,10 @@ const fmtWeight = (n: number): string => (Number.isInteger(n) ? String(n) : n.to
               sets: items.flatMap((i) =>
                 i.minutes != null
                   ? [{ exercise: i.name, reps: 0, weightKg: 0, minutes: i.minutes }]
-                  : i.sets.map((s) => {
+                  : i.sets.map((typed, idx) => {
+                  // Whatever was left showing the suggestion is logged as the
+                  // suggestion: that is what he did, or he would have typed.
+                  const s = effective(i, idx, typed)
                   const r = roundOf(i, s)
                   return {
                     exercise: i.name,
@@ -1093,6 +1229,11 @@ const fmtWeight = (n: number): string => (Number.isInteger(n) ? String(n) : n.to
         </div>
       )}
 
+      {untouched.length > 0 && (
+        <div className="tiny muted" style={{ paddingTop: 6 }}>
+          Not touched yet: {untouched.join(', ')} — logged as suggested when you finish. Remove it if you skipped it.
+        </div>
+      )}
       {missingWeight.length > 0 && (
         <div className="tiny warn" style={{ paddingTop: 6 }}>
           No weight recorded for {missingWeight.join(', ')} — next week will have nothing to beat.

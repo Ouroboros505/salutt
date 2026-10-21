@@ -140,6 +140,132 @@ export function toBeat(history: ExSession[], ceiling = 15): ToBeat | null {
   }
 }
 
+/** What to put in each set today, before anything is typed. */
+export interface Suggestion {
+  /** One per set, in order; `up` marks a set that moved to a heavier weight. */
+  sets: { reps: number; kg: number; up: boolean }[]
+  /**
+   * Which way it moved. `rep`: same weights, a rep more. `up`: every set went
+   * heavier. `mixed`: some sets went heavier, the rest add a rep. `back`: the
+   * first session after a break. `bw`: no weight to move.
+   */
+  why: 'rep' | 'up' | 'mixed' | 'back' | 'bw'
+  /** The weight step used, so the line under the lift can say it. */
+  stepKg: number
+}
+
+/** A gap in training longer than this is a break, and the first session back is lighter. */
+export const BREAK_DAYS = 14
+
+/**
+ * The smallest jump this lift's equipment allows, learned from the log.
+ *
+ * Racks go up in 5 lb, some cable stacks in 2.5 or 7.5, barbell plates by a
+ * side. Rather than keep a table of every machine at the CoRec, the step is the
+ * smallest difference between two weights he has actually used on it, which
+ * is the machine telling us its own increment. Until there are two weights to
+ * compare, the fallback is the usual one.
+ */
+export function weightStepKg(history: ExSession[], fallbackKg: number): number {
+  const used = [...new Set(history.flatMap((s) => s.sets.map((x) => Math.round(x.kg * 100) / 100)))]
+    .filter((kg) => kg > 0)
+    .sort((a, b) => a - b)
+  // Under half a kilo is the same plate typed twice through a unit
+  // conversion (7.94 and 7.96 are both 17.5 lb), not a step, so it is skipped
+  // rather than allowed to win; over 5 kg is a jump he chose, not the smallest.
+  let step = Infinity
+  for (let i = 1; i < used.length; i++) {
+    const d = used[i] - used[i - 1]
+    if (d >= 0.5) step = Math.min(step, d)
+  }
+  return step <= 5 ? step : fallbackKg
+}
+
+/**
+ * Reps at a new weight that match the strength of a set just done (Epley),
+ * rounded up so the heavier set is never a step backwards.
+ */
+function repsToMatch(kg: number, reps: number, newKg: number): number {
+  return Math.ceil(30 * (epley(kg, reps) / newKg - 1))
+}
+
+/**
+ * Today's sets, by double progression applied set by set.
+ *
+ * Both directions are in it, and which one applies is not a matter of taste:
+ * a set below the top of its range gets one more rep at the same weight; a set
+ * at or past the top goes a step heavier. He ramps (20, 20, 22.5 on the bench),
+ * so each set is judged on its own rather than the session on its heaviest.
+ *
+ * The reps after a step up are the ones that match the strength of the set
+ * that earned it, not the bottom of the range: fifteen at 20 lb dropping to
+ * eight at 22.5 is a weaker set, however heavy it looks, and would score as
+ * going backwards. Kept inside the range either way.
+ *
+ * After a break in training of more than two weeks (not one lift skipped for a
+ * fortnight, which is just a Friday missed twice), the first session back is
+ * about 80% of the weight at the same reps: the return rule that tendons need,
+ * which the September hip taught the hard way.
+ */
+export function suggestSets(
+  history: ExSession[],
+  range: { low: number; top: number },
+  count: number,
+  today: ISODate,
+  fallbackStepKg: number,
+  /** Last day of any full-strength training, whatever the lift. */
+  lastTrained?: ISODate,
+  /**
+   * The spacing of real weights, for free weights: dumbbells and plates come
+   * in 2.5 lb, so a step learned from an odd entry must not invent a 27 lb
+   * dumbbell. Cable and machine stacks have no grid; their pins are learned.
+   */
+  gridKg?: number,
+): Suggestion | null {
+  const last = [...history].reverse().find((s) => !s.notFull)
+  if (!last || !last.sets.length || count <= 0) return null
+  const snap = (kg: number) => (gridKg ? Math.round(kg / gridKg) * gridKg : kg)
+  const learned = weightStepKg(history, fallbackStepKg)
+  const stepKg = gridKg ? Math.max(gridKg, snap(learned)) : learned
+  const used = [...new Set(history.flatMap((s) => s.sets.map((x) => x.kg)))].filter((kg) => kg > 0).sort((a, b) => a - b)
+  /**
+   * The next weight up. A cable stack's pins are not evenly spaced (his log
+   * reads 24, 25.5, 27.5, 29 lb), so a fixed step lands between two pins; the
+   * next weight he has already used on the lift is a pin that exists. Past
+   * anything he has used, the learned step.
+   */
+  const nextUp = (kg: number) => {
+    const pin = used.find((u) => u > kg + 0.05)
+    return pin != null && pin - kg < 2 * stepKg - 0.05 ? pin : kg + stepKg
+  }
+  const nth = (i: number) => last.sets[Math.min(i, last.sets.length - 1)]
+  const make = (f: (s: SetRec) => Suggestion['sets'][number]) => Array.from({ length: count }, (_, i) => f(nth(i)))
+  const clamp = (r: number) => Math.max(range.low, Math.min(range.top, r))
+
+  if (lastTrained && daysBetween(lastTrained, today) > BREAK_DAYS) {
+    return {
+      why: 'back',
+      stepKg,
+      sets: make((s) => ({
+        reps: s.kg > 0 ? Math.min(range.top, s.reps) : Math.max(1, Math.round(s.reps * 0.8)),
+        kg: s.kg > 0 ? Math.max(stepKg, Math.floor((s.kg * 0.8) / (gridKg ?? stepKg) + 1e-6) * (gridKg ?? stepKg)) : 0,
+        up: false,
+      })),
+    }
+  }
+  if (last.topKg <= 0) {
+    return { why: 'bw', stepKg, sets: make((s) => ({ reps: s.reps + 1, kg: 0, up: false })) }
+  }
+  const sets = make((s) => {
+    if (s.kg <= 0) return { reps: s.reps + 1, kg: 0, up: false }
+    if (s.reps < range.top) return { reps: s.reps + 1, kg: s.kg, up: false }
+    const kg = snap(nextUp(s.kg))
+    return { reps: clamp(repsToMatch(s.kg, s.reps, kg)), kg, up: true }
+  })
+  const ups = sets.filter((x) => x.up).length
+  return { why: ups === 0 ? 'rep' : ups === sets.length ? 'up' : 'mixed', stepKg, sets }
+}
+
 export interface Records {
   heaviest: { kg: number; reps: number; date: ISODate } | null
   bestE1rm: { kg: number; date: ISODate } | null
