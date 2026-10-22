@@ -805,11 +805,9 @@ const fmtWeight = (n: number): string => (Number.isInteger(n) ? String(n) : n.to
                     aria-label={
                       i.origName
                         ? `Switch ${i.name} back to ${i.origName}`
-                        : `Machine busy — switch ${i.name} for ${altFor(i.name)}`
+                        : `Swap ${i.name} for ${altFor(i.name)}`
                     }
-                    title={
-                      i.origName ? `Back to ${i.origName}` : `Machine busy? Do ${altFor(i.name)} instead`
-                    }
+                    title={i.origName ? `Back to ${i.origName}` : `Swap for ${altFor(i.name)}`}
                     onClick={() => swapForAlt(i.key)}
                   >
                     <Icon.swap />

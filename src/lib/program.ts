@@ -209,6 +209,7 @@ export const CATALOGUE: Exercise[] = [
   // Four sets, one more than the rest: side delts are the width he wants,
   // and the presses already work the front of the shoulder.
   E('Lateral Raises', 'Shoulders', 4, '12-20', 4, 90, 'Light dumbbells', true),
+  E('Cable Lateral Raise', 'Shoulders', 4, '12-20', 4, 95, 'Cable machine, low pulley, one arm at a time'),
   E('Rear Delt Fly', 'Shoulders', 3, '15', 4, 90, 'Dumbbells or pec deck'),
   E('Arnold Press', 'Shoulders', 3, '12', 5, 105, 'Dumbbells'),
 
@@ -242,6 +243,13 @@ export const CATALOGUE: Exercise[] = [
   // wide and nothing crosses the midline. Bodyweight, as deep as is
   // comfortable; a light dumbbell held in front helps the balance.
   E('Cossack Squat', 'Legs', 2, '8/side', 4, 100, 'Bodyweight; a light dumbbell held in front'),
+  // The muscles around his sore tendon, gluteus medius and minimus, trained
+  // the way the side-lying lifts and wall isometrics that fixed it did, but
+  // loadable, so the app can track it. Pushing outward never compresses the
+  // tendon; set the start so the knees stay a little apart.
+  E('Hip Abduction Machine', 'Legs', 2, '12-15', 4, 90, 'Hip abductor machine'),
+  // The lazy stand-in for the Cossack squat: inner-thigh strength, less range.
+  E('Hip Adduction Machine', 'Legs', 2, '12-15', 4, 90, 'Hip adductor machine'),
   E('Hip Thrust', 'Legs', 3, '12-15', 5.5, 110, 'Bench, barbell'),
   E('Glute Bridge', 'Legs', 3, '12-15', 3.5, 90, 'Floor; a dumbbell on the hips to load it'),
   E('Walking Lunges', 'Legs', 3, '12/leg', 6, 120, 'Dumbbells'),
@@ -616,12 +624,13 @@ export const WEEK: DayPlan[] = [
     weekday: 2,
     name: 'Legs and abs — quads, hamstrings, glutes, abs',
     exercises: [
-      // No yoga, at his request; the Cossack squat keeps the hip mobility and
-      // opens the adductors before the goblet squat. Single-leg balance lives
+      // No yoga, at his request. The Cossack squat keeps the hip mobility and
+      // opens the adductors before the goblet squat; the abduction machine
+      // keeps loading the muscles that healed his gluteal tendon. Single-leg balance lives
       // in his morning routine at home, where it costs no gym time.
       'Movement Prep (bands, circles, bridges)', 'Cossack Squat', 'Goblet Squat', 'Romanian Deadlift',
-      'Glute Bridge', 'Leg Curl', 'Calf Raises', 'Ab Crunch Machine (Hammer Strength)',
-      'Captain’s Chair Leg Raise',
+      'Glute Bridge', 'Leg Curl', 'Hip Abduction Machine', 'Calf Raises',
+      'Ab Crunch Machine (Hammer Strength)', 'Captain’s Chair Leg Raise',
     ],
   },
   {
@@ -681,6 +690,16 @@ export function programWeek(startISO: string | undefined, dateISO: string): numb
  */
 export const ALT_BY_NAME: Record<string, string> = {
   'Lat Pulldown': 'Single-Arm DB Row',
+  'Single-Arm DB Row': 'Chest-Supported Row',
+  'Lateral Raises': 'Cable Lateral Raise',
+  'Seated DB Shoulder Press': 'Arnold Press',
+  'Hammer Curl': 'DB Bicep Curl',
+  'DB Bicep Curl': 'Cable Curl',
+  'Goblet Squat': 'Leg Press',
+  'Glute Bridge': 'Hip Thrust',
+  'Cossack Squat': 'Hip Adduction Machine',
+  // Standing, with a mini band: the same muscles with no machine at all.
+  'Hip Abduction Machine': 'Lateral Band Walks',
   'Seated Cable Row': 'Single-Arm DB Row',
   'Cable Fly': 'Push-Ups',
   'Face Pulls': 'Rear Delt Fly',
