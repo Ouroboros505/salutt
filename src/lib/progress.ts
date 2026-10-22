@@ -200,7 +200,18 @@ function repsToMatch(kg: number, reps: number, newKg: number): number {
  * The reps after a step up are the ones that match the strength of the set
  * that earned it, not the bottom of the range: fifteen at 20 lb dropping to
  * eight at 22.5 is a weaker set, however heavy it looks, and would score as
- * going backwards. Kept inside the range either way.
+ * going backwards. Matched on the real load, so a bar's own weight counts.
+ *
+ * A step the set has not yet paid for is not taken. Small dumbbells jump 12%
+ * at a time, and twelve curls at 17.5 lb match only seven at 20; asking for
+ * the bottom of the range there asks for strength he has not shown. Up to one
+ * rep short is allowed, the same effort as the usual one-rep step; beyond
+ * that the set stays at its weight for one more rep until the jump is earned. Added weight
+ * on a bodyweight lift is the exception: the body is most of the load, so the
+ * small plate is never the big jump it looks like.
+ *
+ * A set the plan now has but the last session did not, like a fourth set of
+ * raises, repeats the last set as it went rather than inventing progress.
  *
  * After a break in training of more than two weeks (not one lift skipped for a
  * fortnight, which is just a Friday missed twice), the first session back is
@@ -221,6 +232,11 @@ export function suggestSets(
    * dumbbell. Cable and machine stacks have no grid; their pins are learned.
    */
   gridKg?: number,
+  /**
+   * Typed weight to the load actually moved (a barbell's plates plus the
+   * bar), and whether the typed number is only weight added to the body.
+   */
+  load?: { toLoad?: (kg: number) => number; addedOnly?: boolean },
 ): Suggestion | null {
   const last = [...history].reverse().find((s) => !s.notFull)
   if (!last || !last.sets.length || count <= 0) return null
@@ -256,11 +272,19 @@ export function suggestSets(
   if (last.topKg <= 0) {
     return { why: 'bw', stepKg, sets: make((s) => ({ reps: s.reps + 1, kg: 0, up: false })) }
   }
-  const sets = make((s) => {
+  const real = load?.toLoad ?? ((kg: number) => kg)
+  const final = last.sets[last.sets.length - 1]
+  const sets = Array.from({ length: count }, (_, i): Suggestion['sets'][number] => {
+    if (i >= last.sets.length) return { reps: final.reps, kg: final.kg, up: false }
+    const s = last.sets[i]
     if (s.kg <= 0) return { reps: s.reps + 1, kg: 0, up: false }
     if (s.reps < range.top) return { reps: s.reps + 1, kg: s.kg, up: false }
     const kg = snap(nextUp(s.kg))
-    return { reps: clamp(repsToMatch(s.kg, s.reps, kg)), kg, up: true }
+    const matched = repsToMatch(real(s.kg), s.reps, real(kg))
+    // One rep short of the range is the same effort as the +1 a rep step
+    // asks for; more than that is strength not yet shown.
+    if (matched < range.low - 1 && !load?.addedOnly) return { reps: s.reps + 1, kg: s.kg, up: false }
+    return { reps: clamp(matched), kg, up: true }
   })
   const ups = sets.filter((x) => x.up).length
   return { why: ups === 0 ? 'rep' : ups === sets.length ? 'up' : 'mixed', stepKg, sets }

@@ -26,6 +26,7 @@ import {
   repTop,
   repUnit,
   LB_PER_KG,
+  LOAD_BODY,
   totalLoadKg,
   type Exercise,
   type MuscleGroup,
@@ -424,6 +425,7 @@ export default function SessionSheet({
         fallbackStepKg(ex, unit),
         lastTrained,
         gridKgFor(ex, unit),
+        { toLoad: (kg) => totalLoadKg(kg, ex.load), addedOnly: ex.load === LOAD_BODY },
       )
       if (sug) out.set(i.key, sug)
     }
