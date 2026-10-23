@@ -1,5 +1,6 @@
-import type { DayTarget, Entry, ISODate, Measurement, Settings, WeighIn } from '../db/db'
+import type { DayTarget, Entry, ISODate, Measurement, Settings, Trip, WeighIn } from '../db/db'
 import { addDays, daysBetween, todayISO } from './date'
+import { inTrip, inTripWater, settingsOn, tripDaysIn, tripSegment, tripSettling } from './trip'
 
 /** Energy density of body tissue lost/gained, kcal per kg. */
 export const KCAL_PER_KG = 7700
@@ -413,26 +414,45 @@ export const MAINTENANCE_WINDOW_DAYS = 56
 export function trendSlopeKgPerWeek(
   points: TrendPoint[],
   windowDays = RATE_WINDOW_DAYS,
+  trips?: Trip[],
 ): number | null {
   if (points.length < 2) return null
   const last = points[points.length - 1].date
   const from = addDays(last, -windowDays)
-  const win = points.filter((p) => p.date >= from)
+  const win = points.filter((p) => p.date >= from && !inTripWater(trips, p.date))
   if (win.length < 3) return null
+  const slope = pooledSlopePerDay(win, trips)
+  return slope == null ? null : slope * 7
+}
 
-  const x = win.map((p) => daysBetween(win[0].date, p.date))
-  const y = win.map((p) => p.trend)
-  const n = x.length
-  const mx = x.reduce((a, b) => a + b, 0) / n
-  const my = y.reduce((a, b) => a + b, 0) / n
+/**
+ * Least-squares slope in kg per day, with each stretch between trips allowed
+ * its own level.
+ *
+ * Without a trip in the window this is the ordinary fit. With one, a single
+ * line drawn from before the trip to after it would read a week of travel
+ * water as a change of pace; fitting the stretches separately and pooling
+ * their slopes keeps the pace and drops the step.
+ */
+function pooledSlopePerDay(points: { date: ISODate; trend: number }[], trips?: Trip[]): number | null {
+  const segs = new Map<number, { x: number; y: number }[]>()
+  for (const p of points) {
+    const k = tripSegment(trips, p.date)
+    if (!segs.has(k)) segs.set(k, [])
+    segs.get(k)!.push({ x: daysBetween(points[0].date, p.date), y: p.trend })
+  }
   let num = 0
   let den = 0
-  for (let i = 0; i < n; i++) {
-    num += (x[i] - mx) * (y[i] - my)
-    den += (x[i] - mx) ** 2
+  for (const seg of segs.values()) {
+    if (seg.length < 2) continue
+    const mx = seg.reduce((a, q) => a + q.x, 0) / seg.length
+    const my = seg.reduce((a, q) => a + q.y, 0) / seg.length
+    for (const q of seg) {
+      num += (q.x - mx) * (q.y - my)
+      den += (q.x - mx) ** 2
+    }
   }
-  if (den === 0) return null
-  return (num / den) * 7
+  return den > 1e-9 ? num / den : null
 }
 
 export interface AdaptiveTDEE {
@@ -462,12 +482,14 @@ export function adaptiveTDEE(
   trend: TrendPoint[],
   windowDays = MAINTENANCE_WINDOW_DAYS,
   minLoggedDays = 10,
+  trips?: Trip[],
 ): AdaptiveTDEE | null {
   if (trend.length < 2) return null
 
   const end = trend[trend.length - 1].date
   const from = addDays(end, -windowDays)
-  const win = trend.filter((p) => p.date >= from)
+  // A trip's days, and the week of water after it, measure the trip.
+  const win = trend.filter((p) => p.date >= from && !inTripWater(trips, p.date))
   if (win.length < 2) return null
 
   const start = win[0]
@@ -479,7 +501,7 @@ export function adaptiveTDEE(
   // days because you forgot to log would fake a deficit that never happened.
   const byDay = new Map<ISODate, number>()
   for (const e of entries) {
-    if (e.date < start.date || e.date > finish.date) continue
+    if (e.date < start.date || e.date > finish.date || inTrip(trips, e.date)) continue
     byDay.set(e.date, (byDay.get(e.date) ?? 0) + e.kcal)
   }
   const intakes = [...byDay.values()].filter((v) => v > 200)
@@ -500,30 +522,12 @@ export function adaptiveTDEE(
    * A least-squares slope through the whole window uses every point instead of
    * two, so a wobble at either end moves it barely at all.
    */
-  const t0 = new Date(start.date).getTime()
-  let sw = 0
-  let sx = 0
-  let sy = 0
-  let sxx = 0
-  let sxy = 0
-  for (const p of win) {
-    const x = (new Date(p.date).getTime() - t0) / 86_400_000
-    sw += 1
-    sx += x
-    sy += p.trend
-    sxx += x * x
-    sxy += x * p.trend
-  }
-  const den = sxx - (sx * sx) / sw
-  const slopeKgPerDay =
-    Math.abs(den) > 1e-9
-      ? (sxy - (sx * sy) / sw) / den
-      : (finish.trend - start.trend) / days
+  const slopeKgPerDay = pooledSlopePerDay(win, trips) ?? (finish.trend - start.trend) / days
   const kcal = meanIntake - slopeKgPerDay * KCAL_PER_KG
 
   // `days` is the span between the endpoints; the window covers one more
   // calendar day than that, which is what adherence should be measured against.
-  const coverage = intakes.length / (days + 1)
+  const coverage = intakes.length / Math.max(1, days + 1 - tripDaysIn(trips, start.date, finish.date))
   const confidence: AdaptiveTDEE['confidence'] =
     days >= 21 && coverage >= 0.8 ? 'high' : days >= 14 && coverage >= 0.6 ? 'medium' : 'low'
 
@@ -700,19 +704,22 @@ export interface UsualActivity {
 export function usualActivity(
   workouts: { date: ISODate; kcal?: number }[],
   today: ISODate,
-  days = MAINTENANCE_WINDOW_DAYS,
+  windowDays = MAINTENANCE_WINDOW_DAYS,
+  trips?: Trip[],
 ): UsualActivity | null {
   const start = new Date(today)
-  start.setDate(start.getDate() - days)
+  start.setDate(start.getDate() - windowDays)
   const from = start.toISOString().slice(0, 10)
   const byDay = new Map<string, number>()
   for (const w of workouts) {
-    if (w.date <= from || w.date >= today) continue
+    if (w.date <= from || w.date >= today || inTrip(trips, w.date)) continue
     byDay.set(w.date, (byDay.get(w.date) ?? 0) + (w.kcal ?? 0))
   }
   if (byDay.size < 3) return null
   let total = 0
   for (const v of byDay.values()) total += v
+  // Days away were not quiet days at home; they leave the window entirely.
+  const days = windowDays - tripDaysIn(trips, addDays(from, 1), addDays(today, -1))
   const coverage = byDay.size / days
   // Nothing below a third of days; full weight from four days in five.
   const trust = Math.max(0, Math.min(1, (coverage - 0.33) / (0.8 - 0.33)))
@@ -922,13 +929,15 @@ export function rulesAsOf(
   const trend = weightTrend(known, settings.trendHalfLifeDays)
   if (!trend.length) return null
   const kg = trend[trend.length - 1].trend
-  const adaptive = adaptiveTDEE(
-    entries.filter((e) => e.date <= date),
+  const { adaptive, usual } = rulesFor(
+    settings,
     trend,
+    entries.filter((e) => e.date <= date),
+    workouts,
+    date,
   )
-  const usual = usualActivity(workouts, date)
   return {
-    goalKgPerWeek: goalPerWeek(settings, kg),
+    goalKgPerWeek: goalPerWeek(settingsOn(settings, date), kg),
     maintenance: adaptive && adaptive.confidence !== 'low' ? adaptive.kcal : null,
     usualMean: usual?.mean ?? 0,
     usualTrust: usual?.trust ?? 0,
@@ -937,4 +946,107 @@ export function rulesAsOf(
     meanIntake: adaptive?.meanIntake ?? null,
     kg,
   }
+}
+
+/**
+ * Maintenance and the usual day as they apply on a date.
+ *
+ * Away, and for two weeks after landing, they are the figures from the day
+ * before leaving: a trip has no rides to average and the first week back is
+ * water, and either would pull maintenance down for two months. Once settled,
+ * the trip's days are simply left out of both windows.
+ */
+export function rulesFor(
+  settings: Settings,
+  trend: TrendPoint[],
+  entries: Entry[],
+  workouts: { date: ISODate; kcal?: number }[],
+  date: ISODate,
+): { adaptive: AdaptiveTDEE | null; usual: UsualActivity | null } {
+  const trips = settings.trips
+  const settling = tripSettling(trips, date)
+  if (settling) {
+    const cut = addDays(settling.from, -1)
+    return {
+      adaptive: adaptiveTDEE(
+        entries.filter((e) => e.date <= cut),
+        trend.filter((p) => p.date <= cut),
+        undefined,
+        undefined,
+        trips,
+      ),
+      usual: usualActivity(workouts, settling.from, undefined, trips),
+    }
+  }
+  return {
+    adaptive: adaptiveTDEE(entries, trend, undefined, undefined, trips),
+    usual: usualActivity(workouts, date, undefined, trips),
+  }
+}
+
+export interface EstimatePoint {
+  /** The morning this is the weight for. */
+  date: ISODate
+  kg: number
+  /** One standard deviation, from the last trend and the logging since. */
+  sd: number
+}
+
+/**
+ * Weight while away, from the food log alone.
+ *
+ * Starts at the last trend before leaving and adds each day's balance: what
+ * was eaten less what that day burned, at 7,700 kcal a kilo. The burn is the
+ * same computed day the target uses, so a logged walk counts here exactly as
+ * it raised the target.
+ *
+ * The uncertainty is mostly logging, and logging errors do not cancel: food
+ * cooked by someone else runs under-counted day after day. So a tenth of each
+ * day's intake is added to the error in a straight line rather than in
+ * quadrature, and a day with nothing logged is assumed to have been on target
+ * with a quarter of its burn as the doubt.
+ *
+ * One point per morning, from the first day away to the morning after the
+ * last, and never past today's.
+ */
+export function tripEstimate(
+  settings: Settings,
+  trip: Trip,
+  trend: TrendPoint[],
+  entries: Entry[],
+  workouts: { date: ISODate; kcal?: number }[],
+  today: ISODate,
+): EstimatePoint[] | null {
+  const cut = addDays(trip.from, -1)
+  const start = [...trend].reverse().find((p) => p.date <= cut)
+  if (!start) return null
+  const { adaptive, usual } = rulesFor(settings, trend, entries, workouts, trip.from)
+  const maintenance = adaptive && adaptive.confidence !== 'low' ? adaptive.kcal : null
+
+  const eaten = new Map<ISODate, number>()
+  for (const e of entries) if (e.date >= start.date) eaten.set(e.date, (eaten.get(e.date) ?? 0) + e.kcal)
+  const moved = new Map<ISODate, number>()
+  for (const w of workouts) if (w.date >= start.date) moved.set(w.date, (moved.get(w.date) ?? 0) + (w.kcal ?? 0))
+
+  const last = addDays(trip.to, 1) < today ? addDays(trip.to, 1) : today
+  const out: EstimatePoint[] = []
+  let kg = start.trend
+  let doubt = 0
+  for (let d = start.date; d <= last; d = addDays(d, 1)) {
+    if (d >= trip.from) out.push({ date: d, kg, sd: Math.sqrt((start.sd ?? 0.15) ** 2 + (doubt / KCAL_PER_KG) ** 2) })
+    if (d === last) break
+    const deficit = inTrip(settings.trips, d) ? trip.deficitKcal : (-goalPerWeek(settings, kg) * KCAL_PER_KG) / 7
+    const logged = eaten.get(d) ?? 0
+    const burn = (intake: number) =>
+      dayEnergy(settings, kg, intake, moved.get(d) ?? 0, maintenance, usual, adaptive?.meanIntake ?? null).total
+    if (logged > 200) {
+      kg += (logged - burn(logged)) / KCAL_PER_KG
+      doubt += 0.1 * logged
+    } else {
+      // Nothing logged: assume the day went to plan, and doubt it.
+      kg -= deficit / KCAL_PER_KG
+      doubt += 0.25 * burn(0)
+    }
+  }
+  return out
 }

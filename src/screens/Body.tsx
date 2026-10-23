@@ -9,10 +9,12 @@ import {
   projectGoal,
   stoolOffset,
   trendSlopeKgPerWeek,
+  tripEstimate,
   RATE_WINDOW_DAYS,
   weightSeries,
   weightTrend,
 } from '../lib/metrics'
+import { inTrip, tripSettling, tripShown } from '../lib/trip'
 import { TrendChart } from '../components/charts'
 import { CompositionCharts } from '../components/Composition'
 import { Field, Icon, NumberInput, Segmented, Sheet } from '../components/ui'
@@ -101,7 +103,21 @@ export default function Body({
     undefined,
   )
   const lastCounted = lastReading != null && full.some((p) => p.date === lastReading.date)
-  const rate = trendSlopeKgPerWeek(full, RATE_WINDOW_DAYS)
+  // Paused while away and settling back: the scale is measuring the trip.
+  const paused = !!tripSettling(settings.trips, todayISO())
+  const rate = paused ? null : trendSlopeKgPerWeek(full, RATE_WINDOW_DAYS, settings.trips)
+
+  /**
+   * Weight while away, worked out from the food log, until the scale is back
+   * and has had a week to shed the travel water. Nothing of it shows at home.
+   */
+  const entries = useLiveQuery(() => db.entries.toArray(), []) ?? []
+  const workouts = useLiveQuery(() => db.workouts.toArray(), []) ?? []
+  const trip = tripShown(settings.trips, todayISO())
+  const estimate = trip ? tripEstimate(settings, trip, full, entries, workouts, todayISO()) : null
+  const estimateNow = estimate?.at(-1) ?? null
+  // Back and weighed: the scale leads again, and the estimate becomes a note.
+  const backHome = !!trip && todayISO() > trip.to && !!latest && latest.date > trip.to
   /**
    * The most recent value for each measurement, which is not the same as the
    * most recent record.
@@ -159,10 +175,22 @@ export default function Body({
       <div className="card">
         <div className="row between" style={{ alignItems: 'flex-end' }}>
           <div>
-            <div className="stat-label">Trend weight</div>
-            <div className="hero num">
-              {latest ? latest.trend.toFixed(1) : '—'} <span className="hero-unit">kg</span>
-            </div>
+            {estimateNow && !backHome ? (
+              <>
+                <div className="stat-label">Estimated weight</div>
+                <div className="hero num">
+                  ≈ {estimateNow.kg.toFixed(1)} <span className="hero-unit">kg</span>
+                </div>
+                <div className="tiny muted num">± {estimateNow.sd.toFixed(1)} · from your food log</div>
+              </>
+            ) : (
+              <>
+                <div className="stat-label">Trend weight</div>
+                <div className="hero num">
+                  {latest ? latest.trend.toFixed(1) : '—'} <span className="hero-unit">kg</span>
+                </div>
+              </>
+            )}
             {lastReading != null && (
               <div className="tiny muted num">
                 last reading {lastReading.kg.toFixed(2)} kg · {formatShort(lastReading.date)}
@@ -196,9 +224,11 @@ export default function Body({
             <div
               className={`stat-value num ${rate == null ? '' : rate < 0 ? 'delta-good' : rate > 0 ? 'delta-bad' : ''}`}
             >
-              {rate != null ? `${rate > 0 ? '+' : ''}${rate.toFixed(2)}` : '—'}
+              {rate != null ? `${rate > 0 ? '+' : ''}${rate.toFixed(2)}` : paused ? 'paused' : '—'}
             </div>
-            <div className="tiny muted">kg / week · last {RATE_WINDOW_DAYS / 7} wk</div>
+            <div className="tiny muted">
+              {paused ? 'trip · back soon' : `kg / week · last ${RATE_WINDOW_DAYS / 7} wk`}
+            </div>
           </div>
         </div>
       </div>
@@ -217,7 +247,18 @@ export default function Body({
             off: p.off,
           }))}
           goal={settings.goalWeightKg}
+          estimate={estimate?.map((p) => ({ ...p, label: formatShort(p.date) }))}
         />
+        {backHome && estimateNow && latest && (
+          <div className="small secondary">
+            Estimate from the trip: <strong className="num">{estimateNow.kg.toFixed(1)} kg</strong>.{' '}
+            {Math.abs(latest.trend - estimateNow.kg) <= estimateNow.sd
+              ? 'The scale agrees with it.'
+              : latest.trend > estimateNow.kg
+                ? `The scale reads ${(latest.trend - estimateNow.kg).toFixed(1)} kg more, most likely water from travel. It fades in about a week.`
+                : `The scale reads ${(estimateNow.kg - latest.trend).toFixed(1)} kg less than the log predicted.`}
+          </div>
+        )}
         {projection && (
           <div className="small secondary">
             At this rate you reach {settings.goalWeightKg} kg around{' '}
@@ -423,6 +464,7 @@ function pastTrend(points: { date: string; trend: number }[], days: number): num
 }
 
 function WeighInSheet({ onClose, toast }: { onClose: () => void; toast: (m: string) => void }) {
+  const tripSettings = useLiveQuery(() => db.settings.get('settings'), [])
   const [date, setDate] = useState(todayISO())
   const [kg, setKg] = useState('')
   const [bfp, setBfp] = useState('')
@@ -524,7 +566,8 @@ function WeighInSheet({ onClose, toast }: { onClose: () => void; toast: (m: stri
             date,
             kg: value,
             bodyFatPct: bfp ? parseFloat(bfp) : existing?.bodyFatPct,
-            offProtocol: offProtocol || undefined,
+            // Away, it is another scale under other conditions: kept, not trended.
+            offProtocol: offProtocol || inTrip(tripSettings?.trips, date) || undefined,
             afterStool,
           }
           if (existing?.id != null) await db.weighIns.update(existing.id, patch)

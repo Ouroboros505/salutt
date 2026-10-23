@@ -86,7 +86,7 @@ export default function Train({
   )
 
   const blockWeeks = settings.programWeeks ?? 8
-  const week = programWeek(settings.programStartDate, todayISO())
+  const week = programWeek(settings.programStartDate, todayISO(), settings.trips)
 
   return (
     <div className="screen">

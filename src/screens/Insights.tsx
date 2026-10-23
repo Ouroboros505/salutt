@@ -3,16 +3,16 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Settings } from '../db/db'
 import { addDays, formatShort, todayISO } from '../lib/date'
 import {
-  adaptiveTDEE,
+  rulesFor,
   ageFrom,
   bmrMifflin,
   computeTargets,
   KCAL_PER_KG,
   trendSlopeKgPerWeek,
-  usualActivity,
   weightTrend,
   goalPerWeek,
 } from '../lib/metrics'
+import { settingsOn, tripSettling } from '../lib/trip'
 import { BarChart } from '../components/charts'
 import { Segmented } from '../components/ui'
 
@@ -32,14 +32,13 @@ export default function Insights({ settings }: { settings: Settings }) {
 
   const trend = weightTrend(weighIns, settings.trendHalfLifeDays)
   const currentKg = trend.at(-1)?.trend ?? null
-  const tdee = adaptiveTDEE(entries, trend)
-  const targets = computeTargets(settings, currentKg, tdee)
-  const rate = trendSlopeKgPerWeek(trend)
+  const { adaptive: tdee, usual } = rulesFor(settings, trend, entries, workouts, todayISO())
+  const targets = computeTargets(settingsOn(settings, todayISO()), currentKg, tdee)
+  const rate = tripSettling(settings.trips, todayISO()) ? null : trendSlopeKgPerWeek(trend, undefined, settings.trips)
   // Maintenance is an average day, rides and gym included. Taking the usual
   // logged activity back out gives the quiet day, which is what a trip or a
   // week off the bike actually burns. Only once the activity is fully trusted:
   // a half-logged window would subtract too little and flatter the rest day.
-  const usual = usualActivity(workouts, todayISO())
   const restDay = tdee && usual && usual.trust >= 1 ? Math.round(tdee.kcal - usual.mean) : null
 
   const formulaTDEE = currentKg

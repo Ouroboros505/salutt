@@ -2,6 +2,7 @@ import { db, type Settings, type WeighIn } from '../db/db'
 import { todayISO } from './date'
 import { ageFrom } from './metrics'
 import { bodyComposition } from './bodyComp'
+import { inTrip } from './trip'
 import type { ScaleReading } from './scale'
 
 /**
@@ -34,7 +35,8 @@ export async function saveReading(
 
   const row: WeighIn & { updatedAt?: number } = {
     ...(existing?.id ? { id: existing.id } : {}),
-    offProtocol: offProtocol || undefined,
+    // Away, it is another scale under other conditions: kept, not trended.
+    offProtocol: offProtocol || inTrip(settings.trips, date) || undefined,
     afterStool,
     date,
     kg: r.kg,

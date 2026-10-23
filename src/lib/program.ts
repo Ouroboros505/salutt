@@ -1,3 +1,5 @@
+import type { Trip } from '../db/db'
+import { tripDaysIn } from './trip'
 /**
  * The training plan, as something to log against rather than obey.
  *
@@ -668,15 +670,19 @@ export const WEEK: DayPlan[] = [
 const IN_WEEK = new Set(WEEK.flatMap((d) => d.exercises))
 for (const ex of CATALOGUE) ex.planned = IN_WEEK.has(ex.name)
 
-/** Which week of the block a date falls in, 1-based; null if before it starts. */
-export function programWeek(startISO: string | undefined, dateISO: string): number | null {
+/**
+ * Which week of the block a date falls in, 1-based; null if before it starts.
+ * Days away do not count: two weeks without a gym are not two weeks of the block.
+ */
+export function programWeek(startISO: string | undefined, dateISO: string, trips?: Trip[]): number | null {
   if (!startISO) return null
   const [ys, ms, ds] = startISO.split('-').map(Number)
   const [yd, md, dd] = dateISO.split('-').map(Number)
   const start = Date.UTC(ys, ms - 1, ds)
   const day = Date.UTC(yd, md - 1, dd)
   if (day < start) return null
-  return Math.floor((day - start) / (7 * 86400000)) + 1
+  const away = tripDaysIn(trips, startISO, dateISO)
+  return Math.floor(((day - start) / 86400000 - away) / 7) + 1
 }
 
 /**

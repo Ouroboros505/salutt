@@ -97,7 +97,7 @@ export default function RideSheet({
   const settings = useLiveQuery(() => db.settings.get('settings'), []) ?? DEFAULT_SETTINGS
   const weighIns = useLiveQuery(() => db.weighIns.orderBy('date').toArray(), []) ?? []
   const entries = useLiveQuery(() => db.entries.toArray(), []) ?? []
-  const adaptive = adaptiveTDEE(entries, weightTrend(weighIns, settings.trendHalfLifeDays))
+  const adaptive = adaptiveTDEE(entries, weightTrend(weighIns, settings.trendHalfLifeDays), undefined, undefined, settings.trips)
   const anchored = !!adaptive && adaptive.confidence !== 'low'
 
   const pick = (r: Route) => {

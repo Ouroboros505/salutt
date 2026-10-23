@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { db, saveSettings, type Settings as S } from '../db/db'
+import { db, saveSettings, type Settings as S, type Trip } from '../db/db'
+import { addDays, todayISO } from '../lib/date'
 import { exportBackup, importBackup } from '../lib/backup'
 import { ageFrom, bmrMifflin, computeTargets } from '../lib/metrics'
 import { Field, Icon, Sheet } from '../components/ui'
@@ -299,6 +300,61 @@ export default function Settings({
             {Math.round(bmrMifflin(s.startWeightKg, s.heightCm, ageFrom(s.birthDate), s.sex))} kcal.
           </div>
         )}
+      </div>
+
+      {/* ------------------------------------------------ trips */}
+      {/* Only the dates live here. What a trip changes shows on Today and
+          Body while it lasts, and nowhere once it is over. */}
+      <div className="card tight">
+        <h3>Trips</h3>
+        {(s.trips ?? []).map((t, i) => {
+          const set = (p: Partial<Trip>) =>
+            patch({ trips: (s.trips ?? []).map((x, j) => (j === i ? { ...x, ...p } : x)) })
+          return (
+            <div key={i} className="stack tight">
+              <div className="grid-2">
+                <Field label="Leave">
+                  <input type="date" value={t.from} onChange={(e) => e.target.value && set({ from: e.target.value })} />
+                </Field>
+                <Field label="Back (last day away)">
+                  <input type="date" value={t.to} onChange={(e) => e.target.value && set({ to: e.target.value })} />
+                </Field>
+              </div>
+              <div className="row between" style={{ alignItems: 'flex-end' }}>
+                <Field label="Under the day's burn (kcal)" hint="0 holds weight">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    step="50"
+                    value={t.deficitKcal}
+                    onChange={(e) => set({ deficitKcal: Math.max(0, num(e.target.value) ?? 0) })}
+                  />
+                </Field>
+                <button
+                  className="btn ghost sm"
+                  onClick={() => patch({ trips: (s.trips ?? []).filter((_, j) => j !== i) })}
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          )
+        })}
+        <button
+          className="btn ghost sm"
+          onClick={() =>
+            patch({
+              trips: [...(s.trips ?? []), { from: todayISO(), to: addDays(todayISO(), 13), deficitKcal: 200 }],
+            })
+          }
+        >
+          <Icon.plus /> Add a trip
+        </button>
+        <div className="tiny muted">
+          Away, the target is the day's burn less this, and your weight is estimated from what you log.
+          The trip's days stay out of maintenance and the usual day, so two weeks without the bike do
+          not lower your targets once you are back.
+        </div>
       </div>
 
       {/* ------------------------------------------------ food databases */}

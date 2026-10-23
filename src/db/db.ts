@@ -394,6 +394,15 @@ export interface PlannedMeal {
   createdAt: number
 }
 
+export interface Trip {
+  /** First day away, inclusive. */
+  from: ISODate
+  /** Last day away, inclusive. */
+  to: ISODate
+  /** Below the day's burn while away, in kcal. Zero holds weight. */
+  deficitKcal: number
+}
+
 export interface Settings {
   id: string
   sex: 'male' | 'female'
@@ -459,6 +468,15 @@ export interface Settings {
    * actually done rather than being decided here.
    */
   boxMode?: 'share' | 'weighed' | 'hand'
+  /**
+   * Trips away from home: no bike, no gym, food cooked by someone else.
+   *
+   * Each asks for a softer deficit while it lasts, and keeps its days out of
+   * the windows that measure maintenance and the usual day, which two weeks
+   * without riding and a week of travel water would otherwise drag down for
+   * two months after landing.
+   */
+  trips?: Trip[]
   /** Monday of week 1 of the current training block, for the change reminder. */
   programStartDate?: ISODate
   /** How many weeks to run a block before prompting a rethink. */

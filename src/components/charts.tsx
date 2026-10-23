@@ -99,15 +99,18 @@ export interface TrendDatum {
  * the actual signal. Two marks, so the legend is always present.
  */
 export function TrendChart({
-  data,
+  data: readings,
   height = 170,
   unit = 'kg',
   goal,
+  estimate,
 }: {
   data: TrendDatum[]
   height?: number
   unit?: string
   goal?: number
+  /** Weight worked out from the food log while away, with its doubt. */
+  estimate?: { date: string; label: string; kg: number; sd: number }[]
 }) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const [tip, setTip] = useState<(Tip & { i: number }) | null>(null)
@@ -123,6 +126,16 @@ export function TrendChart({
     return () => document.removeEventListener('pointerup', clear)
   }, [clear])
 
+  // The days away have no reading and still need a place on the axis, so the
+  // estimate's mornings join the readings as days without a trend.
+  const est = estimate ?? []
+  const estBy = new Map(est.map((e) => [e.date, e]))
+  const seen = new Set(readings.map((d) => d.date))
+  const data: TrendDatum[] = [
+    ...readings,
+    ...est.filter((e) => !seen.has(e.date)).map((e) => ({ date: e.date, label: e.label, trend: NaN })),
+  ].sort((a, b) => a.date.localeCompare(b.date))
+
   if (data.length === 0 || width === 0) {
     return (
       <div ref={ref} style={{ minHeight: height }}>
@@ -131,7 +144,10 @@ export function TrendChart({
     )
   }
 
-  const values = data.flatMap((d) => [d.trend, ...(d.raw != null ? [d.raw] : [])])
+  const values = [
+    ...data.flatMap((d) => [...(Number.isFinite(d.trend) ? [d.trend] : []), ...(d.raw != null ? [d.raw] : [])]),
+    ...est.flatMap((e) => [e.kg - e.sd, e.kg + e.sd]),
+  ]
   let lo = Math.min(...values)
   let hi = Math.max(...values)
   const span = hi - lo || 1
@@ -155,7 +171,25 @@ export function TrendChart({
   const X = (i: number) => padL + (n === 1 ? iw / 2 : (i / (n - 1)) * iw)
   const Y = (v: number) => padT + ih - ((v - lo) / (hi - lo)) * ih
 
-  const trendPath = data.map((d, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(d.trend).toFixed(1)}`).join('')
+  const withTrend = data.map((d, i) => ({ d, i })).filter(({ d }) => Number.isFinite(d.trend))
+  const trendPath = withTrend
+    .map(({ d, i }, k) => `${k ? 'L' : 'M'}${X(i).toFixed(1)},${Y(d.trend).toFixed(1)}`)
+    .join('')
+  const lastTrend = withTrend.at(-1) ?? { d: data[n - 1], i: n - 1 }
+  const estAt = data.flatMap((d, i) => {
+    const e = estBy.get(d.date)
+    return e ? [{ e, i }] : []
+  })
+  const estPath = estAt.map(({ e, i }, k) => `${k ? 'L' : 'M'}${X(i).toFixed(1)},${Y(e.kg).toFixed(1)}`).join('')
+  const estBand =
+    estAt.length > 1
+      ? estAt.map(({ e, i }, k) => `${k ? 'L' : 'M'}${X(i).toFixed(1)},${Y(e.kg + e.sd).toFixed(1)}`).join('') +
+        [...estAt]
+          .reverse()
+          .map(({ e, i }) => `L${X(i).toFixed(1)},${Y(e.kg - e.sd).toFixed(1)}`)
+          .join('') +
+        'Z'
+      : ''
   const ticks = niceTicks(lo, hi, 4)
 
   // Label the first, last and roughly middle date only — never every point.
@@ -174,13 +208,15 @@ export function TrendChart({
       }
     }
     const d = data[best]
+    const estimated = estBy.get(d.date)
     setTip({
       i: best,
       x: X(best),
-      y: Y(d.trend),
+      y: Y(Number.isFinite(d.trend) ? d.trend : (estimated?.kg ?? d.raw ?? 0)),
       lines: [
         d.label,
-        `Trend ${d.trend.toFixed(1)} ${unit}`,
+        ...(Number.isFinite(d.trend) ? [`Trend ${d.trend.toFixed(1)} ${unit}`] : []),
+        ...(estimated ? [`Estimated ${estimated.kg.toFixed(1)} ± ${estimated.sd.toFixed(1)} ${unit}`] : []),
         ...(d.raw != null ? [`Scale ${d.raw.toFixed(2)} ${unit}`] : []),
         ...(d.off ? ['Not counted in the trend'] : []),
       ],
@@ -194,7 +230,7 @@ export function TrendChart({
         width={width}
         height={height}
         role="img"
-        aria-label={`Weight trend, ${data.length} weigh-ins, latest ${data[n - 1].trend.toFixed(1)} ${unit}`}
+        aria-label={`Weight trend, ${readings.length} weigh-ins, latest ${lastTrend.d.trend.toFixed(1)} ${unit}`}
         onPointerDown={pick}
         onPointerMove={pick}
         onPointerLeave={clear}
@@ -251,10 +287,29 @@ export function TrendChart({
           opacity={0.7}
         />
 
+        {/* While away: the log's estimate, dotted in another colour so it
+            never passes for the scale, inside the band it could be off by. */}
+        {estBand && <path d={estBand} fill="var(--series-2)" opacity={0.12} />}
+        {estPath && (
+          <path
+            d={estPath}
+            fill="none"
+            stroke="var(--series-2)"
+            strokeWidth={1.6}
+            strokeDasharray="1.5 3"
+            strokeLinecap="round"
+          />
+        )}
+        {estAt.length > 0 && (
+          <text x={X(estAt[0].i)} y={padT + 8} textAnchor="middle" fill="var(--series-2)">
+            ✈
+          </text>
+        )}
+
         {/* The end of the fit, small, so the line has somewhere to stop. */}
         <circle
-          cx={X(n - 1)}
-          cy={Y(data[n - 1].trend)}
+          cx={X(lastTrend.i)}
+          cy={Y(lastTrend.d.trend)}
           r={2.6}
           fill="var(--series-1)"
           opacity={0.7}
@@ -328,6 +383,23 @@ export function TrendChart({
           </svg>
           Daily reading
         </span>
+        {est.length > 0 && (
+          <span>
+            <svg width="14" height="8" aria-hidden="true">
+              <line
+                x1="0"
+                y1="4"
+                x2="14"
+                y2="4"
+                stroke="var(--series-2)"
+                strokeWidth="1.6"
+                strokeDasharray="1.5 3"
+                strokeLinecap="round"
+              />
+            </svg>
+            Estimated from your log
+          </span>
+        )}
         {data.some((d) => d.off) && (
           <span>
             <svg width="12" height="8" aria-hidden="true">

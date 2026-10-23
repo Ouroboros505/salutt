@@ -16,10 +16,9 @@ import {
   ZERO,
   type PastMeal,
 } from '../db/ops'
-import { addDays, formatDay, formatShort, todayISO, startOfWeek } from '../lib/date'
+import { addDays, daysBetween, formatDay, formatShort, todayISO, startOfWeek } from '../lib/date'
 import { addBottle as addBottleFor, bottleMlOf } from '../lib/water'
 import {
-  adaptiveTDEE,
   ageFrom,
   bmrMifflin,
   fatBudget,
@@ -28,11 +27,14 @@ import {
   computeTargets,
   dayEnergy,
   gramsFromKcal,
+  goalPerWeek,
   progressSoFar,
   rulesAsOf,
-  usualActivity,
+  rulesFor,
+  tripEstimate,
   weightTrend,
 } from '../lib/metrics'
+import { settingsOn, tripOn } from '../lib/trip'
 import { Icon, Meter, Sheet } from '../components/ui'
 import AddFood from '../components/AddFood'
 import CopyDay from '../components/CopyDay'
@@ -157,9 +159,14 @@ export default function Today({
       () => db.plannedMeals.where('date').belowOrEqual(date).sortBy('date'),
       [date],
     ) ?? []
-  const adaptive = adaptiveTDEE(allEntries, trend)
+  // Away, and for a fortnight after, these are the figures from before leaving.
+  const { adaptive, usual } = rulesFor(settings, trend, allEntries, allWorkouts, date)
   const todayActivity = workouts.reduce((t, w) => t + (w.kcal ?? 0), 0)
-  const usual = usualActivity(allWorkouts, date)
+  // A trip's softer deficit, on its days only.
+  const daySettings = settingsOn(settings, date)
+  const trip = tripOn(settings.trips, date)
+  const estimate = trip ? tripEstimate(settings, trip, trend, allEntries, allWorkouts, todayISO()) : null
+  const estimateToday = estimate?.find((p) => p.date === date) ?? null
   const meanIntake = adaptive?.meanIntake ?? null
   const maintenance = adaptive && adaptive.confidence !== 'low' ? adaptive.kcal : null
   /**
@@ -177,14 +184,14 @@ export default function Today({
     const e = currentKg
       ? dayEnergy(settings, currentKg, intakeKcal, todayActivity + extraActivityKcal, maintenance, usual, meanIntake)
       : null
-    return computeTargets(settings, currentKg, adaptive, e)
+    return computeTargets(daySettings, currentKg, adaptive, e)
   }
   // Computed whenever there is a weight, whether or not it is trusted enough
   // to move the target — seeing the day's arithmetic is the point of it.
   const liveEnergy = currentKg
     ? dayEnergy(settings, currentKg, totals.kcal, todayActivity, maintenance, usual, meanIntake)
     : null
-  const liveTargets = computeTargets(settings, currentKg, adaptive, liveEnergy)
+  const liveTargets = computeTargets(daySettings, currentKg, adaptive, liveEnergy)
   const isToday = date === todayISO()
   /**
    * A past day is judged by the rules it had, on the food it actually holds.
@@ -353,6 +360,13 @@ export default function Today({
         </button>
       </div>
 
+      {trip && (
+        <div className="small secondary" style={{ textAlign: 'center' }}>
+          ✈ Travelling · day {daysBetween(trip.from, date) + 1} of {daysBetween(trip.from, trip.to) + 1}
+          {trip.deficitKcal > 0 ? ` · ${trip.deficitKcal} under the day's burn` : ' · holding weight'}
+        </div>
+      )}
+
       {/* ------------------------------------------------------ calories */}
       <div className="card">
         <div className="row between" style={{ alignItems: 'flex-end' }}>
@@ -468,7 +482,8 @@ export default function Today({
                 than a trend value, so do not call it one. */}
             {progress.fromKg.toFixed(2)} → {progress.toKg.toFixed(2)} kg ·{' '}
             {((progress.changeKg / progress.days) * 7).toFixed(2)} kg/week on average against{' '}
-            {Math.round(targets.goalKgPerWeek * 100) / 100} planned
+            {/* The long-run plan, not a trip's softer day. */}
+            {Math.round((trip ? goalPerWeek(settings, currentKg ?? 0) : targets.goalKgPerWeek) * 100) / 100} planned
           </div>
           {!progress.settled && (
             <div className="tiny muted">
@@ -814,6 +829,13 @@ export default function Today({
             <div className="stat-value num">
               {todayWeight.kg.toFixed(2)} <span className="hero-unit">kg</span>
             </div>
+          ) : estimateToday ? (
+            <>
+              <div className="stat-value num">
+                ≈ {estimateToday.kg.toFixed(1)} <span className="hero-unit">kg</span>
+              </div>
+              <div className="tiny muted">estimated from your log</div>
+            </>
           ) : (
             <div className="small muted">{isToday ? 'Not weighed today' : 'No weigh-in'}</div>
           )}
